@@ -1,53 +1,43 @@
-# DuetLapse
-Time Lapse camera support for Duet based 3D printers.
+# DuetLapse3
 
-Designed to run on a Raspberry Pi, may be adaptable to other platforms. Supports cameras via USB, Pi (ribbon cable), and Webcam.  May support DSLR triggering in the future. Produces a video with H.264 encoding in an MP4 container. Does not, at this time, manage a library of videos, it simply drops the vid in home directory. 
+##This is a modified version of the original DuetLapse created by Danal Estes
 
-Triggers images based on time, layer change, or pause.  Works with existing pauses in G-Code, or can force pauses at other trigger events. Optionally moves head to a specified position before capturing paused images. 
+The modifications include:
+- [1] Added functionality
+- [2] Removal of dependency on DuetWebAPI.py by Danal Estes - now a single Python3 script
+- [3] Support for streaming video feeds
+- [4] More generalized MP4 output that can be displayed on ipad / iphone etc.
+- [?] SUpport for Windows
 
-## Status
+##General Description
+Provides the ability to generate time lapse videos from for Duet based 3D printers.
 
-As of April 14, 2020, moving to Beta test status.  I believe the Alpha testers have helped clear out the funadmental issues, thank you for your feedback. ~~As of April 2, 2020, ready for Alpha testing.~~ Feedback via issues on Github or at Duet forum https://forum.duet3d.com/
+Designed and tested on Raspberry Pi but should work on other linux platform. Supports cameras via
+- [1] USB,
+- [2] Pi (ribbon cable)
+- [3] Webcam delivering streaming video
+- [4] Webcam delivering still images
 
+Produces a video with H.264 encoding in an MP4 container. 
 
+Captures images based on time, layer change, or pause.  Works with existing pauses in G-Code, or can force pauses at other trigger events. Optionally moves head to a specified position before capturing paused images.
+
+Feedback via issues on Duet forum https://forum.duet3d.com/
 Status of Features.  Unchecked features are planned, coming soon:
-
-Cameras:
-- [X] USB Cam
-- [X] Web Cam
-- [X] Pi Cam
-- [ ] DSLR Cam via USB
-- [ ] GPIO pin to trigger any kind of camera
-
-Other Features:
-- [X] Detect Layer change
-- [X] Intervals in seconds
-- [ ] Detect Pauses
-- [X] Force Pauses
-- [X] Position Head during Pauses
-- [X] Video output in H264 MP4
-- [X] Unique names for Videos
-- [ ] Add a timestamp in one corner of vid. Analog or Digital? Or option. 
-- [ ] While gathering stills, skip frames that cause errors, without terminating entire script. 
-- [ ] Run in a daemon like status, supporting multiple print jobs, one after another. 
-- [X] Allow override of command line switches for still capture programs. (fswebcam, raspistill, wget)
-- [X] Allow override of command line switches for ffmpeg 
 
 ## Installation
 * mkdir DuetLapse
 * cd DuetLapse
-* wget https://raw.githubusercontent.com/DanalEstes/DuetLapse/master/DuetLapse.py
+* wget https://raw.githubusercontent.com/stuartofmt/DuetLapse/master/DuetLapse3.py
 * chmod 744 DuetLapse.py
-* wget https://raw.githubusercontent.com/DanalEstes/DuetWebAPI/master/DuetWebAPI.py
 
 
-## Corequisites 
+## Requirements 
 
-* Python3 (already installed on most Pi images)
-* Duet printer must be RRF V2, RRF V3, or RRF V3 + Pi
-* May run on, but NOT required to run on, the printer's Pi in a RRF V3 + Pi configuration
+* Python3
+* Duet printer must be RRF V3 (support the rr_model calls)
+* ffmped version 4.x (this may need to be compiled if your system has an older version as standard)
 * Duet printer must be reachable via network
-* ffmpeg (always)
 * Depending on camera type, one of
   * fswebcam (for USB cameras)
   * raspistill (for Pi cam or Ardu cam)
@@ -55,32 +45,20 @@ Other Features:
   
 ## Usage
 
-Start the script, usually *./DuetLapse \[options\]*, before starting a print.  It will connect to the printer and wait for the printer to change status from "Idle" to "Processing" and then begin capturing still images per the flag settings.  When the printer then goes "idle" again (i.e. end of print), it will process the still images into a video. 
+The python script can be started from the command line or, more usually, from a bash or similar script (see example bash script here  ).  Although there are defaults for many of the options - it's unlikely that the script will do anything useful with just the defaults.
+The script will usually be started you starting a printing - but this is not critical.  Depending on options (e.g. dontwait) it will either imeediately start creating still images or wait until the printer changes status from "Idle" to "Processing".  At the end of the print job the script combines the still images into a mp4 video to create the time lapse.  If the script is run in foreground it can be stopped (before the print job completes) using CTl+C.  If the script is run in background it can be stopped using SIGINT (kill -2 <pid> in linux).  The example bash script gives an example of using SIGINT. 
 
-```
-usage: DuetLapse.py [-h] -duet DUET [-camera {usb,pi,web,dslr}]
-                    [-seconds SECONDS] [-detect {layer,pause,none}]
-                    [-pause {yes,no}] [-movehead MOVEHEAD MOVEHEAD]
-                    [-weburl WEBURL] [-dontwait]
-                    {camparms,vidparms} ...
+###Options###
 
-Program to create time lapse video from camera pointed at Duet3D based
-printer.
+####-duet####
 
-optional arguments:
-  -h, --help            show this help message and exit
-  -duet DUET            Name or IP address of Duet printer.
-  -camera {usb,pi,web,dslr}
-  -seconds SECONDS
-  -detect {layer,pause,none}
-  -pause {yes,no}
-  -movehead MOVEHEAD MOVEHEAD
-  -weburl WEBURL
-  -dontwait             Capture images immediately.
+*-duet <ip address>*  This is a required.  The parameter <ip address> is the network location of your duet printer.  It can be given as a hostname or an explicit ip.
+ example -duet 192.168.1.10 or -duet localhost or -duet myduetprinter.local.   As a simple test - a browser shoul be able to access Duet Web Controller using http://<ip address>
 
-subcommands:
-  {camparms,vidparms}   DuetLapse camparms -h or vidparms -h for more help
-```
+
+###Directory Structure###
+
+The directory structure is as follows
 
 ## Usage Notes
 
