@@ -4,7 +4,7 @@
 
 The modifications include:
 - [1] Added functionality
-- [2] Removal of dependency on DuetWebAPI.py by Danal Estes - now a single Python3 script
+- [2] Removal of dependency on DuetWebAPI.py by Danal Estes.  DuetLapse3.py is a standalone Python3 script
 - [3] Support for streaming video feeds
 - [4] More generalized MP4 output that can be displayed on ipad / iphone etc.
 - [?] SUpport for Windows
@@ -28,7 +28,7 @@ Status of Features.  Unchecked features are planned, coming soon:
 ## Installation
 * mkdir DuetLapse
 * cd DuetLapse
-* wget https://raw.githubusercontent.com/stuartofmt/DuetLapse/master/DuetLapse3.py
+* wget https://raw.githubusercontent.com/stuartofmt/DuetLapse3/master/DuetLapse3.py
 * chmod 744 DuetLapse.py
 
 
@@ -37,6 +37,7 @@ Status of Features.  Unchecked features are planned, coming soon:
 * Python3
 * Duet printer must be RRF V3 (support the rr_model calls)
 * ffmped version 4.x (this may need to be compiled if your system has an older version as standard)
+* Python libraries will be called out by the script if not present
 * Duet printer must be reachable via network
 * Depending on camera type, one of
   * fswebcam (for USB cameras)
@@ -60,9 +61,10 @@ The script will usually be started you starting a printing - but this is not cri
 
 The directory structure organized to allow multiple instances of DuetLapse3 to keep files separate.  
 
-**basedir/**                This is set by the -basedir option
+**basedir/**
         **<duet address>/**   
                       **tmp/**
+ 
 **<duet address>** is derived from the -duet option.  Periods are replaced by a dash for example -duet 192.168.1.10 creates the sub directory 192-168-1-10, -duet myduet.local becomes myduet-local.
  The <duet address> subdirectory contains the resultant video files as well as a log file *DuetLapse3.log* relating to the specific printer.  The video files are named according to this scheme  "TimeLapse-Day-Hour:Min.mp4"  e.g  Timelapse-Thur-22:31.mp4
 **tmp** is used to capture the still images for the printer. It is cleared out at the *start* of each capture.  This way - if anything goes wrong with the video creation a command line use of ffmpeg can be used to attempt recovery.  
