@@ -62,11 +62,11 @@ The script will usually be started you starting a printing - but this is not cri
 The directory structure organized to allow multiple instances of DuetLapse3 to keep files separate.  
 ```
 basedir/
-       <duet address>/   
-                      tmp/
+       duet-address/   
+                    tmp/
 ``` 
-**<duet address>** is derived from the -duet option.  Periods are replaced by a dash for example -duet 192.168.1.10 creates the sub directory 192-168-1-10, -duet myduet.local becomes myduet-local.
- The <duet address> subdirectory contains the resultant video files as well as a log file *DuetLapse3.log* relating to the specific printer.  The video files are named according to this scheme  "TimeLapse-Day-Hour:Min.mp4"  e.g  Timelapse-Thur-22:31.mp4
+**duet-address** is derived from the -duet option.  Periods are replaced by a dash for example -duet 192.168.1.10 creates the sub directory 192-168-1-10, -duet myduet.local becomes myduet-local.
+The duet-address subdirectory contains the video files as well as a log file *DuetLapse3.log* relating to the specific printer.  The video files are named according to this scheme  "TimeLapse-Day-Hour:Min.mp4"  e.g  Timelapse-Thur-22:31.mp4
 **tmp** is used to capture the still images for the printer. It is cleared out at the *start* of each capture.  This way - if anything goes wrong with the video creation a command line use of ffmpeg can be used to attempt recovery.  
  
 
