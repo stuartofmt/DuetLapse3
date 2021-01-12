@@ -54,10 +54,10 @@ The script will usually be started you starting a printing - but this is not cri
 
 ### Options
 
-#### -duet
+#### -duet {ip address}
 
-**-duet {ip address}**  This is a required option.  The parameter {ip address} is the network location of your duet printer.  It can be given as a hostname or an explicit ip.
- example -duet 192.168.1.10 or -duet localhost or -duet myduetprinter.local.   As a simple test - a browser shoul be able to access Duet Web Controller using http://<ip addreinstances
+This is a required option.  The parameter {ip address} is the network location of your duet printer.  It can be given as a hostname or an explicit ip.
+example -duet 192.168.1.10 or -duet localhost or -duet myduetprinter.local.   As a simple test - a browser shoul be able to access Duet Web Controller using http://<ip addreinstances
 
 #### -basedir
 
