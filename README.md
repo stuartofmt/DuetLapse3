@@ -1,13 +1,18 @@
 # DuetLapse3
 
 ## This is a modified version of the original DuetLapse created by Danal Estes
+## The bulk of the functionality is his work.
 
 The modifications include:
-- [1] Added functionality
-- [2] Removal of dependency on DuetWebAPI.py by Danal Estes.  DuetLapse3.py is a standalone Python3 script
-- [3] Support for streaming video feeds
-- [4] More generalized MP4 output that can be displayed on ipad / iphone etc.
-- [?] SUpport for Windows
+- [1] Removal of dependency on DuetWebAPI.py (by Danal Estes).  DuetLapse3.py is a standalone Python3 script
+- [2] Added support for 2 cameras
+- [3] Reorganized Directory Structure to allow logical separation of files (by printer)
+- [4] Added configurable base directory 
+- [5] Added logfile support
+- [6] Added verbose option
+- [7] Added control over multiple instances
+- [8] Added ability to gracefully terminate when executing in background
+- [9] Added ability to extend the video duration of the last image
 
 ## General Description
 Provides the ability to generate time lapse videos from for Duet based 3D printers.
@@ -23,7 +28,6 @@ Produces a video with H.264 encoding in an MP4 container.
 Captures images based on time, layer change, or pause.  Works with existing pauses in G-Code, or can force pauses at other trigger events. Optionally moves head to a specified position before capturing paused images.
 
 Feedback via issues on Duet forum https://forum.duet3d.com/
-Status of Features.  Unchecked features are planned, coming soon:
 
 ## Installation
 * mkdir DuetLapse
@@ -35,7 +39,7 @@ Status of Features.  Unchecked features are planned, coming soon:
 ## Requirements 
 
 * Python3
-* Duet printer must be RRF V3 (support the rr_model calls)
+* **Duet printer must be RRF V3 or later (i.e. support the rr_model calls)
 * ffmped version 4.x (this may need to be compiled if your system has an older version as standard)
 * Python libraries will be called out by the script if not present
 * Duet printer must be reachable via network
@@ -54,7 +58,42 @@ The script will usually be started you starting a printing - but this is not cri
 #### -duet
 
 **-duet <ip address>**  This is a required.  The parameter <ip address> is the network location of your duet printer.  It can be given as a hostname or an explicit ip.
- example -duet 192.168.1.10 or -duet localhost or -duet myduetprinter.local.   As a simple test - a browser shoul be able to access Duet Web Controller using http://<ip address>
+ example -duet 192.168.1.10 or -duet localhost or -duet myduetprinter.local.   As a simple test - a browser shoul be able to access Duet Web Controller using http://<ip addreinstances
+
+#### -basedir
+
+#### -instances
+
+#### -logtype
+
+#### -verbose
+
+#### -dontwait
+
+#### -seconds
+
+#### -detect
+
+#### -pause
+
+#### -movehead
+
+#### -extratime
+
+#### -camera1
+
+#### -weburl1
+
+#### -camera2
+
+#### -webur2
+
+#### -camparam1
+
+#### -vidparam1
+
+#### -camera 2, weburl2, camparam2 and vidparam2
+Allows for a second camera to be defined.  There is no default type.  If used the same requirements as camera 1 apply.
 
 
 ### Directory Structure
