@@ -54,6 +54,11 @@ The script will usually be started you starting a printing - but this is not cri
 
 ### Options
 
+Options can be viewed with
+'''
+DuetLapse3.py -h
+'''
+
 #### -duet {ip address}
 
 This is a required option.  The parameter {ip address} is the network location of your duet printer.  It can be given as a hostname or an explicit ip.
