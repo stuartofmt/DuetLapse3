@@ -29,17 +29,10 @@ Captures images based on time, layer change, or pause.  Works with existing paus
 
 Feedback via issues on Duet forum https://forum.duet3d.com/
 
-## Installation
-* mkdir DuetLapse
-* cd DuetLapse
-* wget https://raw.githubusercontent.com/stuartofmt/DuetLapse3/master/DuetLapse3.py
-* chmod 744 DuetLapse.py
-
-
 ## Requirements 
 
 * Python3
-* **Duet printer must be RRF V3 or later (i.e. support the rr_model calls)
+* [Duet printer must be RRF V3 or later (i.e. support the rr_model calls)]
 * ffmped version 4.x (this may need to be compiled if your system has an older version as standard)
 * Python libraries will be called out by the script if not present
 * Duet printer must be reachable via network
@@ -47,6 +40,12 @@ Feedback via issues on Duet forum https://forum.duet3d.com/
   * fswebcam (for USB cameras)
   * raspistill (for Pi cam or Ardu cam)
   * wget (for Web cameras)
+
+## Installation
+* mkdir DuetLapse
+* cd DuetLapse
+* wget https://raw.githubusercontent.com/stuartofmt/DuetLapse3/master/DuetLapse3.py
+* chmod 744 DuetLapse.py
   
 ## Usage
 
@@ -57,7 +56,7 @@ The script will usually be started you starting a printing - but this is not cri
 
 #### -duet
 
-**-duet <ip address>**  This is a required.  The parameter <ip address> is the network location of your duet printer.  It can be given as a hostname or an explicit ip.
+**-duet {ip address}**  This is a required option.  The parameter {ip address} is the network location of your duet printer.  It can be given as a hostname or an explicit ip.
  example -duet 192.168.1.10 or -duet localhost or -duet myduetprinter.local.   As a simple test - a browser shoul be able to access Duet Web Controller using http://<ip addreinstances
 
 #### -basedir
