@@ -32,7 +32,7 @@ Feedback via issues on Duet forum https://forum.duet3d.com/
 ## Requirements 
 
 * Python3
-* [Duet printer must be RRF V3 or later (i.e. support the rr_model calls)]
+* Duet printer must be RRF V3 or later (i.e. support the rr_model calls)
 * ffmped version 4.x (this may need to be compiled if your system has an older version as standard)
 * Python libraries will be called out by the script if not present
 * Duet printer must be reachable via network
