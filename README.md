@@ -55,9 +55,9 @@ The script will usually be started you starting a printing - but this is not cri
 ### Options
 
 Options can be viewed with
-'''
+```
 DuetLapse3.py -h
-'''
+```
 
 #### -duet {ip address}
 
