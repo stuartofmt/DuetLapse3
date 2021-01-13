@@ -61,34 +61,48 @@ DuetLapse3.py -h
 
 #### -duet {ip address}
 
-This is a required option.  The parameter {ip address} is the network location of your duet printer.  It can be given as a hostname or an explicit ip.
+This is a required option.  The parameter is the network location of your duet printer.  It can be given as a hostname or an explicit ip address.
+As a simple test - a browser should be able to access the Duet Web Controller using http://<ip address> from the same computer that is running DuetLapse3.py.
 **example**
--duet 192.168.1.10 or -duet localhost or -duet myduetprinter.local.
-As a simple test - a browser shoul be able to access Duet Web Controller using http://<ip addreinstances
+-duet 192.168.1.10     #Connect to the printer at 192.168.86.10
+-duet localhost        #Connect to the printer at localhost
 
 #### -basedir {full path name}
-If omitted - the default dir is the location of DuetLapse.py.  If supplied, do NOT put in a trailing slash /<br>
+If omitted - the default dir is the location of DuetLapse3.py.  This is the logical root for output files See Directory Structure (below).
+If supplied, do NOT put in a trailing slash /<br>
 **example**
--basedir /home/pi/mydirectory
+-basedir /home/pi/mydir  #output files start at /home/pi/mydir
 
 #### -instances {one||ip||none}
-If omitted - the default is none.
+If omitted - the default is none. Used to control the number of instances of DuetLapse3.py that can run simultaneously.
+In most cases the default will be suitable.
 **example**
 -instances one   #There can only be one instance of DuetLapse3.py running
 -instance ip     #For each printer (set by -duet),  there can only be one instance of DuetLapse3.py running
 
 #### -logtype {local||logfile||both}
-If omited - the default is local
+If omitted - the default is local
 **example**
 -logtype
 
 #### -verbose
 If omitted the default is False
 **example**
--verbose       #causes the output of system calls to be looged according to the setting of -logtype
-#### -dontwait
+-verbose       #Causes the output of system calls to be looged according to the setting of -logtype
 
-#### -seconds
+#### -poll {seconds}
+If omitted the default is 5 seconds.  This is the time between checking to see if am image needs to be captured.
+If -seconds (see below) is less than -poll then 
+
+#### -dontwait
+If omitted - the default is False
+**example**
+-dontwait    #Images will be captured immediately.  Does not wait for the printer to start.
+
+#### -seconds {seconds||0}
+If omitted the default is 0 seconds (i.e. disabled). Can be any positive number.
+**example**
+-seconds 10  #Images will be captures at least every 10 seconds
 
 #### -detect
 
@@ -111,7 +125,7 @@ If omitted the default is False
 #### -vidparam1
 
 #### -camera 2, weburl2, camparam2 and vidparam2
-Allows for a second camera to be defined.  There is no default type.  If used the same requirements as camera 1 apply.
+Allows for a second camera to be defined.  There is no default type.  If used the same requirements as camera1, weburl1, camparam1, invidparam1 outvidparam1 apply.
 
 
 ### Directory Structure
