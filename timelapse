@@ -1,4 +1,5 @@
 #! /bin/bash
+#Example bash script for running DuetLapse3.py
 
 PROCESS=/home/pi/Lapse/DuetLapse3.py
 
