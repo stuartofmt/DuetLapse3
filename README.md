@@ -4,15 +4,17 @@
 ## The bulk of the functionality is his work.
 
 The modifications include:
-- [1] Removal of dependency on DuetWebAPI.py (by Danal Estes).  DuetLapse3.py is a standalone Python3 script.
-- [2] Added support for 2 cameras
-- [3] Reorganized Directory Structure to allow logical separation of files (by printer)
-- [4] Added configurable base directory 
-- [5] Added logfile support
-- [6] Added verbose option
-- [7] Added control over multiple instances
-- [8] Added ability to gracefully terminate when executing in background
-- [9] Added ability to extend the video duration of the last image
+- [1]  Removal of dependency on DuetWebAPI.py (by Danal Estes).  DuetLapse3.py is a standalone Python3 script.
+- [2]  Added support for 2 cameras
+- [3]  Reorganized Directory Structure to allow logical separation of files (by printer)
+- [4]  Added configurable base directory 
+- [5]  Added logfile support
+- [6]  Added verbose option
+- [7]  Added control over multiple instances
+- [8]  Added ability to gracefully terminate when executing in background
+- [9]  Added ability to extend the video duration of the last image
+- [10] Generalized capture with Camera type "other" and arbitrary capture commands
+- [11] Generalized video creation with optional ffmpeg commands
 
 ## General Description
 Provides the ability to generate time lapse videos from for Duet based 3D printers.
@@ -60,7 +62,7 @@ DuetLapse3.py -h
 ```
 The options are described here.  Each option is preceded by a dash -. Some options have parameters described in the curly braces (the curley braces are NOT used in entering the options. If an option is not specified the default used.
 
-#### -duet {ip address}
+#### -duet [ip address]
 
 This is a required option.  The parameter is the network location of your duet printer.  It can be given as a hostname or an explicit ip address.
 As a simple test - a browser should be able to access the Duet Web Controller using http://<ip address> from the same computer that is running DuetLapse3.py.
