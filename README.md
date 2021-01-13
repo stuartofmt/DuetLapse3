@@ -67,7 +67,7 @@ This is a required option.  The parameter {ip address} is the network location o
 As a simple test - a browser shoul be able to access Duet Web Controller using http://<ip addreinstances
 
 #### -basedir {full path name}
-If omitted - the default dir is the location of DuetLapse.py.  If supplied, do NOT put in a trailing slash /
+If omitted - the default dir is the location of DuetLapse.py.  If supplied, do NOT put in a trailing slash /<br>
 **example**
 -basedir /home/pi/mydirectory
 
