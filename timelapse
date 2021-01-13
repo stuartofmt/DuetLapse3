@@ -1,0 +1,23 @@
+#! /bin/bash
+
+PROCESS=/home/pi/Lapse/DuetLapse3.py
+
+case "$1" in
+   start)
+#Edit and uncomment for your own needs
+#One camera example
+#      /usr/bin/python3 $PROCESS -duet 192.168.86.235 -camera1 stream -weburl1 http://192.168.86.230:8081/stream.mjpg -detect layer -seconds 10  -extratime 10 -instances oneip &
+#  Two camera example
+/usr/bin/python3 $PROCESS -duet 192.168.86.235 -basedir /home/pi/Lapse -instances oneip -dontwait -seconds 3 -camera1 stream -weburl1 http://192.168.86.230:8081/stream.mjpg  -camera2 other -weburl2 http://192.168.86.230:8081/stream.mjpg -camparam2="'ffmpeg -y -i '+weburl+ ' -vframes 1 ' +fn+debug" -vidparam2="'ffmpeg -r 1 -i '+basedir+'/'+duetname+'/tmp/'+cameraname+'-%08d.jpeg -c:v libx264 -vf tpad=stop_mode=clone:stop_duration='+extratime+',fps=10 '+fn+debug" -extratime 0 &
+   ;;
+   stop)
+      if ["$2" == '']
+      then 
+          PROCESS_PID=`/bin/ps -ef | grep "$PROCESS" | grep -v "grep" | awk '{print $2}'`
+          kill -2 $PROCESS_PID
+      else
+          PROCESS_PID=`/bin/ps -ef | grep "$PROCESS" | grep "$2" | grep -v "grep" | awk '{print $2}'`
+          kill -2 $PROCESS_PID
+     fi
+   ;;
+esac
