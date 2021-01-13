@@ -62,16 +62,30 @@ DuetLapse3.py -h
 #### -duet {ip address}
 
 This is a required option.  The parameter {ip address} is the network location of your duet printer.  It can be given as a hostname or an explicit ip.
-example -duet 192.168.1.10 or -duet localhost or -duet myduetprinter.local.   As a simple test - a browser shoul be able to access Duet Web Controller using http://<ip addreinstances
+**example**
+-duet 192.168.1.10 or -duet localhost or -duet myduetprinter.local.
+As a simple test - a browser shoul be able to access Duet Web Controller using http://<ip addreinstances
 
-#### -basedir
+#### -basedir {full path name}
+If omitted - the default dir is the location of DuetLapse.py.  If supplied, do NOT put in a trailing slash /
+**example**
+-basedir /home/pi/mydirectory
 
-#### -instances
+#### -instances {one||ip||none}
+If omitted - the default is none.
+**example**
+-instances one   #There can only be one instance of DuetLapse3.py running
+-instance ip     #For each printer (set by -duet),  there can only be one instance of DuetLapse3.py running
 
-#### -logtype
+#### -logtype {local||logfile||both}
+If omited - the default is local
+**example**
+-logtype
 
 #### -verbose
-
+If omitted the default is False
+**example**
+-verbose       #causes the output of system calls to be looged according to the setting of -logtype
 #### -dontwait
 
 #### -seconds
