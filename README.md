@@ -47,7 +47,7 @@ Feedback via issues on Duet forum https://forum.duet3d.com/
 ## Installation
 * mkdir DuetLapse  - or other directory of your choice
 * cd DuetLapse
-* wget https://raw.githubusercontent.com/stuartofmt/DuetLapse3/master/DuetLapse3.py
+* wget https://github.com/stuartofmt/DuetLapse3/blob/main/DuetLapse3.py
 * chmod 744 DuetLapse3.py
   
 ## Usage
