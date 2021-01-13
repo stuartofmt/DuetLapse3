@@ -142,7 +142,7 @@ If omitted the default is usb. Determines how images are captured.
 -camera1 pi       #Uses
 -camera1 web      #Uses wget to capture images from a camera that provides still jpeg
 -camera1 stream   #Uses ffmpeg to capture images from a video feed
--camera1 other    #Canonly be used in conjunction with -camparams1 (see below)
+-camera1 other    #Canonly be used in conjunction with -camparam1 (see below)
 
 #### -weburl1 [url]
 If omitted it has no value. url specifies the location to capture images for camera1. Only used for -camera1 of types web, stream, or other
@@ -155,9 +155,21 @@ If omitted has no default (unlike camera1). Has the same parameters as -camera1
 #### -webur2 [url]
 Has the same parameters as -weburl2
 
-#### -camparam1 [command]
+#### -camparam1="[command]"
+If omitted has no default. Used in conjunction with -camera1 to define how the images will be captured.
+**Note the use of the = and quoting of the command string.** Single quotes should be used in the command string when needed.
+There are 3 internal variables that can be used weburl (which has the value of weburl1), fn (which is the file for the captured images) , debug (which controls verbose logging)
+**example**
+-camparam1="'ffmpeg -y -i '+weburl+ ' -vframes 1 ' +fn+debug"
+This example is the same as if -camera1 stream was used. The value of weburl1 would be substituted for weburl and the output goes the the file specification fn. the results are verbose of not is defermined by the internal variable debug.  In general both fn and debug should be used.  The use of weburl would depend on the capture method being used.
 
-#### -vidparam1 [command]
+#### -vidparam1="[command]"
+If omitted has no default. Defines an alternate video capture command.  If provided - is used instead of the standard capture command.
+**Note the use of the = and quoting of the command string.**  Single quotes should be used in the command string when needed.
+There are 3 internal variables that can be used basedir (has the same meaning as -basedir), cameraname (is the literal "Camera1"), extratime (is the value of -extratime), fn (which is the output file for -camera1) , debug (which controls verbose logging)
+**example**
+-vidparam1="'ffmpeg -r 1 -i '+basedir+'/'+duetname+'/tmp/'+cameraname+'-%08d.jpeg -c:v libx264 -vf tpad=stop_mode=clone:stop_duration='+extratime+',fps=10 '+fn+debug"
+This example is the same as the standard video creation for -camera1.
 
 #### -camparam2 and -vidparam2
 Have the same parameters as -camparam1 and -vidparam1.
