@@ -14,7 +14,7 @@ The modifications include:
 - [8]  Added ability to gracefully terminate when executing in background
 - [9]  Added ability to extend the video duration of the last image
 - [10] Generalized capture with Camera type "other" and arbitrary capture commands
-- [11] Generalized video creation with optional ffmpeg commands
+- [11] Generalized video creation with optional commands
 
 ## General Description
 Provides the ability to generate time lapse videos from for Duet based 3D printers.
@@ -172,7 +172,7 @@ There are 3 internal variables that can be used basedir (has the same meaning as
 This example is the same as the standard video creation for -camera1.
 
 #### -camparam2 and -vidparam2
-Have the same parameters as -camparam1 and -vidparam1.
+Have the same parameters as -camparam1 and -vidparam1.  Variable references are for Camera2
 
 
 ### Directory Structure
@@ -184,20 +184,19 @@ basedir/
                     tmp/
 ``` 
 **duet-address** is derived from the -duet option.  Periods are replaced by a dash for example -duet 192.168.1.10 creates the sub directory 192-168-1-10, -duet myduet.local becomes myduet-local.
-The duet-address subdirectory contains the video files as well as a log file *DuetLapse3.log* relating to the specific printer.  The video files are named according to this scheme  "TimeLapse-Day-Hour:Min.mp4"  e.g  Timelapse-Thur-22:31.mp4
-**tmp** is used to capture the still images for the printer. It is cleared out at the *start* of each capture.  This way - if anything goes wrong with the video creation a command line use of ffmpeg can be used to attempt recovery.  
+The duet-address subdirectory contains the video files as well as a log file *DuetLapse3.log* relating to the specific printer.  The video files are named according to this scheme  "Camera-Day-Hour:Min.mp4"  e.g  Camera1-Thur-22:31.mp4
+**tmp** is used to capture the still images for the printer. It is cleared out at the *start* of each capture.  This way - if anything goes wrong with the video creation a command line use of ffmpeg (or other program) can be used to attempt recovery.  
  
-
 ## Usage Examples
 
 Many options can be combined.  For example, the script can trigger on both "seconds" and "detect layer". It will inform you if you select conflicting options.
 Note that these examples are from the command line.  If running from a script (or to avoid issues closing the console) adding a **&** at the end (in linux) will run the script in background.
 
-Example: Use a webcam that requires a UserId and Password, trigger every 30 seconds, do not detect any other triggers:
+Example: Use a webcam that requires a UserId and Password, capture an image every 20 seconds, do not respind to layer changes or pauses:
 ```
-./DuetLapse3.py -camera web -weburl http://userid:password@192.168.7.140/cgi-bin/currentpic.cgi -duet 192.168.7.101 -seconds 20 -detect none
+./DuetLapse3.py -camera1 web -weburl1 http://userid:password@192.168.7.140/cgi-bin/currentpic.cgi -duet 192.168.7.101 -seconds 20 -detect none
 ```
-Example: Default to USB camera and detecting layer changes, force pauses (at layer change) and move head to X10 Y10 before taking picture.
+Example: Default to USB camera.  Capture an image on layer changes. Force pauses (at layer change) and move head to X10 Y10 before creating an image.
 ```
 ./DuetLapse3.py -duet 192.168.7.101 -pause yes -movehead 10 10
 ```
