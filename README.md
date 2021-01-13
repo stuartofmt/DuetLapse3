@@ -60,7 +60,7 @@ Options can be viewed with
 ```
 DuetLapse3.py -h
 ```
-The options are described here.  Each option is preceded by a dash -. Some options have parameters described in the curly braces (the curley braces are NOT used in entering the options. If an option is not specified the default used.
+The options are described here.  Each option is preceded by a dash -. Some options have parameters described in the square brackets (the square brackets are NOT used in entering the options. If an option is not specified the default used.
 
 #### -duet [ip address]
 
@@ -70,53 +70,73 @@ As a simple test - a browser should be able to access the Duet Web Controller us
 -duet 192.168.1.10     #Connect to the printer at 192.168.86.10
 -duet localhost        #Connect to the printer at localhost
 
-#### -basedir {full path name}
+#### -basedir [full path name]
 If omitted - the default dir is the location of DuetLapse3.py.  This is the logical root for output files See Directory Structure (below).
 If supplied, do NOT put in a trailing slash /<br>
 **example**
 -basedir /home/pi/mydir  #output files start at /home/pi/mydir
 
-#### -instances {one||ip||none}
-If omitted - the default is none. Used to control the number of instances of DuetLapse3.py that can run simultaneously.
+#### -instances [single||oneip||many]
+If omitted - the default is single. Used to control the number of instances of DuetLapse3.py that can run simultaneously.
 In most cases the default will be suitable.
 **example**
--instances one   #There can only be one instance of DuetLapse3.py running
--instance ip     #For each printer (set by -duet),  there can only be one instance of DuetLapse3.py running
+-instances single   #There can only be one instance of DuetLapse3.py running
+-instance oneip     #For each printer (set by -duet), there can only be one instance of DuetLapse3.py running
+-instances many     #No restriction on the number of instances
 
-#### -logtype {local||logfile||both}
-If omitted - the default is local
+#### -logtype [console||file||both]
+If omitted - the default is both
 **example**
--logtype
+-logtype console   #Only send messages to the console
+-logtype file      #Only send messages to the logfile (see Directory Structure for logfile name and location) 
+-logtype many      #Send messages to both the console and file
 
 #### -verbose
 If omitted the default is False
 **example**
 -verbose       #Causes the output of system calls to be looged according to the setting of -logtype
 
-#### -poll {seconds}
+#### -poll [seconds]
 If omitted the default is 5 seconds.  This is the time between checking to see if am image needs to be captured.
-If -seconds (see below) is less than -poll then 
+If -seconds (see below) is less than -poll then poll is reduced to the value of -seconds. 
 
 #### -dontwait
 If omitted - the default is False
 **example**
 -dontwait    #Images will be captured immediately.  Does not wait for the printer to start.
 
-#### -seconds {seconds||0}
-If omitted the default is 0 seconds (i.e. disabled). Can be any positive number.
+#### -seconds [seconds]
+If omitted the default is 0 seconds (i.e. ignored). Can be any positive number.
 **example**
 -seconds 10  #Images will be captures at least every 10 seconds
 
-#### -detect
+#### -detect [layer||pause||none]
+If omitted the default is layer
+**example**
+-detect layer     #Will capture an image on each layer change
+-detect pause     #Will capture an imnage when printing is paused
+-detect none      #Will not capture an image other than as secified by -seconds
 
-#### -pause
+*Notes on the use of pause*
 
-#### -movehead
 
-#### -extratime
 
-#### -camera1
+#### -pause [yes||no]
+If omitted the default is no.
 
+#### -movehead [Xposition,Yposition]
+if omitted the head is not moved - equivalent to -movehead 0,0.  Specifies a position to move the head to before capturing an image.
+Valid positions must be greater then 0.0 and less than the maximum allowed by your printer
+**example*
+-movehead 10,5    #Will move the head to X=10, Y=5 before capturing an image
+
+#### -extratime [second]
+If omitted the default is 0.  When creating the video - extends the duration of the last frame by the specified number of seconds.
+**example**
+-extratime 10     #Makes the last frame captured 10 seconds long
+
+#### -camera1 [usb||pi||web||stream||other]
+Mandatory - cannot be omitted
 #### -weburl1
 
 #### -camera2
