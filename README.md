@@ -64,7 +64,7 @@ The options are described here.  Each option is preceded by a dash -. Some optio
 
 #### -duet [ip address]
 
-This is a required option.  The parameter is the network location of your duet printer.  It can be given as a hostname or an explicit ip address.
+**Mandatory - This is a required option.**  The parameter is the network location of your duet printer.  It can be given as a hostname or an explicit ip address.
 As a simple test - a browser should be able to access the Duet Web Controller using http://<ip address> from the same computer that is running DuetLapse3.py.
 **example**
 -duet 192.168.1.10     #Connect to the printer at 192.168.86.10
@@ -136,19 +136,31 @@ If omitted the default is 0.  When creating the video - extends the duration of 
 -extratime 10     #Makes the last frame captured 10 seconds long
 
 #### -camera1 [usb||pi||web||stream||other]
-Mandatory - cannot be omitted
-#### -weburl1
+If omitted the default is usb. Determines how images are captured.
+**example*
+-camera1 usb      #Uses
+-camera1 pi       #Uses
+-camera1 web      #Uses wget to capture images from a camera that provides still jpeg
+-camera1 stream   #Uses ffmpeg to capture images from a video feed
+-camera1 other    #Canonly be used in conjunction with -camparams1 (see below)
 
-#### -camera2
+#### -weburl1 [url]
+If omitted it has no value. url specifies the location to capture images for camera1. Only used for -camera1 of types web, stream, or other
+**example**
+-weburl http://192.168.86.10/stream.mpeg  #capture images from this location
 
-#### -webur2
+#### -camera2 [usb||pi||web||stream||other]
+If omitted has no default (unlike camera1). Has the same parameters as -camera1
 
-#### -camparam1
+#### -webur2 [url]
+Has the same parameters as -weburl2
 
-#### -vidparam1
+#### -camparam1 [command]
 
-#### -camera 2, weburl2, camparam2 and vidparam2
-Allows for a second camera to be defined.  There is no default type.  If used the same requirements as camera1, weburl1, camparam1, invidparam1 outvidparam1 apply.
+#### -vidparam1 [command]
+
+#### -camparam2 and -vidparam2
+Have the same parameters as -camparam1 and -vidparam1.
 
 
 ### Directory Structure
