@@ -4,7 +4,7 @@
 ## The bulk of the functionality is his work.
 
 The modifications include:
-- [1] Removal of dependency on DuetWebAPI.py (by Danal Estes).  DuetLapse3.py is a standalone Python3 script
+- [1] Removal of dependency on DuetWebAPI.py (by Danal Estes).  DuetLapse3.py is a standalone Python3 script.
 - [2] Added support for 2 cameras
 - [3] Reorganized Directory Structure to allow logical separation of files (by printer)
 - [4] Added configurable base directory 
@@ -25,7 +25,7 @@ Designed and tested on Raspberry Pi but should work on other linux platform. Sup
 
 Produces a video with H.264 encoding in an MP4 container. 
 
-Captures images based on time, layer change, or pause.  Works with existing pauses in G-Code, or can force pauses at other trigger events. Optionally moves head to a specified position before capturing paused images.
+Captures images based on time, layer change, or pause.  Works with existing pauses in G-Code, or can force pauses at other trigger events. Optionally moves the print head to a specified position before capturing images.
 
 Feedback via issues on Duet forum https://forum.duet3d.com/
 
@@ -33,24 +33,24 @@ Feedback via issues on Duet forum https://forum.duet3d.com/
 
 * Python3
 * Duet printer must be RRF V3 or later (i.e. support the rr_model calls)
-* ffmped version 4.x (this may need to be compiled if your system has an older version as standard)
-* Python libraries will be called out by the script if not present
+* ffmpeg version 4.x (this may need to be compiled if your system has an older version as standard)
+* Python dependencies that are missing will be called out by the script
 * Duet printer must be reachable via network
-* Depending on camera type, one of
+* Depending on camera type, one or more of the following may be required:
   * fswebcam (for USB cameras)
   * raspistill (for Pi cam or Ardu cam)
   * wget (for Web cameras)
 
 ## Installation
-* mkdir DuetLapse
+* mkdir DuetLapse  - or other directory of your choice
 * cd DuetLapse
 * wget https://raw.githubusercontent.com/stuartofmt/DuetLapse3/master/DuetLapse3.py
-* chmod 744 DuetLapse.py
+* chmod 744 DuetLapse3.py
   
 ## Usage
 
-The python script can be started from the command line or, more usually, from a bash or similar script (see example bash script here  ).  Although there are defaults for many of the options - it's unlikely that the script will do anything useful with just the defaults.
-The script will usually be started you starting a printing - but this is not critical.  Depending on options (e.g. dontwait) it will either imeediately start creating still images or wait until the printer changes status from "Idle" to "Processing".  At the end of the print job the script combines the still images into a mp4 video to create the time lapse.  If the script is run in foreground it can be stopped (before the print job completes) using CTl+C.  If the script is run in background it can be stopped using SIGINT (kill -2 <pid> in linux).  The example bash script gives an example of using SIGINT. 
+The python script can be started from the command line or, more usually, from a bash or similar script.  Although there are defaults for many of the options - it's unlikely that the script will do exactly what you want with just the defaults.
+The script will usually be started just before you starting a printing - but this is not critical.  Depending on options (e.g. dontwait) it will either immediately start creating still images or wait until the printer changes status from "Idle" to "Processing".  At the end of the print job the script combines the still images into a mp4 video to create the time lapse.  If the script is run in foreground it can be stopped (before the print job completes) using CTl+C.  If the script is run in background it can be stopped using SIGINT (kill -2 <pid> in linux).  The example bash script here ???????   gives examples for starting and stopping the program. 
 
 ### Options
 
@@ -58,6 +58,7 @@ Options can be viewed with
 ```
 DuetLapse3.py -h
 ```
+The options are described here.  Each option is preceded by a dash -. Some options have parameters described in the curly braces (the curley braces are NOT used in entering the options. If an option is not specified the default used.
 
 #### -duet {ip address}
 
