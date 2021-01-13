@@ -1,6 +1,7 @@
 # DuetLapse3
 
 ## This is a modified version of the original DuetLapse created by Danal Estes
+https://github.com/DanalEstes/DuetLapse
 ## The bulk of the functionality is his work.
 
 The modifications include:
@@ -113,16 +114,21 @@ If omitted the default is 0 seconds (i.e. ignored). Can be any positive number.
 #### -detect [layer||pause||none]
 If omitted the default is layer
 **example**
+
 -detect layer     #Will capture an image on each layer change
--detect pause     #Will capture an imnage when printing is paused
+-detect pause     #Will capture an image if the printer is paused by the print gcode
 -detect none      #Will not capture an image other than as secified by -seconds
 
-*Notes on the use of pause*
-
-
+*Notes on the use of -detect pause*
+When a pause is detected in the print gcode an image will be captured and a resume print command issued.
+The head position during those pauses is can be controlled by the pause.g macro on the duet,
+or by specifying "-movehead nnn nnn".  Do not use both.
+CANNOT be used in conjunction with -pause yes (see below)
 
 #### -pause [yes||no]
-If omitted the default is no.
+If omitted the default is no. If - pause yes it will pause the printer when an image is captured.
+**example**
+-pause yes      #Pause the printer each time an image is captured.
 
 #### -movehead [Xposition,Yposition]
 if omitted the head is not moved - equivalent to -movehead 0,0.  Specifies a position to move the head to before capturing an image.
