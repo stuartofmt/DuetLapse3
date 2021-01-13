@@ -201,10 +201,16 @@ Note that these examples are from the command line.  If running from a script (o
 Example: Use a webcam that requires a UserId and Password, capture an image every 20 seconds, do not respind to layer changes or pauses:
 ```
 ./DuetLapse3.py -camera1 web -weburl1 http://userid:password@192.168.7.140/cgi-bin/currentpic.cgi -duet 192.168.7.101 -seconds 20 -detect none
+
 ```
 Example: Default to USB camera.  Capture an image on layer changes. Force pauses (at layer change) and move head to X10 Y10 before creating an image.
 ```
 ./DuetLapse3.py -duet 192.168.7.101 -pause yes -movehead 10 10
+
+```
+Example: Two camera example. Start capturing immediately at a minumum of one image every 3 second. Camera2 uses camparam and vidparam2 overrides. Run in background.
+```
+/usr/bin/python3 $PROCESS -duet 192.168.86.235 -basedir /home/pi/Lapse -instances oneip -dontwait -seconds 3 -camera1 stream -weburl1 http://192.168.86.230:8081/stream.mjpg  -camera2 other -weburl2 http://192.168.86.230:8081/stream.mjpg -camparam2="'ffmpeg -y -i '+weburl+ ' -vframes 1 ' +fn+debug" -vidparam2="'ffmpeg -r 1 -i '+basedir+'/'+duetname+'/tmp/'+cameraname+'-%08d.jpeg -c:v libx264 -vf tpad=stop_mode=clone:stop_duration='+extratime+',fps=10 '+fn+debug" -extratime 0 &
 ```
 
 
