@@ -44,7 +44,7 @@ alreadyPaused  = False           # If printer is paused, have we taken our actio
 
 def init():
     # parse command line arguments
-    parser = argparse.ArgumentParser(description='Program to create time lapse video from camera pointed at Duet3D based printer.', allow_abbrev=False)
+    parser = argparse.ArgumentParser(description='Create time lapse video for Duet3D based printer. V3.0.1', allow_abbrev=False)
     #Environment
     parser.add_argument('-duet',type=str,nargs=1,default=['localhost'],help='Name of duet or ip address. Default = localhost')
     parser.add_argument('-poll',type=float,nargs=1,default=[5])
@@ -334,14 +334,16 @@ def checkForcePause():
     global alreadyPaused
     if (alreadyPaused): return
     if (not 'yes' in pause): return
-    logger.info('Requesting pause via M25')
-    sendDuetGcode('M25')    # Ask for a pause
-    sendDuetGcode('M400')   # Make sure the pause finishes
-    alreadyPaused = True 
-    if(not movehead == [0.0,0.0]):
-        logger.info('Moving print head to X{0:4.2f} Y{1:4.2f}'.format(movehead[0],movehead[1]))
-        sendDuetGcode('G0 X{0:4.2f} Y{1:4.2f}'.format(movehead[0],movehead[1]))
-        sendDuetGcode('M400')   # Make sure the move finishes
+    if (duetStatus == 'processing'):
+        logger.info('Requesting pause via M25')
+        sendDuetGcode('M25')    # Ask for a pause
+        sendDuetGcode('M400')   # Make sure the pause finishes
+        alreadyPaused = True 
+        if(not movehead == [0.0,0.0]):
+            logger.info('Moving print head to X{0:4.2f} Y{1:4.2f}'.format(movehead[0],movehead[1]))
+            sendDuetGcode('G0 X{0:4.2f} Y{1:4.2f}'.format(movehead[0],movehead[1]))
+            sendDuetGcode('M400')   # Make sure the move finishes
+    return
 
 def unPause():
     global alreadyPaused
@@ -416,7 +418,7 @@ def oneInterval(cameraname, camera, weburl, camparam):
         checkForcePause()
         logger.info(cameraname+': capturing frame '+str(frame)+' at layer '+str(zn)+' after '+str(seconds)+' seconds')
         onePhoto(cameraname, camera, weburl, camparam)
-
+    
     if (('pause' in detect) and ('paused' in duetStatus) and not alreadyPaused):
         alreadyPaused = True
         logger.info('Pause detected at frame '+str(frame))
