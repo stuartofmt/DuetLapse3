@@ -36,7 +36,8 @@ Feedback via issues on Duet forum https://forum.duet3d.com/
 
 * Python3
 * Duet printer must be RRF V3 or later (i.e. support the rr_model calls)
-* ffmpeg version 4.x (this may need to be compiled if your system has an older version as standard)
+* ffmpeg version newer than 4.2 (this may need to be compiled if your system has an older version as standard)
+  The following instructions may help https://github.com/stuartofmt/DuetLapse3/blob/main/ffmpeg.md
 * Python dependencies that are missing will be called out by the script
 * Duet printer must be reachable via network
 * Depending on camera type, one or more of the following may be required:
