@@ -44,7 +44,7 @@ alreadyPaused  = False           # If printer is paused, have we taken our actio
 
 def init():
     # parse command line arguments
-    parser = argparse.ArgumentParser(description='Create time lapse video for Duet3D based printer. V3.0.1', allow_abbrev=False)
+    parser = argparse.ArgumentParser(description='Create time lapse video for Duet3D based printer. V3.0.2', allow_abbrev=False)
     #Environment
     parser.add_argument('-duet',type=str,nargs=1,default=['localhost'],help='Name of duet or ip address. Default = localhost')
     parser.add_argument('-poll',type=float,nargs=1,default=[5])
@@ -280,7 +280,7 @@ def init():
     elif (majorVersion == 0):
         logger.info('The printer at '+duet+' did not respond')
         logger.info('Check the ip address or logical printer name is correct')
-        logger.info('Duet software version must be at RRF3 or above and suppotr rr_model')
+        logger.info('Duet software version must be at RRF3 or above and support rr_model')
         sys.exit(2)
     else:
         logger.info('The printer at '+duet+' needs to be at version 3 or above')
