@@ -30,7 +30,7 @@ Produces a video with H.264 encoding in an MP4 container.
 
 Captures images based on time, layer change, or pause.  Works with existing pauses in G-Code, or can force pauses at other trigger events. Optionally moves the print head to a specified position before capturing images.
 
-Feedback via issues on Duet forum https://forum.duet3d.com/
+Feedback via issues on Duet forum https://forum.duet3d.com/topic/20932/duetlapse3
 
 ## Requirements 
 
