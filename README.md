@@ -123,7 +123,7 @@ If omitted the default is layer
 *Notes on the use of -detect pause*
 When a pause is detected in the print gcode an image will be captured and a resume print command issued.
 The head position during those pauses is can be controlled by the pause.g macro on the duet,
-or by specifying "-movehead nnn nnn".  Do not use both.
+or by specifying "-movehead nnn nnn".  Do not use both.<br>
 CANNOT be used in conjunction with -pause yes (see below)
 
 #### -pause [yes||no]
