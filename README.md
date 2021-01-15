@@ -5,6 +5,7 @@ https://github.com/DanalEstes/DuetLapse
 ## The bulk of the functionality is his work.
 
 The modifications include:
+
 ###Version 3.0.0###
 - [1]  Removal of dependency on DuetWebAPI.py (by Danal Estes).  DuetLapse3.py is a standalone Python3 script.
 - [2]  Added support for 2 cameras
