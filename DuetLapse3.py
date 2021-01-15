@@ -44,7 +44,7 @@ alreadyPaused  = False           # If printer is paused, have we taken our actio
 
 def init():
     # parse command line arguments
-    parser = argparse.ArgumentParser(description='Create time lapse video for Duet3D based printer. V3.0.2', allow_abbrev=False)
+    parser = argparse.ArgumentParser(description='Create time lapse video for Duet3D based printer. V3.0.3', allow_abbrev=False)
     #Environment
     parser.add_argument('-duet',type=str,nargs=1,default=['localhost'],help='Name of duet or ip address. Default = localhost')
     parser.add_argument('-poll',type=float,nargs=1,default=[5])
@@ -272,16 +272,24 @@ def init():
 
     
     # Get connected to the printer.
+    
+    global apiModel
 
-    printerVersion = getDuetVersion()   
-    majorVersion = int(printerVersion[0])
-    if (majorVersion >= 3):
-        logger.info('Connected to printer at '+duet+' using version '+printerVersion)
-    elif (majorVersion == 0):
+# Get connected to the printer.
+    logger.info('Determine machine type and API Version')
+    apiModel, printerVersion = getDuetVersion()
+    if (apiModel == 'none'):
         logger.info('The printer at '+duet+' did not respond')
         logger.info('Check the ip address or logical printer name is correct')
-        logger.info('Duet software version must be at RRF3 or above and support rr_model')
+        logger.info('Duet software must support rr_model or /machine/status')
         sys.exit(2)
+    
+    logger.info('API access is with : '+apiModel+' model')
+    
+    majorVersion = int(printerVersion[0])
+
+    if (majorVersion >= 3):
+        logger.info('Connected to printer at '+duet+' using version '+printerVersion)
     else:
         logger.info('The printer at '+duet+' needs to be at version 3 or above')
         logger.info('The version on this printer is '+printerVersion)
@@ -336,20 +344,20 @@ def checkForcePause():
     if (not 'yes' in pause): return
     if (duetStatus == 'processing'):
         logger.info('Requesting pause via M25')
-        sendDuetGcode('M25')    # Ask for a pause
-        sendDuetGcode('M400')   # Make sure the pause finishes
+        sendDuetGcode(apiModel, 'M25')    # Ask for a pause
+        sendDuetGcode(apiModel, 'M400')   # Make sure the pause finishes
         alreadyPaused = True 
         if(not movehead == [0.0,0.0]):
             logger.info('Moving print head to X{0:4.2f} Y{1:4.2f}'.format(movehead[0],movehead[1]))
-            sendDuetGcode('G0 X{0:4.2f} Y{1:4.2f}'.format(movehead[0],movehead[1]))
-            sendDuetGcode('M400')   # Make sure the move finishes
+            sendDuetGcode(apiModel, 'G0 X{0:4.2f} Y{1:4.2f}'.format(movehead[0],movehead[1]))
+            sendDuetGcode(apiModel, 'M400')   # Make sure the move finishes
     return
 
 def unPause():
     global alreadyPaused
     if (alreadyPaused):
         logger.info('Requesting un pause via M24')
-        sendDuetGcode('M24')
+        sendDuetGcode(apiModel,'M24')
 
 def onePhoto(cameraname, camera, weburl, camparam): 
     global frame1, frame2
@@ -398,7 +406,7 @@ def oneInterval(cameraname, camera, weburl, camparam):
       
     if ('layer' in detect):
         global zo1, zo2
-        zn=getDuetLayer()
+        zn=getDuetLayer(apiModel)
         if ((not zn == zo1 and cameraname == 'Camera1') or (not zn == zo2 and cameraname == 'Camera2')):
             # Layer changed, take a picture.
             checkForcePause()
@@ -452,47 +460,76 @@ def postProcess(cameraname, camera, vidparam):
 def  getDuetVersion():
 #Used to get the status information from Duet
     try:
+        logger.info('')
+        model = 'rr_model'
         URL=('http://'+duet+'/rr_model?key=boards')
-        #r = requests.get(URL,timeout=(2,60))
+        logger.info('Testing: '+model+' at address '+duet)
+        logger.info('')
         r = requests.get(URL, timeout=5)
         j = json.loads(r.text)
-        results = j['result']
-        return results [0]['firmwareVersion']
+        version = j['result'][0]['firmwareVersion']
+        return 'rr_model', version;
     except:
-        return '0'
+        try:
+            model='/machine/system'
+            URL=('http://'+duet+'/machine/status')              
+            logger.info('Testing: '+model+' at address '+duet)
+            logger.info('')
+            r = requests.get(URL, timeout=5)
+            j = json.loads(r.text)
+            version = j['boards'][0]['firmwareVersion']
+            return '/machine/status', version;
+        except:
+            return 'none', '0';
+      
 
-def  getDuetStatus():
+def  getDuetStatus(model):
 #Used to get the status information from Duet
-    #try:
+    if (model == 'rr_model'):
         URL=('http://'+duet+'/rr_model?key=state.status')
-        #r = requests.get(URL,timeout=(2,60))
         r = requests.get(URL, timeout=5)
         j = json.loads(r.text)
-        return j['result']
+        status = j['result']
+        return status
+    else:
+        URL=('http://'+duet+'/machine/status/')
+        r = requests.get(URL, timeout=5)
+        j = json.loads(r.text)
+        status = j['state']['status']
+        return status
         
-def  getDuetLayer():
+def  getDuetLayer(model):
 #Used to get the status information from Duet
-    #try:
+    if (model == 'rr_model'):
         URL=('http://'+duet+'/rr_model?key=job.layer')
-        #r = requests.get(URL,timeout=(2,60))
         r = requests.get(URL, timeout=5)
         j = json.loads(r.text)
         layer = j['result']
         if layer is None: layer = 0
-        return layer 
+        return layer
+    else:
+        URL=('http://'+duet+'/machine/status')
+        r = requests.get(URL, timeout=5)
+        j = json.loads(r.text)
+        layer = j['job']['layer']
+        if layer is None: layer = 0
+        return layer
         
-def  sendDuetGcode(command):
+def  sendDuetGcode(model, command):
 #Used to get the status information from Duet
-    #try:
+    if (model == 'rr_model'):
         URL=('http://'+duet+'/rr_gcode?gcode='+command)
         r = requests.get(URL, timeout=5)
-        #r = requests.post(URL, data=command)
-        if (r.ok):
-           return(0)
-        else:
-            logger.info("gCode command return code = ",r.status_code)
-            logger.info(r.reason)
-            return(r.status_code)
+    else:
+        URL=('http://'+duet+'/machine/status?gcode='+command)
+        r = requests.get(URL, timeout=5)
+        
+    if (r.ok):
+       return 0
+    else:
+        logger.info("gCode command return code = "+str(r.status_code))
+        logger.info(r.reason)
+        return r.status_code
 
 
 ###########################
@@ -527,26 +564,29 @@ def quit_gracefully(*args):
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, quit_gracefully)
 
-logger.info('****** Printer State is waiting *****')
+logger.info('****** Printer State changed to '+printerState+' *****') 
 
 try: 
     while(1):
         time.sleep(poll)  # poll every n seconds
         global duetStatus
-        duetStatus=getDuetStatus()    
+        duetStatus=getDuetStatus(apiModel)    
         # logical states for printer
         if (duetStatus == 'idle' and (printerState == 'printing' or printerState == 'paused')):
-            logger.info('****** Printer State changed to completed *****')
             printerState = 'completed'
+            logger.info('****** Printer State changed to '+printerState+' *****')            
         elif (duetStatus == 'processing' and printerState != 'printing'):
-            logger.info('****** Printer State changed to printing *****')
             printerState = 'printing'
-        elif ((duetStatus == 'paused' or duetStatus == 'pausing' or duetStatus == 'resuming') and printerState != 'paused'):
-            logger.info('****** Printer State changed to paused *****')
+            logger.info('****** Printer State changed to '+printerState+' *****')
+        elif (duetStatus == 'paused' and printerState != 'paused'):
             printerState = 'paused'
+            logger.info('****** Printer State changed to '+printerState+' *****')
+        elif ((duetStatus == 'pausing' or duetStatus == 'resuming') and printerState != 'pausing'):
+            printerState = 'pausing'
+            logger.info('****** Printer State changed to '+printerState+' *****')
         elif (dontwait and printerState != 'paused'):
-            logger.info('****** Printer State changed to dontwait *****')
             printerState = 'dontwait'
+            logger.info('****** Printer State changed to '+printerState+' *****')
             dontwait = False         #once capture starts dontwait has no further meaning
 
 
