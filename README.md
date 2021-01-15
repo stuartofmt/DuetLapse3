@@ -77,34 +77,43 @@ The options are described here.  Each option is preceded by a dash -. Some optio
 As a simple test - a browser should be able to access the Duet Web Controller using http://<ip address> from the same computer that is running DuetLapse3.py.
   
 **example**
+
 -duet 192.168.1.10     #Connect to the printer at 192.168.86.10<br>
 -duet localhost        #Connect to the printer at localhost<br>
 
 #### -basedir [full path name]
 If omitted - the default dir is the location of DuetLapse3.py.  This is the logical root for output files See Directory Structure (below).
-If supplied, do NOT put in a trailing slash /<br>
+If supplied, do NOT put in a trailing slash /
+
 **example**
+
 -basedir /home/pi/mydir  #output files start at /home/pi/mydir
 
 #### -instances [single||oneip||many]
 If omitted - the default is single. Used to control the number of instances of DuetLapse3.py that can run simultaneously.
 In most cases the default will be suitable.
+
 **example**
--instances single   #There can only be one instance of DuetLapse3.py running
--instance oneip     #For each printer (set by -duet), there can only be one instance of DuetLapse3.py running
--instances many     #No restriction on the number of instances
+
+-instances single   #There can only be one instance of DuetLapse3.py running<br>
+-instance oneip     #For each printer (set by -duet), there can only be one instance of DuetLapse3.py running<br>
+-instances many     #No restriction on the number of instances<br>
 
 #### -logtype [console||file||both]
 If omitted - the default is both
+
 **example**
--logtype console   #Only send messages to the console
--logtype file      #Only send messages to the logfile (see Directory Structure for logfile name and location) 
--logtype many      #Send messages to both the console and file
+
+-logtype console   #Only send messages to the console<br>
+-logtype file      #Only send messages to the logfile (see Directory Structure for logfile name and location)<br>
+-logtype many      #Send messages to both the console and file<br>
 
 #### -verbose
 If omitted the default is False
+
 **example**
--verbose       #Causes the output of system calls to be looged according to the setting of -logtype
+
+-verbose       #Causes the output of system calls to be looged according to the setting of -logtype<br>
 
 #### -poll [seconds]
 If omitted the default is 5 seconds.  This is the time between checking to see if am image needs to be captured.
@@ -112,52 +121,76 @@ If -seconds (see below) is less than -poll then poll is reduced to the value of 
 
 #### -dontwait
 If omitted - the default is False
+
 **example**
--dontwait    #Images will be captured immediately.  Does not wait for the printer to start.
+
+-dontwait    #Images will be captured immediately.  Does not wait for the printer to start.<br>
 
 #### -seconds [seconds]
 If omitted the default is 0 seconds (i.e. ignored). Can be any positive number.
+
 **example**
--seconds 10  #Images will be captures at least every 10 seconds
+
+-seconds 10  #Images will be captures at least every 10 seconds<br>
 
 #### -detect [layer||pause||none]
 If omitted the default is layer
+
 **example**
 
 -detect layer     #Will capture an image on each layer change<br>
--detect pause     #Will capture an image if the printer is paused by the print gcode M226<br>
+-detect pause     #Will capture an image if the printer is paused by the print gcode **M226**<br>
 -detect none      #Will not capture an image other than as secified by -seconds<br>
 
-*Notes on the use of -detect pause*
-When a pause is detected in the print gcode an image will be captured and a resume print command issued.
+*Notes on the use of -detect pause*<br>
+When a pause is detected in the print gcode (supplied by an M226) an image will be captured and a resume print command issued.
 The head position during those pauses is can be controlled by the pause.g macro on the duet,
-or by specifying "-movehead nnn nnn".  Do not use both.<br>
-CANNOT be used in conjunction with -pause yes (see below)
+or by specifying "-movehead nnn nnn".<br>
+If both are specified pause.g will run first then -movehead will reposition the heads. **It is best not use both.**<br>
+**CANNOT be used in conjunction with -pause yes (see below)**
 
 #### -pause [yes||no]
 If omitted the default is no. If - pause yes it will pause the printer when an image is captured.
+
 **example**
--pause yes      #Pause the printer each time an image is captured.
+
+-pause yes      #Pause the printereach time an image is captured.<br>
+
+*Notes on the use of -pause yes*<br>
+DuetLapse3 will pause the printer each time an image is to be captured.
+The head position during those pauses can be controlled by the pause.g macro on the duet,
+or by specifying "-movehead nnn nnn".<br>
+If both are specified pause.g will run first then -movehead will reposition the heads. **It is best not use both.**<br>
+**CANNOT be used in conjunction with -detect pause (see above)**
 
 #### -movehead [Xposition,Yposition]
 if omitted the head is not moved - equivalent to -movehead 0,0.  Specifies a position to move the head to before capturing an image.
 Valid positions must be greater then 0.0 and less than the maximum allowed by your printer
-**example*
--movehead 10,5    #Will move the head to X=10, Y=5 before capturing an image
+
+**example**
+
+-movehead 10,5    #Will move the head to X=10, Y=5 before capturing an image<br>
 
 #### -extratime [second]
 If omitted the default is 0.  When creating the video - extends the duration of the last frame by the specified number of seconds.
+
 **example**
--extratime 10     #Makes the last frame captured 10 seconds long
+
+-extratime 10     #Makes the last frame captured 10 seconds long<br>
+
+*Notes on the use of - extratime*
+Applies to the last frame captured.  So if, for example, your print job moves the Z axis at the end of the print.  The last frame would occur when the Z axis stops moving - not when the last layer is printed.
 
 #### -camera1 [usb||pi||web||stream||other]
 If omitted the default is usb. Determines how images are captured.
-**example*
--camera1 usb      #Uses
--camera1 pi       #Uses
--camera1 web      #Uses wget to capture images from a camera that provides still jpeg
--camera1 stream   #Uses ffmpeg to capture images from a video feed
--camera1 other    #Canonly be used in conjunction with -camparam1 (see below)
+
+**example**
+
+-camera1 usb      #Uses the camera associated with fswebcam<br>
+-camera1 pi       #Uses the camera associated with the rasberry pi camera's standard installation<br>
+-camera1 web      #Uses wget to capture images from a camera that provides still jpeg<br>
+-camera1 stream   #Uses ffmpeg to capture images from a video feed<br>
+-camera1 other    #Canonly be used in conjunction with -camparam1 (see below)<br>
 
 #### -weburl1 [url]
 If omitted it has no value. url specifies the location to capture images for camera1. Only used for -camera1 of types web, stream, or other
@@ -171,20 +204,38 @@ If omitted has no default (unlike camera1). Has the same parameters as -camera1
 Has the same parameters as -weburl2
 
 #### -camparam1="[command]"
-If omitted has no default. Used in conjunction with -camera1 to define how the images will be captured.
-**Note the use of the = and quoting of the command string.** Single quotes should be used in the command string when needed.
+If omitted has no default. Used in conjunction with -camera1 to define how the images will be captured.<br>
+**Note the use of the = and quoting of the command string.** Single quotes should be used in the command string when needed.<br>
 There are 3 internal variables that can be used weburl (which has the value of weburl1), fn (which is the file for the captured images) , debug (which controls verbose logging)
+
 **example**
--camparam1="'ffmpeg -y -i '+weburl+ ' -vframes 1 ' +fn+debug"
+
+-camparam1="'ffmpeg -y -i '+weburl+ ' -vframes 1 ' +fn+debug"<br>
 This example is the same as if -camera1 stream was used. The value of weburl1 would be substituted for weburl and the output goes the the file specification fn. the results are verbose of not is defermined by the internal variable debug.  In general both fn and debug should be used.  The use of weburl would depend on the capture method being used.
+
+*Notes on the use of -camparam1*<br>
+The following are the standard commands for reference
+
+-camera usb<br>
+'fswebcam --quiet --no-banner '+fn+debug
+
+-camera pi<br>
+'raspistill -t 1 -ex sports -mm matrix -n -o '+fn+debug
+
+-camera stream<br>
+'ffmpeg -y -i '+weburl+ ' -vframes 1 ' +fn+debug
+
+-camera web<br>
+'wget --auth-no-challenge -nv -O '+fn+' "'+weburl+'" '+debug
 
 #### -vidparam1="[command]"
 If omitted has no default. Defines an alternate video capture command.  If provided - is used instead of the standard capture command.
-**Note the use of the = and quoting of the command string.**  Single quotes should be used in the command string when needed.
+**Note the use of the = and quoting of the command string.**  Single quotes should be used in the command string when needed.<br>
 There are 3 internal variables that can be used basedir (has the same meaning as -basedir), cameraname (is the literal "Camera1"), extratime (is the value of -extratime), fn (which is the output file for -camera1) , debug (which controls verbose logging)
+
 **example**
--vidparam1="'ffmpeg -r 1 -i '+basedir+'/'+duetname+'/tmp/'+cameraname+'-%08d.jpeg -c:v libx264 -vf tpad=stop_mode=clone:stop_duration='+extratime+',fps=10 '+fn+debug"
-This example is the same as the standard video creation for -camera1.
+-vidparam1="'ffmpeg -r 1 -i '+basedir+'/'+duetname+'/tmp/'+cameraname+'-%08d.jpeg -c:v libx264 -vf tpad=stop_mode=clone:stop_duration='+extratime+',fps=10 '+fn+debug"<br>
+This example is the same as the standard video creation.
 
 #### -camparam2 and -vidparam2
 Have the same parameters as -camparam1 and -vidparam1.  Variable references are for Camera2
@@ -198,8 +249,8 @@ basedir/
        duet-address/   
                     tmp/
 ``` 
-**duet-address** is derived from the -duet option.  Periods are replaced by a dash for example -duet 192.168.1.10 creates the sub directory 192-168-1-10, -duet myduet.local becomes myduet-local.
-The duet-address subdirectory contains the video files as well as a log file *DuetLapse3.log* relating to the specific printer.  The video files are named according to this scheme  "Camera-Day-Hour:Min.mp4"  e.g  Camera1-Thur-22:31.mp4
+**duet-address** is derived from the -duet option.  Periods are replaced by a dash for example -duet 192.168.1.10 creates the sub directory 192-168-1-10, -duet myduet.local becomes myduet-local.<br>
+The duet-address subdirectory contains the video files as well as a log file *DuetLapse3.log* relating to the specific printer.  The video files are named according to this scheme  "Camera-Day-Hour:Min.mp4"  e.g  Camera1-Thur-22:31.mp4<br>
 **tmp** is used to capture the still images for the printer. It is cleared out at the *start* of each capture.  This way - if anything goes wrong with the video creation a command line use of ffmpeg (or other program) can be used to attempt recovery.  
  
 ## Usage Examples
