@@ -69,8 +69,8 @@ The options are described here.  Each option is preceded by a dash -. Some optio
 **Mandatory - This is a required option.**  The parameter is the network location of your duet printer.  It can be given as a hostname or an explicit ip address.
 As a simple test - a browser should be able to access the Duet Web Controller using http://<ip address> from the same computer that is running DuetLapse3.py.
 **example**
--duet 192.168.1.10     #Connect to the printer at 192.168.86.10
--duet localhost        #Connect to the printer at localhost
+-duet 192.168.1.10     #Connect to the printer at 192.168.86.10<br>
+-duet localhost        #Connect to the printer at localhost<br>
 
 #### -basedir [full path name]
 If omitted - the default dir is the location of DuetLapse3.py.  This is the logical root for output files See Directory Structure (below).
@@ -116,9 +116,9 @@ If omitted the default is 0 seconds (i.e. ignored). Can be any positive number.
 If omitted the default is layer
 **example**
 
--detect layer     #Will capture an image on each layer change
--detect pause     #Will capture an image if the printer is paused by the print gcode
--detect none      #Will not capture an image other than as secified by -seconds
+-detect layer     #Will capture an image on each layer change<br>
+-detect pause     #Will capture an image if the printer is paused by the print gcode M226<br>
+-detect none      #Will not capture an image other than as secified by -seconds<br>
 
 *Notes on the use of -detect pause*
 When a pause is detected in the print gcode an image will be captured and a resume print command issued.
