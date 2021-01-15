@@ -78,9 +78,9 @@ As a simple test - a browser should be able to access the Duet Web Controller us
   
 **example**
 
--duet 192.168.1.10     #Connect to the printer at 192.168.86.10<br>
+<pre>-duet 192.168.1.10     #Connect to the printer at 192.168.86.10<br>
 -duet localhost        #Connect to the printer at localhost<br>
-
+</pre>
 #### -basedir [full path name]
 If omitted - the default dir is the location of DuetLapse3.py.  This is the logical root for output files See Directory Structure (below).
 If supplied, do NOT put in a trailing slash /
