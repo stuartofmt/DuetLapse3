@@ -75,6 +75,7 @@ The options are described here.  Each option is preceded by a dash -. Some optio
 
 **Mandatory - This is a required option.**  The parameter is the network location of your duet printer.  It can be given as a hostname or an explicit ip address.
 As a simple test - a browser should be able to access the Duet Web Controller using http://<ip address> from the same computer that is running DuetLapse3.py.
+  
 **example**
 -duet 192.168.1.10     #Connect to the printer at 192.168.86.10<br>
 -duet localhost        #Connect to the printer at localhost<br>
