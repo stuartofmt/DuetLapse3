@@ -5,6 +5,7 @@ https://github.com/DanalEstes/DuetLapse
 ## The bulk of the functionality is his work.
 
 The modifications include:
+###Version 3.0.0###
 - [1]  Removal of dependency on DuetWebAPI.py (by Danal Estes).  DuetLapse3.py is a standalone Python3 script.
 - [2]  Added support for 2 cameras
 - [3]  Reorganized Directory Structure to allow logical separation of files (by printer)
@@ -16,6 +17,8 @@ The modifications include:
 - [9]  Added ability to extend the video duration of the last image
 - [10] Generalized capture with Camera type "other" and arbitrary capture commands
 - [11] Generalized video creation with optional commands
+###Version 3.0.3###
+- [1]  Added support for SBC BUT cannot support -pause yes or -detect pause.  Will be added soon.
 
 ## General Description
 Provides the ability to generate time lapse videos from for Duet based 3D printers.
@@ -62,6 +65,8 @@ Options can be viewed with
 ```
 DuetLapse3.py -h
 ```
+The response will give the version number at the top.
+
 The options are described here.  Each option is preceded by a dash -. Some options have parameters described in the square brackets (the square brackets are NOT used in entering the options. If an option is not specified the default used.
 
 #### -duet [ip address]
