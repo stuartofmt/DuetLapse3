@@ -41,7 +41,6 @@ alreadyPaused  = False           # If printer is paused, have we taken our actio
 # Methods begin here
 ###########################
 
-
 def init():
     # parse command line arguments
     parser = argparse.ArgumentParser(description='Create time lapse video for Duet3D based printer. V3.0.3', allow_abbrev=False)
