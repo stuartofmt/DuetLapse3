@@ -84,11 +84,11 @@ As a simple test - a browser should be able to access the Duet Web Controller us
 #### -basedir [full path name]
 If omitted - the default dir is the location of DuetLapse3.py.  This is the logical root for output files See Directory Structure (below).
 If supplied, do NOT put in a trailing slash /
-
+<pre>
 **example**
 
 -basedir /home/pi/mydir  #output files start at /home/pi/mydir
-
+</pre>
 #### -instances [single||oneip||many]
 If omitted - the default is single. Used to control the number of instances of DuetLapse3.py that can run simultaneously.
 In most cases the default will be suitable.
@@ -196,6 +196,7 @@ If omitted the default is usb. Determines how images are captured.
 If omitted it has no value. url specifies the location to capture images for camera1. Only used for -camera1 of types web, stream, or other
 <pre>
 **example**
+
 -weburl http://192.168.86.10/stream.mpeg  #capture images from this location
 </pre>
 #### -camera2 [usb||pi||web||stream||other]
@@ -236,6 +237,7 @@ If omitted has no default. Defines an alternate video capture command.  If provi
 There are 3 internal variables that can be used basedir (has the same meaning as -basedir), cameraname (is the literal "Camera1"), extratime (is the value of -extratime), fn (which is the output file for -camera1) , debug (which controls verbose logging)
 <pre>
 **example**
+
 -vidparam1="'ffmpeg -r 1 -i '+basedir+'/'+duetname+'/tmp/'+cameraname+'-%08d.jpeg -c:v libx264 -vf tpad=stop_mode=clone:stop_duration='+extratime+',fps=10 '+fn+debug"<br>
 </pre>
 This example is the same as the standard video creation.
