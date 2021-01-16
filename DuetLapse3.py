@@ -43,7 +43,7 @@ alreadyPaused  = False           # If printer is paused, have we taken our actio
 
 def init():
     # parse command line arguments
-    parser = argparse.ArgumentParser(description='Create time lapse video for Duet3D based printer. V3.0.3', allow_abbrev=False)
+    parser = argparse.ArgumentParser(description='Create time lapse video for Duet3D based printer. V3.0.4', allow_abbrev=False)
     #Environment
     parser.add_argument('-duet',type=str,nargs=1,default=['localhost'],help='Name of duet or ip address. Default = localhost')
     parser.add_argument('-poll',type=float,nargs=1,default=[5])
@@ -520,8 +520,8 @@ def  sendDuetGcode(model, command):
         URL=('http://'+duet+'/rr_gcode?gcode='+command)
         r = requests.get(URL, timeout=5)
     else:
-        URL=('http://'+duet+'/machine/status?gcode='+command)
-        r = requests.get(URL, timeout=5)
+        URL=('http://'+duet+'/machine/code')
+        r = requests.post(URL, data=command)
         
     if (r.ok):
        return 0
