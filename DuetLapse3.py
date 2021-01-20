@@ -41,6 +41,7 @@ alreadyPaused  = False           # If printer is paused, have we taken our actio
 # Methods begin here
 ###########################
 
+
 def init():
     # parse command line arguments
     parser = argparse.ArgumentParser(description='Create time lapse video for Duet3D based printer. V3.0.4', allow_abbrev=False)
@@ -118,8 +119,8 @@ def init():
     else:
         debug = ' > /dev/null 2>&1'
     #Polling interval should be at least = seconds so as not to miss interval
-    if (poll < seconds and 
-    seconds != 0):poll = seconds
+    if (poll > seconds and seconds != 0): poll = seconds    #Need to poll at least as often as seconds
+    if ('none' in detect and seconds != 0): poll = seconds  #No point in polling more often
     
     # set basedir scripts directory
     if (basedir == ''): basedir = os.path.dirname(os.path.realpath(__file__))
@@ -133,7 +134,7 @@ def init():
          if 'python3' in p.name() and __file__ in p.cmdline():
               proccount += 1
               if ('single' in instances):
-                   allowed += 1
+                  allowed += 1
               if ('oneip' in instances):
                    if duet in p.cmdline():
                         allowed += 1
@@ -195,8 +196,15 @@ def init():
     if ((seconds > 0) and (not 'none' in detect)):
         logger.info('************************************************************************************')
         logger.info('Warning: -seconds '+str(seconds)+' and -detect '+detect+' will trigger on both.')
-        logger.info('Specify "-detect none" with "-seconds" to trigger on seconds alone.')
+        logger.info('Specify "-detect none" with "-seconds > 0" to trigger on seconds alone.')
         logger.info('************************************************************************************')
+        
+    if ((seconds <= 0) and ('none' in detect)):
+        logger.info('************************************************************************************')
+        logger.info('Invalid Combination:: -seconds '+str(seconds)+' and -detect '+detect+' nothing will be captured.')
+        logger.info('Specify "-detect none" with "-seconds > 0" to trigger on seconds alone.')
+        logger.info('************************************************************************************')
+        sys.exit(2)
         
     if ((not movehead == [0.0,0.0]) and ((not 'yes' in pause) and (not 'pause' in detect))):
         logger.info('************************************************************************************')
@@ -208,7 +216,7 @@ def init():
         logger.info('************************************************************************************')
         logger.info('Invalid Combination: "-pause yes" causes this script to pause printer when')
         logger.info('other events are detected, and "-detect pause" requires the gcode on the printer')
-        logger.info('contain its own pauses.  These are fundamentally incompatible.')
+        logger.info('contain its own pauses.  These cannot be used together.')
         logger.info('************************************************************************************')
         sys.exit(2)
 
@@ -227,7 +235,7 @@ def init():
 
     if ('yes' in pause):
         logger.info('************************************************************************************')
-        logger.info('* Note "-pause yes" means this script will pause the printer when the -detect or ')
+        logger.info('* Note "-pause yes" means this script will pause the printer when the -detect and / or ')
         logger.info('* -seconds flags trigger.')
         logger.info('*')
         logger.info('* If instead, it is desired that this script detect pauses that are already in')
@@ -335,26 +343,42 @@ def init():
     logger.info("###################################################################")
     logger.info('')
 
-def checkForcePause():
-    # Called when some other trigger has already happend, like layer or seconds.
-    # Checks to see if we should pause; if so, returns after pause and head movement complete.
+def checkForPause():
+    # Checks to see if we should pause or are paused; if so, returns after pause and head movement complete.
     global alreadyPaused
-    if (alreadyPaused): return
-    if (not 'yes' in pause): return
-    if (duetStatus == 'processing'):
+    alreadyPaused = False
+    if (printerState == 'printing' and pause == 'yes'):  #DuetLapse is controlling when to pause
         logger.info('Requesting pause via M25')
         sendDuetGcode(apiModel, 'M25')    # Ask for a pause
-        sendDuetGcode(apiModel, 'M400')   # Make sure the pause finishes
-        alreadyPaused = True 
-        if(not movehead == [0.0,0.0]):
+        loop = 0
+        while (loop < 10):  #limit the counter in case there is a problem
+            time.sleep(1)  # wait a second and try again
+            if(getDuetStatus(apiModel) == 'paused'):
+                alreadyPaused = True
+                loop = 99
+            loop += 1
+        if (loop == 99):
+               logger.info('Loop exceeded: Target was: paused')
+          
+    if (alreadyPaused or printerState == 'paused'):  
+        if(not movehead == [0.0,0.0]):   #optional repositioning of head
             logger.info('Moving print head to X{0:4.2f} Y{1:4.2f}'.format(movehead[0],movehead[1]))
             sendDuetGcode(apiModel, 'G0 X{0:4.2f} Y{1:4.2f}'.format(movehead[0],movehead[1]))
-            sendDuetGcode(apiModel, 'M400')   # Make sure the move finishes
+            loop = 0
+            while (loop < 10): #limit the counter in case there is a problem
+               time.sleep(1)  # wait a second and try again
+               xpos, ypos, _ = getDuetPosition(apiModel)
+               if ((abs(xpos - movehead[0]) < .2) and (abs(ypos - movehead[1]) < .2)):   #close enough for government work
+                   loop = 99 
+               loop += 1
+            if (loop == 99):
+               logger.info('Loop exceeded for X,Y: '+str(xpos)+','+str(ypos)+' Target was: '+str(movehead[0])+','+str(movehead[1]))
+
     return
 
 def unPause():
     global alreadyPaused
-    if (alreadyPaused):
+    if (alreadyPaused or printerState == 'paused'):
         logger.info('Requesting un pause via M24')
         sendDuetGcode(apiModel,'M24')
 
@@ -394,54 +418,58 @@ def onePhoto(cameraname, camera, weburl, camparam):
         timePriorPhoto2 = time.time()
     
 def oneInterval(cameraname, camera, weburl, camparam):
-    global alreadyPaused
     global frame1, frame2
     global timePriorPhoto1, timePriorPhoto2
     
+    #select the prior frame counter
     if (cameraname =='Camera1'):
         frame = frame1
     else:
         frame = frame2
+        
+    #update the layer counter
+    global zo1, zo2
+    zn = getDuetLayer(apiModel)
+    if (cameraname == 'Camera1'):
+        zo1 = zn
+    else:
+        zo2 = zn
+    
       
     if ('layer' in detect):
-        global zo1, zo2
-        zn=getDuetLayer(apiModel)
         if ((not zn == zo1 and cameraname == 'Camera1') or (not zn == zo2 and cameraname == 'Camera2')):
             # Layer changed, take a picture.
-            checkForcePause()
+            checkForPause()
             logger.info(cameraname+': capturing frame '+str(frame)+' at layer '+str(zn)+' after layer change')
+            onePhoto(cameraname, camera, weburl, camparam)            
+
+    elif ('pause' in detect and printerState == 'paused'):
+            checkForPause()
+            logger.info(cameraname+': capturing frame '+str(frame)+' at layer '+str(zn)+' at pause in print gcode')
             onePhoto(cameraname, camera, weburl, camparam)
-        if (cameraname == 'Camera1'):
-            zo1 = zn
-        else:
-            zo2 = zn
     
+    #Note that onePhoto() updates timePriorPhoto1 and timePriorPhoto2
     if (cameraname == 'Camera1'):
         elap = (time.time() - timePriorPhoto1)
     else:
         elap = (time.time() - timePriorPhoto2)
 
-    if ((seconds) and (seconds < elap)):
-        checkForcePause()
+    if ((seconds > 0) and (seconds < elap)):
+        checkForPause()
         logger.info(cameraname+': capturing frame '+str(frame)+' at layer '+str(zn)+' after '+str(seconds)+' seconds')
         onePhoto(cameraname, camera, weburl, camparam)
-    
-    if (('pause' in detect) and ('paused' in duetStatus) and not alreadyPaused):
-        alreadyPaused = True
-        logger.info('Pause detected at frame '+str(frame))
-        onePhoto(cameraname, camera, weburl, camparam)
-        unPause()   
-
-    if (alreadyPaused and (not 'paused' in duetStatus) ):
-        alreadyPaused = False
-         
 
 def postProcess(cameraname, camera, vidparam):
+    
     logger.info('')
     if (cameraname == 'Camera1'):
         frame = frame1
     else:
         frame = frame2
+        
+    if (frame < 10):
+        logger.info(cameraname+': Cannot create video with only '+str(frame)+' frames')
+        return
      
     logger.info(cameraname+': now making '+str(frame)+' frames into a video')
     if (250 < frame): logger.info("This can take a while...")
@@ -455,14 +483,18 @@ def postProcess(cameraname, camera, vidparam):
     subprocess.call(cmd, shell=True)
     logger.info('Video processing complete for '+cameraname)
     logger.info('Video is in file '+fn)
-       
+    
+ #############################################################################
+ ##############  Duet API access Functions
+ #############################################################################
+
 def  getDuetVersion():
 #Used to get the status information from Duet
     try:
-        logger.info('')
         model = 'rr_model'
         URL=('http://'+duet+'/rr_model?key=boards')
         logger.info('Testing: '+model+' at address '+duet)
+        logger.info(URL)
         logger.info('')
         r = requests.get(URL, timeout=5)
         j = json.loads(r.text)
@@ -473,11 +505,12 @@ def  getDuetVersion():
             model='/machine/system'
             URL=('http://'+duet+'/machine/status')              
             logger.info('Testing: '+model+' at address '+duet)
+            logger.info(URL)
             logger.info('')
             r = requests.get(URL, timeout=5)
             j = json.loads(r.text)
             version = j['boards'][0]['firmwareVersion']
-            return '/machine/status', version;
+            return 'SBC', version;
         except:
             return 'none', '0';
       
@@ -487,34 +520,84 @@ def  getDuetStatus(model):
     if (model == 'rr_model'):
         URL=('http://'+duet+'/rr_model?key=state.status')
         r = requests.get(URL, timeout=5)
-        j = json.loads(r.text)
-        status = j['result']
-        return status
+        if(r.ok):
+            try:
+                j = json.loads(r.text)
+                status = j['result']
+                return status           
+            except:
+                pass
     else:
         URL=('http://'+duet+'/machine/status/')
         r = requests.get(URL, timeout=5)
-        j = json.loads(r.text)
-        status = j['state']['status']
-        return status
-        
+        if(r.ok):
+            try:
+                j = json.loads(r.text)
+                status = j['state']['status']
+                return status
+            except:
+                pass
+    logger.info('getDuetStatus failed to get data. Code: '+str(r.status_code)+' Reason: '+str(r.reason))
+    return 'disconnected'
+
+
 def  getDuetLayer(model):
 #Used to get the status information from Duet
     if (model == 'rr_model'):
         URL=('http://'+duet+'/rr_model?key=job.layer')
         r = requests.get(URL, timeout=5)
-        j = json.loads(r.text)
-        layer = j['result']
-        if layer is None: layer = 0
-        return layer
+        if(r.ok):
+            try:
+                j = json.loads(r.text)
+                layer = j['result']
+                return layer           
+            except:
+                pass
+    else:
+        URL=('http://'+duet+'/machine/status/')
+        r = requests.get(URL, timeout=5)
+        if(r.ok):
+            try:
+                j = json.loads(r.text)
+                layer = j['job']['layer']
+                return layer
+            except:
+                pass
+    logger.info('getDuetLayer failed to get data. Code: '+str(r.status_code)+' Reason: '+str(r.reason))
+    return 'disconnected'
+        
+def  getDuetPosition(model):
+#Used to get the current head position from Duet
+    if (model == 'rr_model'):
+        URL=('http://'+duet+'/rr_model?key=move.axes')
+        r = requests.get(URL, timeout=5)
+        if(r.ok):
+            try:
+                j = json.loads(r.text)
+                Xpos = j['result'][0]['machinePosition']
+                Ypos = j['result'][1]['machinePosition']
+                Zpos = j['result'][2]['machinePosition']
+                return Xpos, Ypos, Zpos;
+            except:
+                pass
     else:
         URL=('http://'+duet+'/machine/status')
         r = requests.get(URL, timeout=5)
-        j = json.loads(r.text)
-        layer = j['job']['layer']
-        if layer is None: layer = 0
-        return layer
-        
-def  sendDuetGcode(model, command):
+        if(r.ok):
+            try:
+                j = json.loads(r.text)
+                Xpos = j['move']['axes'][0]['machinePosition']
+                Ypos = j['move']['axes'][1]['machinePosition']
+                Zpos = j['move']['axes'][2]['machinePosition']
+                return Xpos, Ypos, Zpos;
+            except:
+                pass
+                
+    logger.info('getDuetPosition failed.  Code: '+str(r.status_code)+' Reason: '+str(r.reason))
+    logger.info('Returning coordinates as 9999, 9999, 9999')
+    return 9999, 9999, 9999;
+                
+def  sendDuetGcode(model, command):     
 #Used to get the status information from Duet
     if (model == 'rr_model'):
         URL=('http://'+duet+'/rr_gcode?gcode='+command)
@@ -522,13 +605,12 @@ def  sendDuetGcode(model, command):
     else:
         URL=('http://'+duet+'/machine/code')
         r = requests.post(URL, data=command)
-        
+
     if (r.ok):
-       return 0
-    else:
-        logger.info("gCode command return code = "+str(r.status_code))
-        logger.info(r.reason)
-        return r.status_code
+       return
+        
+    logger.info('sendDuetGCode failed with code: '+str(r.status_code)+'and reason: '+str(r.reason))
+    return
 
 
 ###########################
@@ -556,15 +638,20 @@ import signal
 
 def quit_gracefully(*args):
     logger.info('Stopped by SIGINT - Post Processing')
-    postProcess('Camera1', camera1, vidparam1)
-    if (camera2 != ''): postProcess('Camera2', camera2, vidparam2)
-    sys.exit(0)
+    finish()
 
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, quit_gracefully)
 
-logger.info('****** Printer State changed to '+printerState+' *****') 
+logger.info('****** Printer State changed to '+printerState+' *****')
 
+def finish():
+    unPause()   #clear any final pause
+    postProcess('Camera1', camera1, vidparam1)
+    if (camera2 != ''): postProcess('Camera2', camera2, vidparam2)
+    sys.exit(0)
+
+disconnected = 0
 try: 
     while(1):
         time.sleep(poll)  # poll every n seconds
@@ -587,18 +674,23 @@ try:
             printerState = 'dontwait'
             logger.info('****** Printer State changed to '+printerState+' *****')
             dontwait = False         #once capture starts dontwait has no further meaning
-
+        
+        if(duetStatus == 'disconnected'):
+            disconnected += 1
+            if (disconnected > 10):
+                logger.info('Printer was disconnected - Post Processing')
+                finish()
 
         if (printerState == 'printing' or printerState == 'dontwait' or printerState == 'paused'):
             oneInterval('Camera1', camera1, weburl1, camparam1)
             if (camera2 != ''): oneInterval('Camera2', camera2, weburl2, camparam2)
+            unPause()  #Nothing should be paused at this point
+            disconnected = 0
         elif (printerState == 'completed'):
             logger.info('End of Print Job - Post Processing')
-            postProcess('Camera1', camera1, vidparam1)
-            if (camera2 != ''): postProcess('Camera2', camera2, vidparam2)
-            sys.exit(0)
+            finish()
             
 except KeyboardInterrupt:
     logger.info('Stopped by Ctl+C - Post Processing')
-    postProcess()
+    finish()
    
