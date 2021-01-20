@@ -22,6 +22,12 @@ The modifications include:
 ###Version 3.0.3###
 - [1]  Added support for SBC BUT cannot support -pause yes or -detect pause.  Will be added soon.
 
+###Version 3.0.4###
+- [1]  All functionality supported for SBC
+- [2]  More robust error handling
+- [3]  Improvements to pause logic and confirmation of printer head position during pause image capture.
+
+
 ## General Description
 Provides the ability to generate time lapse videos from for Duet based 3D printers.
 
