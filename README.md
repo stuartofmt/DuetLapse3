@@ -92,6 +92,7 @@ As a simple test - a browser should be able to access the Duet Web Controller us
 -duet 192.168.1.10     #Connect to the printer at 192.168.86.10<br>
 -duet localhost        #Connect to the printer at localhost<br>
 </pre>
+
 #### -basedir [full path name]
 If omitted - the default dir is the location of DuetLapse3.py.  This is the logical root for output files See Directory Structure (below).
 If supplied, do NOT put in a trailing slash /
@@ -100,6 +101,7 @@ If supplied, do NOT put in a trailing slash /
 
 -basedir /home/pi/mydir  #output files start at /home/pi/mydir
 </pre>
+
 #### -instances [single||oneip||many]
 If omitted - the default is single. Used to control the number of instances of DuetLapse3.py that can run simultaneously.
 In most cases the default will be suitable.
@@ -126,12 +128,32 @@ If omitted the default is False
 <pre>
 **example**
 
--verbose       #Causes the output of system calls to be looged according to the setting of -logtype<br>
+-verbose       #Causes the output of system calls to be logged according to the setting of -logtype<br>
 </pre?
 
 #### -poll [seconds]
 If omitted the default is 5 seconds.  This is the time between checking to see if am image needs to be captured.
-If -seconds (see below) is less than -poll then poll is reduced to the value of -seconds. 
+If -seconds (see below) is less than -poll then poll is reduced to the value of -seconds.
+
+#### -host [ip address]
+If omitted the default is the ip address that DuetLapse3 is running on.<br>
+Depending on the system, the ip address reported in different ways e.g. 127.0.0.1 as opposed to the actual ip address.<br>
+Note that it is generally better to specify the actual ip address (assuming it is static) as this makes it easier for an external browser to connect.
+<pre>
+**example**
+
+-host 192.168.86.10      #Causes internal http listener (if active) to listen at ip address 192.168.86.10<br>
+</pre?
+
+#### -port [port number]
+If omitted the default is 0 AND the internal http listener is NOT started.<br>
+Depending on the system, the is may be reported in different ways e.g. 127.0.0.1 as opposed to the actual ip address.<br>
+Note that it is generally better to specify the actual ip address as this makes it easier for an external browser to connect.
+<pre>
+**example**
+
+-port 8082      #Causes internal http listener to start and listen on port 8082<br>
+</pre?
 
 #### -dontwait
 If omitted - the default is False
