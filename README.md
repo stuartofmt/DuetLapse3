@@ -27,6 +27,11 @@ The modifications include:
 - [2]  More robust error handling
 - [3]  Improvements to pause logic and confirmation of printer head position during pause image capture.
 
+###Version 3.1.0###
+- [1]  Added support for Windows
+- [2]  Added automatic detection of operating system (Linux or Windows)
+- [3]  Aded integrated http listener for basic browser based control
+- [4]  Changed file naming convention to make filenames unique if multiple instances of DuetLapse3 are running.
 
 ## General Description
 Provides the ability to generate time lapse videos from for Duet based 3D printers.
@@ -105,6 +110,7 @@ In most cases the default will be suitable.
 -instance oneip     #For each printer (set by -duet), there can only be one instance of DuetLapse3.py running<br>
 -instances many     #No restriction on the number of instances<br>
 </pre>
+
 #### -logtype [console||file||both]
 If omitted - the default is both
 <pre>
@@ -114,6 +120,7 @@ If omitted - the default is both
 -logtype file      #Only send messages to the logfile (see Directory Structure for logfile name and location)<br>
 -logtype many      #Send messages to both the console and file<br>
 </pre>
+
 #### -verbose
 If omitted the default is False
 <pre>
@@ -121,6 +128,7 @@ If omitted the default is False
 
 -verbose       #Causes the output of system calls to be looged according to the setting of -logtype<br>
 </pre?
+
 #### -poll [seconds]
 If omitted the default is 5 seconds.  This is the time between checking to see if am image needs to be captured.
 If -seconds (see below) is less than -poll then poll is reduced to the value of -seconds. 
@@ -132,6 +140,7 @@ If omitted - the default is False
 
 -dontwait    #Images will be captured immediately.  Does not wait for the printer to start.<br>
 </pre>
+
 #### -seconds [seconds]
 If omitted the default is 0 seconds (i.e. ignored). Can be any positive number.
 <pre>
@@ -139,6 +148,7 @@ If omitted the default is 0 seconds (i.e. ignored). Can be any positive number.
 
 -seconds 10  #Images will be captures at least every 10 seconds<br>
 </pre>
+
 #### -detect [layer||pause||none]
 If omitted the default is layer
 <pre>
@@ -177,6 +187,7 @@ Valid positions must be greater then 0.0 and less than the maximum allowed by yo
 
 -movehead 10,5    #Will move the head to X=10, Y=5 before capturing an image<br>
 </pre>
+
 #### -extratime [second]
 If omitted the default is 0.  When creating the video - extends the duration of the last frame by the specified number of seconds.
 <pre>
@@ -198,6 +209,7 @@ If omitted the default is usb. Determines how images are captured.
 -camera1 stream   #Uses ffmpeg to capture images from a video feed<br>
 -camera1 other    #Canonly be used in conjunction with -camparam1 (see below)<br>
 </pre>
+
 #### -weburl1 [url]
 If omitted it has no value. url specifies the location to capture images for camera1. Only used for -camera1 of types web, stream, or other
 <pre>
@@ -205,6 +217,7 @@ If omitted it has no value. url specifies the location to capture images for cam
 
 -weburl http://192.168.86.10/stream.mpeg  #capture images from this location
 </pre>
+
 #### -camera2 [usb||pi||web||stream||other]
 If omitted has no default (unlike camera1). Has the same parameters as -camera1
 
@@ -261,27 +274,27 @@ basedir/
                     tmp/
 ``` 
 **duet-address** is derived from the -duet option.  Periods are replaced by a dash for example -duet 192.168.1.10 creates the sub directory 192-168-1-10, -duet myduet.local becomes myduet-local.<br>
-The duet-address subdirectory contains the video files as well as a log file *DuetLapse3.log* relating to the specific printer.  The video files are named according to this scheme  "Camera-Day-Hour:Min.mp4"  e.g  Camera1-Thur-22:31.mp4<br>
-**tmp** is used to capture the still images for the printer. It is cleared out at the *start* of each capture.  This way - if anything goes wrong with the video creation a command line use of ffmpeg (or other program) can be used to attempt recovery.  
+The duet-address subdirectory contains the video files as well as a log file *DuetLapse3.log* relating to the specific printer.  The video files are named according to this scheme  "<Camera><pid>-Day-Hour:Min.mp4"  where <Camera> is Camera1 or Camera2 and <pid> is the process id. e.g  Camera110978-Thur-22:31.mp4<br>
+**tmp** is used to capture the still images for the printer. It is cleared out when DuetLapse3 starts or restarts.  This way - if anything goes wrong with the video creation a command line use of ffmpeg (or other program) can be used to attempt recovery.  
  
 ## Usage Examples
 
 Many options can be combined.  For example, the script can trigger on both "seconds" and "detect layer". It will inform you if you select conflicting options.
 Note that these examples are from the command line.  If running from a script (or to avoid issues closing the console) adding a **&** at the end (in linux) will run the script in background.
 
-Example: Use a webcam that requires a UserId and Password, capture an image every 20 seconds, do not respind to layer changes or pauses:
+Example: Capture an image every 20 seconds, do not respond to layer changes or pauses, use a webcam at the specified url:
 ```
-./DuetLapse3.py -camera1 web -weburl1 http://userid:password@192.168.7.140/cgi-bin/currentpic.cgi -duet 192.168.7.101 -seconds 20 -detect none
+python3 ./DuetLapse3.py  -duet 192.168.7.101 -seconds 20 -detect none -camera1 web -weburl1 http://userid:password@192.168.7.140/cgi-bin/currentpic.cgi
 
 ```
-Example: Default to USB camera.  Capture an image on layer changes. Force pauses (at layer change) and move head to X10 Y10 before creating an image.
+Example: Start the http listener on 192.198.86.10  using port 8082, capture an image on layer changes (default), force pauses (at layer change) and move head to X10 Y10 before creating an image, use the default USB camera.
 ```
-./DuetLapse3.py -duet 192.168.7.101 -pause yes -movehead 10 10
+python3 ./DuetLapse3.py -duet 192.168.7.101 -host 192.168.86.10 -port 8082 -pause yes -movehead 10 10
 
 ```
 Example: Two camera example. Start capturing immediately at a minumum of one image every 3 second. Camera2 uses camparam and vidparam2 overrides. Run in background.
 ```
-/usr/bin/python3 $PROCESS -duet 192.168.86.235 -basedir /home/pi/Lapse -instances oneip -dontwait -seconds 3 -camera1 stream -weburl1 http://192.168.86.230:8081/stream.mjpg  -camera2 other -weburl2 http://192.168.86.230:8081/stream.mjpg -camparam2="'ffmpeg -y -i '+weburl+ ' -vframes 1 ' +fn+debug" -vidparam2="'ffmpeg -r 1 -i '+basedir+'/'+duetname+'/tmp/'+cameraname+'-%08d.jpeg -c:v libx264 -vf tpad=stop_mode=clone:stop_duration='+extratime+',fps=10 '+fn+debug" -extratime 0 &
+/usr/bin/python3 ./DuetLapse3.py -duet 192.168.86.235 -basedir /home/pi/Lapse -instances oneip -dontwait -seconds 3 -camera1 stream -weburl1 http://192.168.86.230:8081/stream.mjpg  -camera2 other -weburl2 http://192.168.86.230:8081/stream.mjpg -camparam2="'ffmpeg -y -i '+weburl+ ' -vframes 1 ' +fn+debug" -vidparam2="'ffmpeg -r 1 -i '+basedir+'/'+duetname+'/tmp/'+cameraname+'-%08d.jpeg -c:v libx264 -vf tpad=stop_mode=clone:stop_duration='+extratime+',fps=10 '+fn+debug" -extratime 0 &
 ```
 
 
