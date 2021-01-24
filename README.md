@@ -153,7 +153,7 @@ If omitted the default is False
 **example**
 
 -verbose       #Causes the output of system calls to be logged according to the setting of -logtype<br>
-</pre?
+</pre>
 
 #### -poll [seconds]
 If omitted the default is 5 seconds.  This is the time between checking to see if am image needs to be captured.
@@ -167,7 +167,7 @@ Note that it is generally better to specify the actual ip address (assuming it i
 **example**
 
 -host 192.168.86.10      #Causes internal http listener (if active) to listen at ip address 192.168.86.10<br>
-</pre?
+</pre>
 
 #### -port [port number]
 If omitted the default is 0 AND the internal http listener is NOT started.<br>
@@ -177,7 +177,7 @@ Note that it is generally better to specify the actual ip address as this makes 
 **example**
 
 -port 8082      #Causes internal http listener to start and listen on port 8082<br>
-</pre?
+</pre>
 
 #### -dontwait
 If omitted - the default is False
