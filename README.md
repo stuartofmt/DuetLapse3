@@ -51,7 +51,7 @@ Feedback via issues on Duet forum https://forum.duet3d.com/topic/20932/duetlapse
 ## Requirements 
 
 * Python3
-* Duet printer must be RRF V3 or later (i.e. support the rr_model calls)
+* Duet printer must be RRF V3 or later (i.e. support either the  rr_model or /machine calls)
 * ffmpeg version newer than 4.2 (this may need to be compiled if your system has an older version as standard)
   The following instructions may help https://github.com/stuartofmt/DuetLapse3/blob/main/ffmpeg.md
 * Python dependencies that are missing will be called out by the script
@@ -62,15 +62,24 @@ Feedback via issues on Duet forum https://forum.duet3d.com/topic/20932/duetlapse
   * wget (for Web cameras)
 
 ## Installation
+For Linux:<br>
 * mkdir DuetLapse  - or other directory of your choice
 * cd DuetLapse
 * wget https://github.com/stuartofmt/DuetLapse3/raw/main/DuetLapse3.py
 * chmod 744 DuetLapse3.py
+
+For windows<br>
+Follow the instructions from one of the web sources - for example:<br>
+https://docs.python.org/3/using/windows.html 
+
+Take note of editing the path variable(s) so that python3 and it's /libraries/modules can be found during execution.
   
 ## Usage
 
 The python script can be started from the command line or, more usually, from a bash or similar script.  Although there are defaults for many of the options - it's unlikely that the script will do exactly what you want with just the defaults.
-The script will usually be started just before you starting a printing - but this is not critical.  Depending on options (e.g. dontwait) it will either immediately start creating still images or wait until the printer changes status from "Idle" to "Processing".  At the end of the print job the script combines the still images into a mp4 video to create the time lapse.  If the script is run in foreground it can be stopped (before the print job completes) using CTl+C.  If the script is run in background it can be stopped using SIGINT (kill -2 <pid> in linux).  The example bash script here https://github.com/stuartofmt/DuetLapse3/blob/main/timelapse  gives examples for starting and stopping the program on a Linux system.
+The script will usually be started just before you starting a printing - but this is not critical.  Depending on options (e.g. dontwait) it will either immediately start creating still images or wait until the printer changes status from "Idle" to "Processing".<br>
+At the end of the print job the script combines the still images into a mp4 video to create the time lapse.<br>
+If the script is run in foreground it can be stopped (before the print job completes) using CTl+C.  If the script is run in background it can be stopped using SIGINT (kill -2 <pid> in linux).  The example bash script here https://github.com/stuartofmt/DuetLapse3/blob/main/timelapse  gives examples for starting and stopping the program on a Linux system.
 
 The **Integrated http listener** is avilable for basic control of DuetLapse3 (not the attached printer).<br>
 The http listener is activated by specifying a port number using the -port option.<br>
