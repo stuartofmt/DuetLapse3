@@ -173,6 +173,7 @@ Note that it is generally better to specify the actual ip address (assuming it i
 If omitted the default is 0 AND the internal http listener is NOT started.<br>
 Depending on the system, the is may be reported in different ways e.g. 127.0.0.1 as opposed to the actual ip address.<br>
 Note that it is generally better to specify the actual ip address as this makes it easier for an external browser to connect.
+**The http listener is only started if a port number is specified**
 <pre>
 **example**
 
