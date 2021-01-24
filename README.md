@@ -70,7 +70,21 @@ Feedback via issues on Duet forum https://forum.duet3d.com/topic/20932/duetlapse
 ## Usage
 
 The python script can be started from the command line or, more usually, from a bash or similar script.  Although there are defaults for many of the options - it's unlikely that the script will do exactly what you want with just the defaults.
-The script will usually be started just before you starting a printing - but this is not critical.  Depending on options (e.g. dontwait) it will either immediately start creating still images or wait until the printer changes status from "Idle" to "Processing".  At the end of the print job the script combines the still images into a mp4 video to create the time lapse.  If the script is run in foreground it can be stopped (before the print job completes) using CTl+C.  If the script is run in background it can be stopped using SIGINT (kill -2 <pid> in linux).  The example bash script here https://github.com/stuartofmt/DuetLapse3/blob/main/timelapse   gives examples for starting and stopping the program. 
+The script will usually be started just before you starting a printing - but this is not critical.  Depending on options (e.g. dontwait) it will either immediately start creating still images or wait until the printer changes status from "Idle" to "Processing".  At the end of the print job the script combines the still images into a mp4 video to create the time lapse.  If the script is run in foreground it can be stopped (before the print job completes) using CTl+C.  If the script is run in background it can be stopped using SIGINT (kill -2 <pid> in linux).  The example bash script here https://github.com/stuartofmt/DuetLapse3/blob/main/timelapse  gives examples for starting and stopping the program on a Linux system.
+
+The **Integrated http listener** is avilable for basic control of DuetLapse3 (not the attached printer).<br>
+The http listener is activated by specifying a port number using the -port option.<br>
+In conjunction with the -host option it provides the following functionality from a browser (or curl or other method of performing a http get).
+```
+http://<ip-address><port>/?command=<valid command>
+```
+Valid commands are:
+status     - returns brief information about the running state of DuetLapse3
+pause      - causes DuetLapse3 to temporarily stop capturing images
+continue   - causes DuetLapse3 to resume capturing images
+snapshot   - causes DuetLapse3 to make an interim video and then continue
+restart    - causes DuetLapse 3 to stop capturing images, create a video and then restart with a new capture set
+terminate  - causes DuetLapse 3 to stop capturing images, create a video and then terminate the program. This is the same as CTRL+C or SIGINT.
 
 ### Options
 
