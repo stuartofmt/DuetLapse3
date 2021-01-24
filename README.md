@@ -2,7 +2,7 @@
 
 ## This is a modified version of the original DuetLapse created by Danal Estes
 https://github.com/DanalEstes/DuetLapse
-## The bulk of the functionality is his work.
+## The core functionality is his work.
 
 The modifications include:
 
