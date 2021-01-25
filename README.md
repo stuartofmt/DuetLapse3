@@ -33,6 +33,9 @@ The modifications include:
 - [3]  Added integrated http listener for basic browser based control
 - [4]  Changed file naming convention to make filenames unique if multiple instances of DuetLapse3 are running.
 
+###Version 3.1.1###
+- [1]  if -extratime not specified (default 0) will use ffmpeg syntax compatible with version < 4.2 (4.1.6 tested)
+
 ## General Description
 Provides the ability to generate time lapse videos from for Duet based 3D printers.
 
@@ -255,7 +258,8 @@ Valid positions must be greater then 0.0 and less than the maximum allowed by yo
 </pre>
 
 #### -extratime [second]
-If omitted the default is 0.  When creating the video - extends the duration of the last frame by the specified number of seconds.
+If omitted the default is 0.  When creating the video - extends the duration of the last frame by the specified number of seconds.<br>
+To use - requires ffmpeg at version 4.2+
 <pre>
 **example**
 
