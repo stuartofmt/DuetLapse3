@@ -90,7 +90,7 @@ http://<ip-address><port>/?command=<valid command>
 <pre>
 Valid commands are:
 start      - Starts DuetLapse3 recording if the -stopcmd option was used or after a stop command<br>
-stop       - Stops (but does not terminate) DuetLapse3 recording and discards any images capture.  Waits for a start command.
+standby    - Stops (but does not terminate) DuetLapse3 recording and discards any images capture.  Waits for a start command.
 status     - returns brief information about the running state of DuetLapse3
 pause      - causes DuetLapse3 to temporarily stop capturing images
 continue   - causes DuetLapse3 to resume capturing images
@@ -105,7 +105,7 @@ terminate  - causes DuetLapse 3 to stop capturing images, create a video and the
 
 Options can be viewed with
 ```
-DuetLapse3.py -h
+python3 DuetLapse3.py -h
 ```
 The response will give the version number at the top.
 
@@ -165,9 +165,8 @@ If omitted the default is 5 seconds.  This is the time between checking to see i
 If -seconds (see below) is less than -poll then poll is reduced to the value of -seconds.
 
 #### -host [ip address]
-If omitted the default is the ip address that DuetLapse3 is running on.<br>
-Depending on the system, the ip address reported in different ways e.g. 127.0.0.1 as opposed to the actual ip address.<br>
-Note that it is generally better to specify the actual ip address (assuming it is static) as this makes it easier for an external browser to connect.
+If omitted the default is 0.0.0.0<br>
+Generally this can be left out (default) as it will allow connection to the http listener from localhost:<port> (locally) or from another machine with network access using <actual-ip-address-of-server-running-DuetLapse3><port>.
 <pre>
 **example**
 
@@ -185,12 +184,23 @@ Note that it is generally better to specify the actual ip address as this makes 
 -port 8082      #Causes internal http listener to start and listen on port 8082<br>
 </pre>
 
+#### -standby
+If omitted the default is False<br>
+If the http listener is active (i.e. -port is specified) - this option will cause DuetLapse3 to wait for a start command from the http listener before capturing images.<br>
+It is useful for having DuetLapse running but not actually doing anything until commanded to do so.
+<pre>
+**example**
+
+-stopcmd #Causes internal http listener to start and listen on port 8082<br>
+</pre>
+
 #### -dontwait
 If omitted - the default is False
 <pre>
 **example**
 
--dontwait    #Images will be captured immediately.  Does not wait for the printer to start.<br>
+-dontwait    #Images will be captured immediately (without first waiting for a layer change or pause) if -seconds > 0.
+             #Otherise images will first start being captured on the first layer change or pause (see -detect).
 </pre>
 
 #### -seconds [seconds]
