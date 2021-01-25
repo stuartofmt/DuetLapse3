@@ -802,7 +802,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
 
 class MyHandler(BaseHTTPRequestHandler):
-    options = 'status, start, standby, pause, continue, snapshot, restart, terminate'
+
     def _set_headers(self):
         self.send_response(200)
         self.send_header("Content-type", "text/html")
@@ -814,6 +814,7 @@ class MyHandler(BaseHTTPRequestHandler):
     
     def do_GET(self):
         global action
+        options = 'status, start, standby, pause, continue, snapshot, restart, terminate'
         qs = {}
         path = self.path
         if ('favicon.ico' in path):
@@ -880,11 +881,11 @@ class MyHandler(BaseHTTPRequestHandler):
                 logger.info('!!!!! Stopped by http Terminate request !!!!!')
 
             else:
-                self.wfile.write(self._html('Illegal value for ?command=<br><h3>Valid options are '+options+'</h3>'))
+                self.wfile.write(self._html('Illegal value for ?command=<br><h3>Valid options are:   '+options+'</h3>'))
             
             return
         
-        self.wfile.write(self._html('Invalid Argument<br><h3>The only valid arguments is ?command=<br><h3>Valid options are '+options+'</h3>'))       
+        self.wfile.write(self._html('Invalid Argument<br><h3>The only valid argument is ?command=<br><h3>Valid options are:   '+options+'</h3>'))       
         return
 
         def log_request(self, code=None, size=None):
