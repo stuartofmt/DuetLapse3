@@ -30,7 +30,7 @@ The modifications include:
 ###Version 3.1.0###
 - [1]  Added support for Windows
 - [2]  Added automatic detection of operating system (Linux or Windows)
-- [3]  Aded integrated http listener for basic browser based control
+- [3]  Added integrated http listener for basic browser based control
 - [4]  Changed file naming convention to make filenames unique if multiple instances of DuetLapse3 are running.
 
 ## General Description
@@ -81,7 +81,7 @@ The script will usually be started just before you starting a printing - but thi
 At the end of the print job the script combines the still images into a mp4 video to create the time lapse.<br>
 If the script is run in foreground it can be stopped (before the print job completes) using CTl+C.  If the script is run in background it can be stopped using SIGINT (kill -2 <pid> in linux).  The example bash script here https://github.com/stuartofmt/DuetLapse3/blob/main/timelapse  gives examples for starting and stopping the program on a Linux system.
 
-An **Integrated http listener** is avilable for basic control of DuetLapse3 (not the attached printer).<br>
+An **Integrated http listener** is available for basic control of DuetLapse3 (not the attached printer).<br>
 The http listener is activated by specifying a port number using the -port option.<br>
 In conjunction with the -host option it provides the following functionality from a browser (or curl or other method of performing a http get).
 ```
