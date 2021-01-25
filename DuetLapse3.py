@@ -56,7 +56,7 @@ setStartValues()
 
 def init():
     # parse command line arguments
-    parser = argparse.ArgumentParser(description='Create time lapse video for Duet3D based printer. V3.1.0', allow_abbrev=False)
+    parser = argparse.ArgumentParser(description='Create time lapse video for Duet3D based printer. V3.1.1', allow_abbrev=False)
     #Environment
     parser.add_argument('-duet',type=str,nargs=1,default=['localhost'],help='Name of duet or ip address. Default = localhost')
     parser.add_argument('-poll',type=float,nargs=1,default=[5])
