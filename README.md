@@ -89,7 +89,7 @@ http://<ip-address><port>/?command=<valid command>
 ```
 <pre>
 Valid commands are:
-start      - Starts DuetLapse3 recording if the -stopcmd option was used or after a stop command<br>
+start      - Starts DuetLapse3 recording if the -stopcmd option was used or after a stop command
 standby    - Stops (but does not terminate) DuetLapse3 recording and discards any images capture.  Waits for a start command.
 status     - returns brief information about the running state of DuetLapse3
 pause      - causes DuetLapse3 to temporarily stop capturing images
