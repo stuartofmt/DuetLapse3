@@ -96,7 +96,8 @@ pause      - causes DuetLapse3 to temporarily stop capturing images
 continue   - causes DuetLapse3 to resume capturing images
 snapshot   - causes DuetLapse3 to make an interim video and then continue
 restart    - causes DuetLapse3 to stop capturing images, create a video and then restart with a new capture set
-terminate  - causes DuetLapse3 to stop capturing images, create a video and then terminate the program. This is the same as CTRL+C or SIGINT.
+terminate  - causes DuetLapse3 to stop capturing images, create a video and then terminate the program. This is the same as CTRL+C or SIGINT.<br>
+             Note that depending on your system - it may take several minutes for the http listener to completely shutdown following a terminate request.
 </pre>
 
 **Note that the http listener will stop responding if DuetLapse3 is run from a command console that is then closed.  This will happen even if started in background.  To avoid this - use nohup (linux).<br>
