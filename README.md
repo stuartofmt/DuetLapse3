@@ -89,6 +89,8 @@ http://<ip-address><port>/?command=<valid command>
 ```
 <pre>
 Valid commands are:
+start      - Starts DuetLapse3 recording if the -stopcmd option was used or after a stop command<br>
+stop       - Stops (but does not terminate) DuetLapse3 recording and discards any images capture.  Waits for a start command.
 status     - returns brief information about the running state of DuetLapse3
 pause      - causes DuetLapse3 to temporarily stop capturing images
 continue   - causes DuetLapse3 to resume capturing images
@@ -96,6 +98,9 @@ snapshot   - causes DuetLapse3 to make an interim video and then continue
 restart    - causes DuetLapse 3 to stop capturing images, create a video and then restart with a new capture set
 terminate  - causes DuetLapse 3 to stop capturing images, create a video and then terminate the program. This is the same as CTRL+C or SIGINT.
 </pre>
+
+**Note that the http listener will stop responding if DuetLapse3 is run from a command console that is then closed.  This will happen even if started in background.  To avoid this - use nohup (linux).  Windows does not have an (easy) equivalent to nohup so you would need to leave the command console open.  An alternative if you are on Win10 is to use  Windows Subsystem for Linux (WSL) and run DuetLapse as a linux application inside WSL.**
+
 ### Options
 
 Options can be viewed with
