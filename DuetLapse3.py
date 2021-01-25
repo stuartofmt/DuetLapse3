@@ -182,7 +182,7 @@ def init():
             
     # set base directory for files
     if (basedir == ''): basedir = os.path.dirname(os.path.realpath(__file__))
-    print(basedir)    
+ 
     #duetname used for filenames and directories
     duetname = duet.replace('.' , '-')
     
@@ -412,10 +412,11 @@ def init():
                 logger.info("Module 'wget' is required. ")
                 logger.info("Obtain via 'sudo apt install wget'")
                 sys.exit(2)
-
+        
         if (20 > len(subprocess.check_output(finder+' ffmpeg', shell=True))):
             logger.info("Module 'ffmpeg' is required. ")
             logger.info("Obtain via 'sudo apt install ffmpeg'")
+
             sys.exit(2)
 
     checkDependencies(camera1)
@@ -639,12 +640,14 @@ def postProcess(cameraname, camera, vidparam):
     fn = '"'+basedir+'/'+duetname+'/'+cameraname+pid+'-'+time.strftime('%a-%H-%M',time.localtime())+'.mp4"'
 
     if (vidparam == ''):
-        if(win):
-            #does not like the fps=10 argument   
-            cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+basedir+'/'+duetname+'/tmp/'+cameraname+pid+'-%08d.jpeg" -c:v libx264 -vf tpad=stop_mode=clone:stop_duration='+extratime+' '+fn+debug
-        else:
-            cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+basedir+'/'+duetname+'/tmp/'+cameraname+pid+'-%08d.jpeg" -c:v libx264 -vf tpad=stop_mode=clone:stop_duration='+extratime+',fps=10 '+fn+debug
-
+        if (float(extratime) > 0):  #needs ffmpeg > 4.2
+            if(win):
+                #Windows version does not like fps=10 argument   
+                cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+basedir+'/'+duetname+'/tmp/'+cameraname+pid+'-%08d.jpeg" -c:v libx264 -vf tpad=stop_mode=clone:stop_duration='+extratime+' '+fn+debug
+            else:
+                cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+basedir+'/'+duetname+'/tmp/'+cameraname+pid+'-%08d.jpeg" -c:v libx264 -vf tpad=stop_mode=clone:stop_duration='+extratime+',fps=10 '+fn+debug
+        else: #Using an earlier version of ffmpeg that does not support tpad (and hence extratime)
+            cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+basedir+'/'+duetname+'/tmp/'+cameraname+pid+'-%08d.jpeg" -vcodec libx264 -y '+fn+debug
     else:
         cmd = eval(vidparam)    
               
