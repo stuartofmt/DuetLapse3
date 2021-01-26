@@ -168,7 +168,7 @@ def init():
         win = True
     else:
         win = False
-    print(operatingsystem)        
+       
     # How much output
     if (verbose) :
         debug = ''
@@ -793,10 +793,6 @@ def terminate():
 ###########################
 # Integral Web Server
 ###########################
-"""
-Use Threading HTTPServer as it's likely more robust with Chrome
-Less likely to hold connection, timeout and then block other requests
-"""
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
@@ -831,7 +827,8 @@ class MyHandler(BaseHTTPRequestHandler):
             logger.info('!!!!! http '+command+' request !!!!!')
                      
             if (command == 'status'):
-                self.wfile.write(self._html('Status of printer on '+duet+'<br><h3>Printer State: '+printerState+'<br>DuetLapse3 State: '+action+'<br>Images Captured: '+str(frame1)+'<br>Current Layer: '+str(zo1)+'</h3>'))              
+                localtime = time.strftime('%a - %H:%M',time.localtime())
+                self.wfile.write(self._html('Status of printer on '+duet+' as of '+localtime+'<br><h3>Printer State: '+printerState+'<br>DuetLapse3 State: '+action+'<br>Images Captured: '+str(frame1)+'<br>Current Layer: '+str(zo1)+'</h3>'))              
             
             elif (command == 'start'):
                 if (action == 'stopped'):
@@ -896,7 +893,7 @@ class MyHandler(BaseHTTPRequestHandler):
     
 def createHttpListener():
     global listener
-    import threading
+    #import threading
     listener = HTTPServer((host, port), MyHandler)
     listener.serve_forever()
     sys.exit(0)  #May not be needed since never returns from serve_forever
@@ -956,7 +953,6 @@ try:
     while(1):
 
         while('run' in action):  #action can be changed by httpListener or SIGINT or CTL+C
-            time.sleep(poll)  # poll every n seconds
             global duetStatus
             duetStatus=getDuetStatus(apiModel)    
             # logical states for printer
@@ -999,6 +995,8 @@ try:
                     action = 'restart'
                 else:
                     action = 'terminate'
+                    
+            time.sleep(poll)  # poll every n seconds - placed here to speeed startup       
         #outer loop
         #Check for processing change instructions 
         #from the http listener
