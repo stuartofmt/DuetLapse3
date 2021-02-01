@@ -1,15 +1,11 @@
 #!python3
 """
-Very simple HTTP server in python (Updated for Python 3.7)
-Usage:
-    ./dummy-web-server.py -h
-    ./dummy-web-server.py -l localhost -p 8000
-Send a GET request:
-    curl http://localhost:8000
-Send a HEAD request:
-    curl -I http://localhost:8000
-Send a POST request:
-    curl -d "foo=bar&bin=baz" http://localhost:8000
+Simple HTTP server for starting and stopping DuetLapse3
+# Copyright (C) 2020 Stuart Strolin all rights reserved.
+# Released under The MIT License. Full text available via https://opensource.org/licenses/MIT
+#
+#
+# Developed on WSL with Debian Buster. Tested on Raspberry pi, Windows 10 and WSL. SHOULD work on most other linux didtributions. 
 """
 import argparse
 from http.server import HTTPServer, BaseHTTPRequestHandler
