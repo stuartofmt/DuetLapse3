@@ -1,10 +1,10 @@
 # systemctl unit file example
  
-This document briefly describes setting up a unit file so that startDuetLapse will begin running after bootup
+This document briefly describes setting up a unit file so that startDuetLapse will begin running after bootup.
 Its accurate for Debian Buster but there may be differences for other distributions - so this douumant is only guidance.
 
 Download the example file
-
+https://github.com/stuartofmt/DuetLapse3/raw/main/startDuetLapse3.service
 
 Edit the example file paying particular attention to the following comments:
 ```
