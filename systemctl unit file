@@ -1,5 +1,5 @@
 [Unit]
-Description=Stream Service
+Description=startDuetLapse3 Service
 After=multi-user.target
 [Service]
 WorkingDirectory=/home/pi/Lapse
