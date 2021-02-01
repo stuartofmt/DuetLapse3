@@ -21,8 +21,11 @@ Restart=always
 WantedBy=multi-user.target
 ```
 
-Determine where your systemctl files are (usually this will be somewhere like /lib/systemd/system so we will use this in the following examples)
-The following command can help narrow down the options
+Determine where your systemctl files are. Usually this will be somewhere like /lib/systemd/system.<br>
+This directory will be used in the following commands.
+
+If your distribution does not use this directory and you are unsure what it is - you can narrow down the options with:
+
 ```
 sudo find / -name system | grep systemd
 ```
@@ -54,8 +57,7 @@ sudo systemctl start startDuetLapse3.service
 sudo systemctl status startDuetLapse3.service
 ```
 
-Try this a couple of time just in case there was an error in the unit file that needs fixing.
-If there is then you can edit it in the /lib/systemd/system directory then repeat steps 3, 4 and 5 above.
+If there is an error - you can edit it in the /lib/systemd/system directory then repeat steps 3, 4 and 5 above.
 
 
 Finally - enable the unit file, reboot and test to see if its running
@@ -63,5 +65,3 @@ Finally - enable the unit file, reboot and test to see if its running
 ```
 sudo systemctl enable startDuetLapse3.service
 ```
-
-
