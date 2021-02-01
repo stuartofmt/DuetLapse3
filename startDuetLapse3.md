@@ -29,6 +29,8 @@ Note that startDuetLapse3 will NOT run without DuetLapse3 being present.<br>
 It imports key functions from DuetLapse3
 
 ## Installation
+Note that startDuelLapse3 needs to be installed in the same directory as DuetLapse3
+
 For Linux:<br>
 * cd to the directory you installed DuetLapse3
 * wget https://github.com/stuartofmt/DuetLapse3/raw/main/startDuetLapse3.py
