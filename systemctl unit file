@@ -1,0 +1,11 @@
+[Unit]
+Description=Stream Service
+After=multi-user.target
+[Service]
+WorkingDirectory=/home/pi/Lapse
+User=pi
+Type=idle
+ExecStart=python3 /home/pi/Lapse/startDuetLapse3.py -port 8082
+Restart=always
+[Install]
+WantedBy=multi-user.target
