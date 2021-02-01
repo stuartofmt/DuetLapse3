@@ -83,5 +83,5 @@ libswresample   3.  8.100 /  3.  8.100
 libpostproc    55.  8.100 / 55.  8.100
 ```
   
-  
+ 
  ffmpeg - filters shows tpad being available.
