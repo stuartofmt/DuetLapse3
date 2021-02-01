@@ -3,7 +3,7 @@
 This document briefly describes setting up a unit file so that startDuetLapse will begin running after bootup.
 Its accurate for Debian Buster but there may be differences for other distributions - so this douumant is only guidance.
 
-Download the example file
+Download the example file<br>
 wget https://github.com/stuartofmt/DuetLapse3/raw/main/startDuetLapse3.service
 
 Edit the example file paying particular attention to the following comments:
