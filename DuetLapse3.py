@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
+#!python3
 
 """
-#Python Script to take Time Lapse photographs during a print on 
+#Python program to take Time Lapse photographs during a print on 
 #   a Duet based 3D printer and convert them into a video. 
 #
 # From the original work of Danal Estes
@@ -13,7 +13,7 @@
 # Released under The MIT License. Full text available via https://opensource.org/licenses/MIT
 #
 #
-# Developed on Raspberry Pi with Debian Buster and on Windows 10. SHOULD work on most other linux didtributions. 
+# Developed on Raspberry Pi and WSL with Debian Buster and on Windows 10. SHOULD work on most other linux didtributions. 
 # For USB or Pi camera, The Camera MUST be physically attached to the Pi computer.  
 # For Webcam, the camera must be network reachable and via a defined URL for a still image.
 # For Stream   the camera must be network reachable and via a defined URL
@@ -21,6 +21,7 @@
 # 
 #
 """
+
 import subprocess
 import sys
 import platform
@@ -29,42 +30,40 @@ import time
 import requests
 import json
 import os
+import socket
+import threading
 
-# Globals.
-alreadyPaused  = False           # If printer is paused, have we taken our actions yet?
-httpListener = False             # Indicates if an integral httpListener should be started
-win = False                      # Windows OS
-pid = 0                          # pid for this instance - used for temp filenames
 
 def setStartValues():
-    global zo1, zo2, printerState, timePriorPhoto1, timePriorPhoto2, frame1, frame2, action, startnow
-    zo1 = -1                         # Starting layer for Camera1
-    zo2 = -1                         # Starting layer for Camera2
-    printerState = 'waiting' 
-    timePriorPhoto1 = 0 #reset time of last image capture
-    timePriorPhoto2 = 0
-    frame1 = 0       #reset the frame counters
-    frame2 = 0
-    action = 'run'
-    startnow = False
+    global zo1, zo2, printState, capturing, duetStatus, timePriorPhoto1, timePriorPhoto2, frame1, frame2
+    zo1 = 0                         # Starting layer for Camera1
+    zo2 = 0                         # Starting layer for Camera2
+    printState = 'Not Capturing'
+    capturing = False
+    duetStatus = 'Not yet determined'
     
-setStartValues()    
+    #initialize timers
+    timePriorPhoto1 = time.time()
+    timePriorPhoto2 = time.time()
+    
+    #reset the frame counters
+    frame1 = 0       
+    frame2 = 0
+    
+    
 ###########################
 # Methods begin here
 ###########################
 
-
-def init():
-    # parse command line arguments
-    parser = argparse.ArgumentParser(description='Create time lapse video for Duet3D based printer. V3.1.1', allow_abbrev=False)
+def whitelist(parser):
     #Environment
     parser.add_argument('-duet',type=str,nargs=1,default=['localhost'],help='Name of duet or ip address. Default = localhost')
     parser.add_argument('-poll',type=float,nargs=1,default=[5])
-    parser.add_argument('-basedir',type=str,nargs=1,default=[''],help='default = This script  directory')
+    parser.add_argument('-basedir',type=str,nargs=1,default=[''],help='default = This program directory')
     parser.add_argument('-instances',type=str,nargs=1,choices=['single','oneip','many'],default=['single'],help='Default = single')
     parser.add_argument('-logtype',type=str,nargs=1,choices=['console','file','both'],default=['both'],help='Default = both')
     parser.add_argument('-verbose',action='store_true',help='Output stdout and stderr from system calls')
-    parser.add_argument('-host',type=str,nargs=1,default=['0.0.0.0'],help='The ip address this service listens on. Default = localhost')
+    parser.add_argument('-host',type=str,nargs=1,default=['0.0.0.0'],help='The ip address this service listens on. Default = 0.0.0.0')
     parser.add_argument('-port',type=int,nargs=1,default=[0],help='Specify the port on which the server listens. Default = 0')
     #Execution
     parser.add_argument('-dontwait',action='store_true',help='Capture images immediately.')
@@ -84,8 +83,15 @@ def init():
     parser.add_argument('-camparam1',type=str,nargs=1,default=[''],help='Camera1 Capture overrides. Use -camparam1="parameters"')
     parser.add_argument('-camparam2',type=str,nargs='*',default=[''],help='Camera2 Capture overrides. Use -camparam2="parameters"')
     parser.add_argument('-vidparam1',type=str,nargs=1,default=[''],help='Camera1 Video overrides. Use -vidparam1="parameters"')    
-    parser.add_argument('-vidparam2',type=str,nargs=1,default=[''],help='Camera2 Video overrides. Use -vidparam2="parameters"')     
+    parser.add_argument('-vidparam2',type=str,nargs=1,default=[''],help='Camera2 Video overrides. Use -vidparam2="parameters"')
+    return parser
 
+
+
+def init():
+
+    parser = argparse.ArgumentParser(description='Create time lapse video for Duet3D based printer. V3.2.0', allow_abbrev=False)
+    parser = whitelist(parser)
     args=vars(parser.parse_args())
 
     #Environment
@@ -227,7 +233,7 @@ def init():
     logger.info("# os              = {0:50s}".format(operatingsystem))
     logger.info("# host            = {0:50s}".format(str(host)))    
     logger.info("# port            = {0:50s}".format(str(port)))
-    logger.info("# pid            = {0:50s}".format(pid))
+    logger.info("# pid             = {0:50s}".format(pid))
     logger.info("#Execution Setings:")    
     logger.info("# dontwait        = {0:50s}".format(str(dontwait)))
     logger.info("# seconds         = {0:50s}".format(str(seconds)))   
@@ -235,7 +241,7 @@ def init():
     logger.info("# pause           = {0:50s}".format(pause))
     if (movehead[0] != 0 and movehead[1] != 0):
         logger.info("# movehead    = {0:6.2f} {1:6.2f} ".format(movehead[0],movehead[1]))
-    logger.info("# standby     = {0:50s}".format(str(standby)))
+    logger.info("# standby         = {0:50s}".format(str(standby)))
     logger.info("#Camera1 Settings:")
     logger.info("# camera1         = {0:50s}".format(camera1))
     logger.info("# weburl1         = {0:50s}".format(weburl1))
@@ -273,11 +279,7 @@ def init():
     #  Port number must be given for httpListener to be active
     if (port != 0):
         httpListener = True
-        
-    global action    
-    if (standby and httpListener):   #will not begin running until it gets continue command from httpListener 
-        action = 'stopped'
-       
+              
     ########################################################################       
     # Inform regarding valid and invalid combinations
     #########################################################################
@@ -296,7 +298,7 @@ def init():
         logger.info('Specify "-detect none" with "-seconds > 0" to trigger on seconds alone.')
         logger.info('************************************************************************************')
         
-    if (startnowCheck()):
+    if (startNow()):
         logger.info('************************************************************************************')
         logger.info('Warning: -seconds '+str(seconds)+' and -detect '+detect)
         logger.info('This combination implies -dontwait')
@@ -305,11 +307,11 @@ def init():
     if ('pause' in detect):
         logger.info('************************************************************************************')
         logger.info('* Note "-detect pause" means that the G-Code on the printer already contains pauses,')
-        logger.info('* and that this script will detect them, take a photo, and issue a resume.')
+        logger.info('* and that this program will detect them, take a photo, and issue a resume.')
         logger.info('* Head position during those pauses is can be controlled by the pause.g macro ')
         logger.info('* on the duet, or by specifying "-movehead nnn nnn".')
         logger.info('*')
-        logger.info('* If instead, it is desired that this script force the printer to pause with no')
+        logger.info('* If instead, it is desired that this program force the printer to pause with no')
         logger.info('* pauses in the gcode, specify either:')
         logger.info('* "-pause yes -detect layer" or "-pause yes -seconds nnn".')
         logger.info('************************************************************************************')
@@ -317,23 +319,15 @@ def init():
 
     if ('yes' in pause):
         logger.info('************************************************************************************')
-        logger.info('* Note "-pause yes" means this script will pause the printer when the -detect and / or ')
+        logger.info('* Note "-pause yes" means this program will pause the printer when the -detect and / or ')
         logger.info('* -seconds flags trigger.')
         logger.info('*')
-        logger.info('* If instead, it is desired that this script detect pauses that are already in')
+        logger.info('* If instead, it is desired that this program detect pauses that are already in')
         logger.info('* in the gcode, specify:')
         logger.info('* "-detect pause"')
         logger.info('************************************************************************************')
         
-    #invalid
-    
- 
-#    if (standby and httpListener and dontwait):
-#        logger.info('************************************************************************************')
-#        logger.info('Invalid Combination: -standby with -dontwait and http Listener active.')
-#        logger.info('Specify none or one of -dontwait or -standby if using http Listener')
-#        logger.info('************************************************************************************') 
-#        sys.exit(2)
+    #Invalid combinations
     
     logger.info('')
     if (camera1 !='other' and camparam1 !=''):
@@ -375,7 +369,7 @@ def init():
 
     if (('yes' in pause) and ('pause' in detect)):
         logger.info('************************************************************************************')
-        logger.info('Invalid Combination: "-pause yes" causes this script to pause printer when')
+        logger.info('Invalid Combination: "-pause yes" causes this program to pause printer when')
         logger.info('other events are detected, and "-detect pause" requires the gcode on the printer')
         logger.info('contain its own pauses.  These cannot be used together.')
         logger.info('************************************************************************************')
@@ -427,9 +421,10 @@ def init():
     
     global apiModel
 
-# Get connected to the printer.
+    # Get connected to the printer.
 
     apiModel, printerVersion = getDuetVersion()
+    
     if (apiModel == 'none'):
         logger.info('')
         logger.info('###############################################################')
@@ -463,8 +458,7 @@ def init():
 
     def quit_gracefully(*args):
         logger.info('!!!!!! Stopped by SIGINT - Post Processing !!!!!!')
-        makeVideo()
-        terminate()
+        nextAction('terminate')
 
     if __name__ == "__main__":
         signal.signal(signal.SIGINT, quit_gracefully)
@@ -479,7 +473,7 @@ End of init()
 
 def cleanupFiles():           
     """
-       Add logic if multiple instances allowed for file cleanup 
+       Todo - add logic if multiple instances allowed for file cleanup? 
     """    
     # Make and clean up directorys.
     #Make sure there is a directory for the resulting video
@@ -496,56 +490,77 @@ def cleanupFiles():
         subprocess.call('mkdir "'+basedir+'/'+duetname+'/tmp"'+debug, shell=True)
         
         
-def startnowCheck():
-    global startnow
-    if (seconds > 0 and (dontwait or 'none' in detect)):
-        startnow = True
+def startNow():
+    global action
+    if (standby and httpListener) :
+        action = 'standby'
+        return False
+    elif (seconds > 0 and (dontwait or 'none' in detect)):
+        action = 'start'
+        return True
     else:
-        startnow = False
-    return startnow
-
+        action = 'start'
+        return False
+    
 #####################################################
 ##  Processing Functions
 #####################################################
 
-def checkForPause():
-    # Checks to see if we should pause or are paused; if so, returns after pause and head movement complete.
-    global alreadyPaused
-    alreadyPaused = False
-    if (printerState == 'printing' and pause == 'yes'):  #DuetLapse is controlling when to pause
+def checkForPause(layer):
+    # Checks to see if we should pause and reposition heads.
+    #Dont pause until printing has actually started and the first layer is done
+    #This solves potential issues with the placement of pause commands in the print stream
+    #Before / After layer change
+    if (layer < 2 and not dontwait): return 
+    
+    if (pause == 'yes'):  #DuetLapse is controlling when to pause        
         logger.info('Requesting pause via M25')
         sendDuetGcode(apiModel, 'M25')    # Ask for a pause
         loop = 0
-        while (loop < 10):  #limit the counter in case there is a problem
+        while (1):
             time.sleep(1)  # wait a second and try again
             if(getDuetStatus(apiModel) == 'paused'):
-                alreadyPaused = True
-                loop = 99
-            loop += 1
-        if (loop == 99):
-               logger.info('Loop exceeded: Target was: paused')
+                break
+            else:
+                loop += 1               
+            if (loop == 10):   #limit the counter in case there is a problem
+                logger.info('Loop exceeded: Target was: paused')
+                break
           
-    if (alreadyPaused or printerState == 'paused'):  
+#    if (alreadyPaused or duetStatus == 'paused'):
+    if (duetStatus == 'paused'):
         if(not movehead == [0.0,0.0]):   #optional repositioning of head
             logger.info('Moving print head to X{0:4.2f} Y{1:4.2f}'.format(movehead[0],movehead[1]))
             sendDuetGcode(apiModel, 'G0 X{0:4.2f} Y{1:4.2f}'.format(movehead[0],movehead[1]))
             loop = 0
-            while (loop < 10): #limit the counter in case there is a problem
-               time.sleep(1)  # wait a second and try again
-               xpos, ypos, _ = getDuetPosition(apiModel)
-               if ((abs(xpos - movehead[0]) < .2) and (abs(ypos - movehead[1]) < .2)):   #close enough for government work
-                   loop = 99 
-               loop += 1
-            if (loop == 99):
-               logger.info('Loop exceeded for X,Y: '+str(xpos)+','+str(ypos)+' Target was: '+str(movehead[0])+','+str(movehead[1]))
-
+            while (1):
+                time.sleep(1)  # wait a second and try again
+                xpos, ypos, _ = getDuetPosition(apiModel)
+                if ((abs(xpos - movehead[0]) < .2) and (abs(ypos - movehead[1]) < .2)):   #close enough for government work
+                    break
+                else:
+                    loop += 1                    
+                if (loop == 10):    #limit the counter in case there is a problem
+                    logger.info('Loop exceeded for X,Y: '+str(xpos)+','+str(ypos)+' Target was: '+str(movehead[0])+','+str(movehead[1]))
+                    break   
     return
 
 def unPause():
-    global alreadyPaused
-    if (alreadyPaused or printerState == 'paused'):
+    if (getDuetStatus(apiModel) == 'paused'):
         logger.info('Requesting un pause via M24')
-        sendDuetGcode(apiModel,'M24')
+        sendDuetGcode(apiModel, 'M24')    # Ask for an un pause
+        loop = 0
+        while (1):
+            time.sleep(1)  # wait a second and try again
+            if(getDuetStatus(apiModel) in ['idle','processing'] ):
+                break
+            else:
+                loop += 1                
+            if (loop == 10):    #limit the counter in case there is a problem
+                logger.info('Loop exceeded: Target was: un pause')
+                break 
+    return
+
 
 def onePhoto(cameraname, camera, weburl, camparam): 
     global frame1, frame2
@@ -592,36 +607,41 @@ def oneInterval(cameraname, camera, weburl, camparam):
     else:
         frame = frame2
         
-    #update the layer counter
+
     global zo1, zo2
     zn = getDuetLayer(apiModel)
-    if (cameraname == 'Camera1'):
-        zo1 = zn
-    else:
-        zo2 = zn
-    
     if ('layer' in detect):
         if ((not zn == zo1 and cameraname == 'Camera1') or (not zn == zo2 and cameraname == 'Camera2')):
             # Layer changed, take a picture.
-            checkForPause()
+            checkForPause(zn)
             logger.info(cameraname+': capturing frame '+str(frame)+' at layer '+str(zn)+' after layer change')           
             onePhoto(cameraname, camera, weburl, camparam)            
 
-    elif ('pause' in detect and printerState == 'paused'):
-            checkForPause()
+    elif ('pause' in detect and duetStatus == 'paused'):
+            checkForPause(zn)
             logger.info(cameraname+': capturing frame '+str(frame)+' at layer '+str(zn)+' at pause in print gcode')
             onePhoto(cameraname, camera, weburl, camparam)
     
+    #update the layer counter        
+    if (cameraname == 'Camera1'):
+        zo1 = zn
+    else:
+        zo2 = zn  
+                
     #Note that onePhoto() updates timePriorPhoto1 and timePriorPhoto2
     if (cameraname == 'Camera1'):
         elap = (time.time() - timePriorPhoto1)
     else:
         elap = (time.time() - timePriorPhoto2)
 
-    if ((seconds > 0) and (seconds < elap)):
-        checkForPause()
+    if ((seconds > 0 and seconds < elap) and (dontwait or zn >= 1)):
+        checkForPause(zn)
         logger.info(cameraname+': capturing frame '+str(frame)+' at layer '+str(zn)+' after '+str(seconds)+' seconds')
         onePhoto(cameraname, camera, weburl, camparam)
+    
+      
+            
+        
 
 def postProcess(cameraname, camera, vidparam):
     
@@ -715,6 +735,7 @@ def  getDuetLayer(model):
             try:
                 j = json.loads(r.text)
                 layer = j['result']
+                if layer is None: layer = 0
                 return layer           
             except:
                 pass
@@ -725,6 +746,7 @@ def  getDuetLayer(model):
             try:
                 j = json.loads(r.text)
                 layer = j['job']['layer']
+                if layer is None: layer = 0
                 return layer
             except:
                 pass
@@ -783,12 +805,19 @@ def makeVideo():
     
 def terminate():
     global httpListener, listener
-    if(httpListener):
-        logger.info('Waiting for http listener to shutdown.')
-        listener.shutdown()
-        listener.server_close()
+    #close the nextaction thead if necessary.  nextAction will have close the capturethread
+    try: 
+        nextactionthread.join(10)
+    except:
+        pass
+    #close the httpthread if necessary
+    try:
+        httpthread.join(10)
+    except:
+        pass
     logger.info('Program Terminated')
-    sys.exit(0)
+    os.kill(int(pid),9)
+
 
 ###########################
 # Integral Web Server
@@ -809,8 +838,8 @@ class MyHandler(BaseHTTPRequestHandler):
         return content.encode("utf8")  # NOTE: must return a bytes object!
     
     def do_GET(self):
-        global action
-        options = 'status, start, standby, pause, continue, snapshot, restart, terminate'
+        global action, options
+        options = ['status', 'start', 'standby', 'pause', 'continue', 'snapshot', 'restart', 'terminate']
         qs = {}
         path = self.path
         if ('favicon.ico' in path):
@@ -818,93 +847,338 @@ class MyHandler(BaseHTTPRequestHandler):
                        
         query_components = parse_qs(urlparse(self.path).query)
         self._set_headers()
-            
+        
+        
+        
         command = ''
         if(query_components.get('command')):
             command = query_components['command'][0]
             self._set_headers()
             
-            logger.info('!!!!! http '+command+' request !!!!!')
-                     
+            logger.info('!!!!! http '+command+' request recieved !!!!!')
+            
+            #check for a valid request
+            if (command not in options):
+                self.wfile.write(self._html('Illegal value for ?command=<br>'
+                                            '<h3>'
+                                            '<pre>'
+                                            'Valid options are:   '+''.join(str(e+'   ') for e in options)+
+                                            '</pre>'
+                                            '</h3>'
+                                            ))
+                return             
+
+            #process the request
+       
             if (command == 'status'):
                 localtime = time.strftime('%a - %H:%M',time.localtime())
-                self.wfile.write(self._html('Status of printer on '+duet+' as of '+localtime+'<br><h3>Printer State: '+printerState+'<br>DuetLapse3 State: '+action+'<br>Images Captured: '+str(frame1)+'<br>Current Layer: '+str(zo1)+'</h3>'))              
-            
+                if (str(zo1) == '-1'):
+                    thislayer = 'None'
+                else:
+                    thislayer = str(zo1)
+                self.wfile.write(self._html('Status of printer on '+duet+' as of '+localtime+'<br>'
+                                            '<h3>'
+                                            '<pre>'
+                                            'Capture Status:            =    '+printState+'<br>'
+                                            'DuetLapse3 State:          =    '+action+'<br>'
+                                            'Duet Status:               =    '+duetStatus+'<br>'
+                                            'Images Captured:           =    '+str(frame1)+'<br>'
+                                            'Current Layer:             =    '+thislayer+
+                                            '</pre>'
+                                            '</h3>'
+                                            ))              
+            #start / standby
             elif (command == 'start'):
-                if (action == 'stopped'):
-                    action = command
-                    self.wfile.write(self._html('Starting DuetLapse3.<br><h3>Waiting for next command</h3>'))              
+                if (action == 'standby'):
+                    available = [e for e in options if e not in command]
+                    self.wfile.write(self._html('Starting DuetLapse3.<br>'
+                                                '<h3>'
+                                                'Available actions are command='
+                                                +''.join(str(e+'   ') for e in available)+                                               
+                                                '</h3>'
+                                                ))
+                    nextAction(command)
                 else:
-                    self.wfile.write(self._html('Start request Ignored<br><h3>DuetLapse3 is already running</h3>'))
+                    self.wfile.write(self._html(self.ignoreCommandMsg(command,action)))
             
-            elif (command == 'standby'):
-                if (action != 'wait'):
-                    action = command
-                    self.wfile.write(self._html('Putting DuetLapse3 in standby mode<br><h3>Will NOT create a video and will wait for start command<br>All captured images will be deleted</h3>'))              
+            elif (command == 'standby'):  #can be called at any time
+                unwanted = {'pause', 'standby','restart', 'terminate'}
+                allowed = [e for e in options if e not in unwanted]
+                if (action in allowed):
+                    self.wfile.write(self._html('Putting DuetLapse3 in standby mode<br>'
+                                                '<h3>'
+                                                'Will NOT create a video.<br>'
+                                                'All captured images will be deleted<br>'
+                                                'This is the same as if DuetLapse was just started with -standby<br>'
+                                                'Available action is command=start'
+                                                '</h3>'
+                                                ))
+                    nextAction(command)
                 else:
-                    self.wfile.write(self._html('Standby request Ignored<br><h3>DuetLapse3 is already waiting</h3>'))
-            
-            elif (command == 'pause'):
-                if (action != 'wait'):
-                    action = command
-                    self.wfile.write(self._html('Pausing DuetLapse3.<br><h3>Waiting for next command</h3>'))              
-                else:
-                    self.wfile.write(self._html('Pause request Ignored<br><h3>DuetLapse3 is already paused</h3>'))
-                    
-            elif (command == 'continue'):
-                if (action == 'wait'):  #only makes sense to continue on pause
-                    action = command
-                    self.wfile.write(self._html('Continuing DuetLapse3.'))
-                else:
-                    self.wfile.write(self._html('Continue request ignored<br><h3>DuetLapse3 is NOT paused</h3>'))
+                    self.wfile.write(self._html(self.ignoreCommandMsg(command,action)))
 
-            elif (command == 'snapshot'):
-                if (action == 'run' or action == 'wait'):
-                    action = command
-                    self.wfile.write(self._html('Creating an interim Video<br><h3>Will first create a video with the current images then continue</h3>'))
+            #pause / continue
+            elif (command == 'pause'):
+                unwanted = {'pause', 'standby', 'continue', 'restart', 'terminate'}
+                allowed = [e for e in options if e not in unwanted]
+                if (action in allowed):
+                    self.wfile.write(self._html('Pausing DuetLapse3.<br>'
+                                                '<h3>'
+                                                'Available action is command=continue'
+                                                '</h3>'
+                                                ))
+                    nextAction(command)
                 else:
-                    self.wfile.write(self._html('Snapshot request Ignored<br><h3>DuetLapse3 is NOT in running or paused state</h3>'))                    
+                    self.wfile.write(self._html(self.ignoreCommandMsg(command,action)))
+            
+            elif (command == 'continue'):
+                if (action == 'pause'):
+                    available = [e for e in options if e not in command]                    
+                    self.wfile.write(self._html('Continuing DuetLapse3<br>'
+                                                '<h3>'
+                                                'Available action is command='
+                                                +''.join(str(e+'   ') for e in available)+ 
+                                                '</h3>'
+                                                ))
+                    nextAction(command)
+                else:
+                    self.wfile.write(self._html(self.ignoreCommandMsg(command,action)))
+            
+            # snapshot / restart / terminate
+                    
+            elif (command == 'snapshot'):
+                unwanted = {'snapshot', 'restart', 'terminate'}
+                allowed = [e for e in options if e not in unwanted]
+                if (action in allowed):
+                    self.wfile.write(self._html('Creating an interim snapshot video<br>'
+                                                '<h3>'
+                                                'Will first create a video with the current images then continue'
+                                                '</h3>'
+                                                ))
+                    nextAction(command)
+                else:
+                    self.wfile.write(self._html(self.ignoreCommandMsg(command,action)))                   
                                       
             elif (command == 'restart'):
-                if (action == 'run' or action == 'wait'):
-                    action = command
-                    self.wfile.write(self._html('Restarting DuetLapse3<br><h3>Will first create a video with the current images then restart</h3>'))
+                unwanted = {'snapshot','restart', 'terminate'}
+                allowed = [e for e in options if e not in unwanted]
+                if (action in allowed):
+                    self.wfile.write(self._html('Restarting DuetLapse3<br>'
+                                                '<h3>'
+                                                'Will first create a video with the current images<br>'
+                                                'Then delete all captured images<br>'
+                                                'The restart behavior is the same as initially used to start DuetLapse3'
+                                                '</h3>'
+                                                ))
+                    nextAction(command)
+                                                
                 else:
-                    self.wfile.write(self._html('Restart request Ignored<br><h3>DuetLapse3 is NOT in running or paused state</h3>'))
-
+                    self.wfile.write(self._html(self.ignoreCommandMsg(command,action)))
+                                                
             elif (command == 'terminate'):
-                action = command
-                self.wfile.write(self._html('Terminating DuetLapse3<br><h3>Will finish last image capture, create a video, then terminate.</h3>'))
-                logger.info('!!!!! Stopped by http Terminate request !!!!!')
+                unwanted = {'snapshot','restart', 'terminate'}
+                allowed = [e for e in options if e not in unwanted]                
+                if (action in allowed):
+                    self.wfile.write(self._html('Terminating DuetLapse3<br>'
+                                                '<h3>'
+                                                'Will finish last image capture, create a video, then terminate.'
+                                                '</h3>'
+                                                ))
+                    logger.info('!!!!! Sending http Terminate request !!!!!')
+                    nextAction(command)
+                else:
+                    self.wfile.write(self._html(self.ignoreCommandMsg(command,action)))
 
-            else:
-                self.wfile.write(self._html('Illegal value for ?command=<br><h3>Valid options are:   '+options+'</h3>'))
-            
             return
         
-        self.wfile.write(self._html('Invalid Argument<br><h3>The only valid argument is ?command=<br><h3>Valid options are:   '+options+'</h3>'))       
+        self.wfile.write(self._html('Invalid Argument<br>'
+                                    '<h3>'
+                                    'The only valid argument is ?command=<br>'
+                                    'Valid options are:   '+''.join(str(e+'   ') for e in options)+
+                                    '</h3>'
+                                    ))       
         return
+    """
+    End of do_Get
+    """
+    def log_request(self, code=None, size=None):
+        pass
 
-        def log_request(self, code=None, size=None):
-            pass
-
-        def log_message(self, format, *args):
-            pass
-    
-def createHttpListener():
+    def log_message(self, format, *args):
+        pass
+            
+    def ignoreCommandMsg(self,command,action):
+        msg = (command+
+               ' request Ignored<br>'
+               '<h3>'
+               'Already servicing '
+               +action+
+               ' request'
+               '</h3>'
+               )
+        return msg
+            
+def createHttpListener():    
     global listener
-    #import threading
     listener = HTTPServer((host, port), MyHandler)
     listener.serve_forever()
     sys.exit(0)  #May not be needed since never returns from serve_forever
+    
+    
+###################################
+#  Main Control Functions
+###################################
 
-###########################
-# Main begins here
-###########################
-init()
+def captureLoop():  #Run as a thread
+    global capturing, printState, duetStatus
+    capturing = True 
+    disconnected = 0
+    printState = 'Not Capturing'
+    lastDuetStatus = ''
 
-if (httpListener):
-    import threading
+    while(capturing):  #action can be changed by httpListener or SIGINT or CTL+C
+
+        duetStatus=getDuetStatus(apiModel)
+
+        if(duetStatus == 'disconnected'): #provide some resiliency for temporary disconnects
+            disconnected += 1
+            logger.info('Printer is disconnected - Trying to reconnect')
+            if (disconnected > 10): #keep trying for a while just in case it was a transient issue
+                logger.info('Printer was disconnected from Duet')
+                printState = 'Disconnected'
+                nextactionthread = threading.Thread(target=nextAction, args=('disconnected',))   #Note comma in args is needed
+                nextactionthread.start()
+                return
+                
+        if (duetStatus != lastDuetStatus): # What to do next? 
+            logger.info('****** Duet status changed to: '+duetStatus+' *****')
+            # logical states for printer are printing, completed
+            if (duetStatus == 'idle' and printState == 'Capturing'):  #print job has finished
+                printState = 'Completed'
+                logger.info('****** Print State changed to '+printState+' *****')            
+            elif (duetStatus in ['processing','idle'] or (duetStatus == 'paused' and detect == 'pause')):
+                printState = 'Capturing'
+                logger.info('****** Print State changed to: '+printState+' *****')
+            else:
+                printState = 'Waiting'
+                logger.info('****** Print State changed to: '+printState+' *****')          
+
+
+        if (printState == 'Capturing'):
+            oneInterval('Camera1', camera1, weburl1, camparam1)
+            if (camera2 != ''): oneInterval('Camera2', camera2, weburl2, camparam2)
+            unPause()  #Nothing should be paused at this point
+            disconnected = 0
+        elif (printState == 'Completed'):
+            logger.info('Print Job Completed')
+            printState = 'Not Capturing'
+            nextactionthread = threading.Thread(target=nextAction, args=('completed',))  #Note comma in args is needed
+            nextactionthread.start()
+            return
+            
+        if (capturing): #Allow sleep to be shorcut cut for speedier response  
+            lastDuetStatus = duetStatus
+            time.sleep(poll)  # poll every n seconds - placed here to speeed startup           
+            
+    logger.info('Exiting Capture loop')
+    capturing = False
+    printState = 'Not Capturing'
+    return    #The return ends the thread
+
+def nextAction(nextaction):  #can be run as a thread
+    global action, capturethread, capturing
+    global options
+    action = nextaction          #default
+    #All nextactions assume the capturethread is shutdown
+    try:
+        capturing= False        #Signals captureThread to shutdown
+        time.sleep(1)           #Wait a second to avoid race condition e.g. printer paused to capture image
+        capturethread.join(10)  #Timeout is to wait up to 10 seconds for capture thread to stop
+    except:
+        pass
+         
+    # This test is positionally sensitive
+    if (nextaction == 'completed'):    #end of a print job
+        if (httpListener):            #controlled by http listener
+            nextaction = 'restart'
+        else:                         #running as a one-off
+            nextaction = 'terminate'
+
+    logger.info('++++++ Entering '+action+' state ++++++')
+
+    if (nextaction == 'start'):
+        capturing = True 
+    elif (nextaction == 'standby'):
+        cleanupFiles()   #clean up and start again
+        setStartValues()
+    if (nextaction == 'pause'):
+        pass 
+    elif (nextaction == 'continue'):
+        capturing = True
+    elif (nextaction == 'snapshot'):
+        makeVideo()
+        capturing = True
+    elif (nextaction == 'restart'):
+        makeVideo()
+        cleanupFiles()   #clean up and start again
+        setStartValues()
+        startNow()
+        if (action == 'start'): capturing = True  #what we do here is the same as the original start action 
+    elif(nextaction == 'terminate'):
+        makeVideo()
+        terminate()        
+    
+    if (capturing):
+        action = 'start'
+        logger.info('++++++ Entering '+action+' state ++++++')
+        capturethread = threading.Thread(target=captureLoop, args=())
+        capturethread.start()
+        
+    return
+    
+def startMessages():
+    if (startNow()):
+        logger.info('')
+        logger.info('##########################################################')
+        logger.info('Will start capturing images immediately')
+        logger.info('##########################################################')
+        logger.info('')
+    else:
+        logger.info('')
+        logger.info('##########################################################')
+        if('layer' in detect):
+            logger.info('Will start capturing images on first layer change')
+        elif('pause' in detect):
+            logger.info('Will start capturing images on first pause in print stream')
+        logger.info('##########################################################')
+        logger.info('')
+
+    if (standby):
+        logger.info('')
+        logger.info('##########################################################')
+        logger.info('Will not start until command=start recieved from http listener')
+        logger.info('##########################################################')
+        logger.info('')
+
+    logger.info('')
+    logger.info('##########################################################')
+    logger.info('Video will be created when printing ends.')
+    logger.info('Or, press Ctrl+C one time to stop capture and create video.')
+    logger.info('##########################################################')
+    logger.info('')
+
+    return
+
+def startHttpListener(host,port):
+    sock = socket.socket()
+    if sock.connect_ex((host, port)) == 0:
+        logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        logger.info('Sorry, port '+str(port)+' is already in use.')
+        logger.info('Shutting down this instance.')
+        logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        sys.exit(2)
+    
+    #import threading
     httpthread = threading.Thread(target=createHttpListener, args=())
     httpthread.start()
     logger.info('')
@@ -912,131 +1186,35 @@ if (httpListener):
     logger.info('***** Started http listener *****')
     logger.info('##########################################################')
     logger.info('')
+
+###########################
+# Program  begins here
+###########################
+if __name__ == "__main__":   #Do not run anything below if the file is imported by another program
     
-if (startnow and not action == 'stopped'):
-    logger.info('')
-    logger.info('##########################################################')
-    logger.info('Will start capturing images immediately')
-    logger.info('##########################################################')
-    logger.info('')
-elif (not startnow and not 'none' in detect):
-    logger.info('')
-    logger.info('##########################################################')
-    if('layer' in detect):
-        logger.info('Will start capturing images on first layer change')
-    elif('pause' in detect):
-        logger.info('Will start capturing images on first pause in print stream')
-    logger.info('##########################################################')
-    logger.info('')
+    # Globals.
+    global  httpListener, win , pid, action
+    httpListener = False             # Indicates if an integral httpListener should be started
+    win = False                      # Windows OS
+    pid = ''                         # pid for this instance - used for temp filenames                 
+    
+    setStartValues()       #Default startup global values
+    
+    init()
+      
+    startMessages()
 
-if (action == 'stopped'):
-    logger.info('')
-    logger.info('##########################################################')
-    logger.info('Will not start until command=start recieved from http listener')
-    logger.info('##########################################################')
-    logger.info('')
-
-logger.info('')
-logger.info('##########################################################')
-logger.info('Video will be created when printing ends.')
-logger.info('Or, press Ctrl+C one time to stop capture and create video.')
-logger.info('##########################################################')
-logger.info('')
-
-
-timePriorPhoto1 = time.time()
-timePriorPhoto2 = time.time()
-
-disconnected = 0
-logger.info('****** Printer State changed to '+printerState+' *****')
-try:
-    while(1):
-
-        while('run' in action):  #action can be changed by httpListener or SIGINT or CTL+C
-            global duetStatus
-            duetStatus=getDuetStatus(apiModel)    
-            # logical states for printer
-            if (duetStatus == 'idle' and (printerState == 'printing' or printerState == 'paused')):
-                printerState = 'completed'
-                logger.info('****** Printer State changed to '+printerState+' *****')            
-            elif (duetStatus == 'processing' and printerState != 'printing'):
-                printerState = 'printing'
-                logger.info('****** Printer State changed to '+printerState+' *****')
-            elif (duetStatus == 'paused' and printerState != 'paused'):
-                printerState = 'paused'
-                logger.info('****** Printer State changed to '+printerState+' *****')
-            elif ((duetStatus == 'pausing' or duetStatus == 'resuming') and printerState != 'pausing'):
-                printerState = 'pausing'
-                logger.info('****** Printer State changed to '+printerState+' *****')
-            elif (startnow and printerState != 'paused'):
-                printerState = 'startnow'
-                logger.info('****** Printer State changed to '+printerState+' *****')
-                startnow = False         #once capture starts startnow has no further meaning
-            elif (duetStatus == 'idle' and printerState == 'pausing'):  # We missed the pause state
-                printerState = 'paused'
-                logger.info('****** Printer State changed to '+printerState+' *****')
-            
-            if(duetStatus == 'disconnected'):
-                disconnected += 1
-                logger.info('Printer is disconnected - Trying to reconnect')
-                if (disconnected > 10):
-                    logger.info('Printer was disconnected - Post Processing')
-                    action = 'terminate'  #Save what we can
-                    break
-
-            if (printerState == 'printing' or printerState == 'startnow' or (printerState == 'paused' and detect == 'paused')):
-                oneInterval('Camera1', camera1, weburl1, camparam1)
-                if (camera2 != ''): oneInterval('Camera2', camera2, weburl2, camparam2)
-                unPause()  #Nothing should be paused at this point
-                disconnected = 0
-            elif (printerState == 'completed'):
-                logger.info('End of Print Job - Post Processing')
-                if (httpListener):
-                    action = 'restart'
-                else:
-                    action = 'terminate'
-                    
-            time.sleep(poll)  # poll every n seconds - placed here to speeed startup       
-        #outer loop
-        #Check for processing change instructions 
-        #from the http listener
+    startNow()             #Determine starting action
+    
+    try:
+        if (httpListener):
+             startHttpListener(host,port)
+    
+        nextAction(action)
         
-        if (action == 'start'): #Start
-            action = 'run'
-            logger.info('++++++ Entering '+action+' state ++++++')
-        elif (action == 'stop'):  #the same as a restart but does to waiting
-            logger.info('++++++ Entering '+action+' state ++++++')
-            cleanupFiles()   #clean up and start again
-            setStartValues()
-            startnowCheck()
-            action = 'stopped'  # Do nothing
-            logger.info('****** Printer State changed to '+printerState+' *****')           
-        elif (action == 'pause'):
-            logger.info('++++++ Entering '+action+' state ++++++')
-            action = 'wait'  # Do nothing
-        elif (action == 'continue'):
-            action = 'run'   #Continue from where we left off
-            logger.info('++++++ Entering '+action+' state ++++++')
-        elif (action == 'snapshot'):
-            logger.info('++++++ Entering '+action+' state ++++++')
-            makeVideo()
-            action = 'run'         
-        elif (action == 'restart'):
-            logger.info('++++++ Entering '+action+' state ++++++')
-            makeVideo()
-            cleanupFiles()   #clean up and start again
-            setStartValues()
-            startnowCheck()
-            logger.info('****** Printer State changed to '+printerState+' *****')
-        elif(action == 'terminate'):
-            logger.info('++++++ Entering '+action+' state ++++++')
-            makeVideo()
-            terminate()
-            
-        time.sleep(5)  # poll every 5 seconds
-        
-except KeyboardInterrupt:
-    logger.info('!!!!!! Stopped by Ctl+C - Post Processing !!!!!!')
-    makeVideo()
-    terminate()
-   
+    except KeyboardInterrupt:
+        logger.info('!!!!!! Stopped by Ctl+C - Post Processing !!!!!!')
+        nextAction('terminate')
+        #makeVideo()
+        #terminate()
+       
