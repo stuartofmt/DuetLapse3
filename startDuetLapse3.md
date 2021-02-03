@@ -1,6 +1,6 @@
 # startDuetLapse3
  
-This is a helper program for use with DuetLapse3.
+This is am optional helper program for use with DuetLapse3.
 It proveds a simple http interface for starting and terminating DuetLapse3 instances.
 
 
@@ -92,6 +92,16 @@ command=start&args=       - Starts an instance of DuetLapse3 with the options sp
 Example
 
 http://localhost:8082/?command=start&args=-duet 192.168.86.235 -detect none -seconds 15 -standby -port 8083 -camera1 stream -weburl1 http://192.168.86.230:8081/stream.mjpg
+
+```
+
+nohup=yes               - Will run DuetLapse3 with nohup.
+                          Note that it is not part of the command=start&args= but a separate command
+
+```
+Example
+
+http://localhost:8082/?nohup=yes&command=start&args=-duet 192.168.86.235 -detect none -seconds 15 -standby -port 8083 -camera1 stream -weburl1 http://192.168.86.230:8081/stream.mjpg
 
 ```
 
