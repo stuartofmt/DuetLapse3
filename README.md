@@ -39,10 +39,11 @@ The modifications include:
 ###Version 3.2.0###
 - [1]  Adds the ability to work with startDuetLapse3.  See the description here:<br>
       https://github.com/stuartofmt/DuetLapse3/blob/main/startDuetLapse3.md<br>
-      In summary startDuetLapse3 provides the ability to remotely start / stop DuetLapse3.      
-- [2]  Restructured to provide better efficiency. Typically less than 1% CPU when idle.
-- [3]  Fixed a bug that was introduced in the prior version (not detecting layer changes)
-- [4]  Made further improvements to the handling of pauses.<br>
+      In summary startDuetLapse3 provides the ability to remotely start / stop DuetLapse3.
+- [2]   Changed the shutdown method to reduce low level 'noise' messages.<br>
+- [3]  Restructured to provide better efficiency. Typically less than 1% CPU when idle.<br>
+- [4]  Fixed a bug that was introduced in the prior version (not detecting layer changes)<br>
+- [5]  Made further improvements to the handling of pauses.<br>
        There are some edge cases where a printer can get stuck in a paused state.<br>
        The documentation has been updated.  See especially -dontwait
 
