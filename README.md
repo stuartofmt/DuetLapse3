@@ -185,9 +185,9 @@ Generally this can be left out (default) as it will allow connection to the http
 
 #### -port [port number]
 If omitted the default is 0 AND the internal http listener is NOT started.<br>
-Depending on the system, the is may be reported in different ways e.g. 127.0.0.1 as opposed to the actual ip address.<br>
-Note that it is generally better to specify the actual ip address as this makes it easier for an external browser to connect.
-**The http listener is only started if a port number is specified**
+Typical choices for port numbers will br greater than 8000.
+The selected port number MUST be different to one already in use.
+**The http listener is only start if a port number is specified**
 <pre>
 **example**
 
@@ -222,12 +222,13 @@ If omitted the default is 0 seconds (i.e. ignored). Can be any positive number.
 </pre>
 
 #### -detect [layer||pause||none]
-If omitted the default is layer
+If omitted the default is layer.
 <pre>
 **example**
 
 -detect layer     #Will capture an image on each layer change<br>
 -detect pause     #Will capture an image if the printer is paused by the print gcode **M226**<br>
+                  #A manual pause is treated the same as one imbeded in the print gcode<br>
 -detect none      #Will not capture an image other than as secified by -seconds<br>
 </pre>
 *Notes on the use of -detect pause*<br>
@@ -235,14 +236,15 @@ When a pause is detected in the print gcode (supplied by an M226) an image will 
 The head position during those pauses is can be controlled by the pause.g macro on the duet,
 or by specifying "-movehead nnn nnn".<br>
 If both are specified pause.g will run first then -movehead will reposition the heads. **It is best not use both.**<br>
-**CANNOT be used in conjunction with -pause yes (see below)**
+**CANNOT be used at the same time as -pause yes (see below)**
 
 #### -pause [yes||no]
-If omitted the default is no. If - pause yes it will pause the printer when an image is captured.
+If omitted the default is no. If - pause yes the program will pause the printer when an image is captured.
+The print job can be manually paused / resumed in the normal manner.
 <pre>
 **example**
 
--pause yes      #Pause the printereach time an image is captured.<br>
+-pause yes      #Pause the printer each time an image is captured.<br>
 </pre>
 *Notes on the use of -pause yes*<br>
 DuetLapse3 will pause the printer each time an image is to be captured.
