@@ -36,6 +36,15 @@ The modifications include:
 ###Version 3.1.1###
 - [1]  if -extratime not specified (default 0) will use ffmpeg syntax compatible with version < 4.2 (4.1.6 tested)
 
+###Version 3.2.0###
+- [1]  Adds the ability to work with startDuetLapse3.  See the description here:<br>
+      https://github.com/stuartofmt/DuetLapse3/blob/main/startDuetLapse3.md<br>
+      In summary startDuetLapse3 provides the ability to remotely start / stop DuetLapse3.      
+- [2]  Restructured to provide better efficiency. Typically less than 1% CPU when idle.
+- [3]  Fixed a bug that was introduced in the prior version (not detecting layer changes)
+- [4]  Made further improvements to the handling of pauses.<br>
+      There were some edge cases where a printer could get stuck in a paused state.
+
 ## General Description
 Provides the ability to generate time lapse videos from for Duet based 3D printers.
 
