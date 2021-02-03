@@ -63,7 +63,7 @@ or if you plan to close the command console - use nohup
 nohup python3 ./startDuetLapse.py -port 8082 &
 ```
 On windows things are slightly different - note the use of pythonw
-which will run python in the background (tested with python 3.0)
+which will run python in the background (tested with python 3.9)
  
 ```
 Example command line for running startDuetLapse3 in the background (windows)
