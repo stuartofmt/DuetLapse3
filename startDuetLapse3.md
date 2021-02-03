@@ -54,13 +54,23 @@ It is usually run in the background.<br>
 Sample instuctions for setting up using systemctl are here https://github.com/stuartofmt/DuetLapse3/blob/main/timelapse
 
 ```
-Example command line for running startDuetLapse3 in the background
+Example command line for running startDuetLapse3 in the background (linux)
 
 python3 ./startDuetLapse.py -port 8082 &
 
 or if you plan to close the command console - use nohup
 
 nohup python3 ./startDuetLapse.py -port 8082 &
+```
+On windows things are slightly different - note the use of pythonw
+which will run python in the background (tested with python 3.0)
+ 
+```
+Example command line for running startDuetLapse3 in the background (windows)
+Note the use of pythonw and the output files to check if everything was successful
+
+pythonw startDuetLapse3.py -port 8082 1>stdout.txt 2>stderr.txt
+
 ```
 
 If the script is run in foreground it can be shutdown using CTl+C.<br>
