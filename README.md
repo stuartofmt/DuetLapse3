@@ -43,7 +43,8 @@ The modifications include:
 - [2]  Restructured to provide better efficiency. Typically less than 1% CPU when idle.
 - [3]  Fixed a bug that was introduced in the prior version (not detecting layer changes)
 - [4]  Made further improvements to the handling of pauses.<br>
-      There were some edge cases where a printer could get stuck in a paused state.
+       There are some edge cases where a printer can get stuck in a paused state.<br>
+       The documentation has been updated.  See especially -dontwait
 
 ## General Description
 Provides the ability to generate time lapse videos from for Duet based 3D printers.
