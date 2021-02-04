@@ -5,7 +5,7 @@ Simple HTTP server for starting and stopping DuetLapse3
 # Released under The MIT License. Full text available via https://opensource.org/licenses/MIT
 #
 #
-# Developed on WSL with Debian Buster. Tested on Raspberry pi, Windows 10 and WSL. SHOULD work on most other linux didtributions. 
+# Developed on WSL with Debian Buster. Tested on Raspberry pi, Windows 10 and WSL. SHOULD work on most other linux distributions. 
 """
 import argparse
 from http.server import HTTPServer, BaseHTTPRequestHandler
