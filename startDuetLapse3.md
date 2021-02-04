@@ -105,7 +105,7 @@ http://localhost:8082/?command=start&args=-duet 192.168.86.235 -detect none -sec
 
 ```
 
-nohup=yes               - Will run DuetLapse3 with nohup.
+nohup=yes               - Will run DuetLapse3 with nohup (only use on Linux).
                           Note that it is not part of the command=start&args= but a separate command
 
 ```
