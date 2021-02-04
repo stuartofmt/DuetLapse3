@@ -21,7 +21,7 @@ import socket
 def init():
 
     # parse command line arguments
-    parser = argparse.ArgumentParser(description='Helper Web Server for running scripts remotely. V1.0', allow_abbrev=False)
+    parser = argparse.ArgumentParser(description='Helper Web Server for running DuetLapse3 remotely. V3.2.0', allow_abbrev=False)
     #Environment
     parser.add_argument('-host',type=str,nargs=1,default=['0.0.0.0'],help='The ip address this service listens on. Default = localhost')
     parser.add_argument('-port',type=int,nargs=1,default=[0],help='Specify the port on which the server listens. Default = 0')
