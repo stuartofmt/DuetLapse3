@@ -21,7 +21,7 @@ import socket
 def init():
 
     # parse command line arguments
-    parser = argparse.ArgumentParser(description='Helper Web Server for running DuetLapse3 remotely. V3.2.0', allow_abbrev=False)
+    parser = argparse.ArgumentParser(description='Helper Web Server for running DuetLapse3 remotely. V3.2.1', allow_abbrev=False)
     #Environment
     parser.add_argument('-host',type=str,nargs=1,default=['0.0.0.0'],help='The ip address this service listens on. Default = localhost')
     parser.add_argument('-port',type=int,nargs=1,default=[0],help='Specify the port on which the server listens. Default = 0')
@@ -183,8 +183,8 @@ class MyHandler(BaseHTTPRequestHandler):
                                             'Any instances of DuetLapse3 will continue to run'
                                             '</h3>'
                                             ))
-                os.kill(os.getpid(), 9)                            
-                #closeHttpListener()
+                print('!!!!!! Stopped by http request !!!!!!')                            
+                terminate()
 
             else:
                 #self._set_headers()
@@ -269,6 +269,25 @@ def getRunningInstances(thisinstance):
     else:
         running = 'None'  
     return running, pidlist;
+        
+def terminate():
+    try:    #this should close this thread
+        httpthread.join(10)
+    except:
+        pass   
+    os.kill(os.getpid(), 9)
+    
+#Allows process running in background or foreground to be gracefully
+# shutdown with SIGINT (kill -2 <pid> also handles KeyboardInterupt
+import signal
+
+def quit_gracefully(*args):
+    print('!!!!!! Stopped by SIGINT or CTL+C  !!!!!!')
+    terminate()
+
+if __name__ == "__main__":
+    signal.signal(signal.SIGINT, quit_gracefully)    
+        
 """
 Main Program
 """
@@ -294,8 +313,7 @@ if __name__ == "__main__":
             print('***** Started http listener *****')
             
         except KeyboardInterrupt:
-            print('!!!!!! Stopped requested by Ctl+C!!!!!!')
-            closeHttpListener()
+            pass  #This is handled as SIGINT
     else:
         print('No port number was provided or port is already in use')
         sys.exit(2)
