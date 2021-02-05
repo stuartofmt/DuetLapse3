@@ -27,7 +27,7 @@ Feedback via issues on Duet forum https://forum.duet3d.com/topic/20932/duetlapse
 * Linux OS,  Windows 10, Windows Subsystem Linux (WSL) tested
 * DuetLapse3 at version 3.2.0 or greater.
 
-Note that startDuetLapse3 will NOT run without DuetLapse3 being present.<br>
+**Note that startDuetLapse3 will NOT run without DuetLapse3 being present and in the same directory.**<br>
 It imports key functions from DuetLapse3
 
 ## Installation
