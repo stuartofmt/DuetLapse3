@@ -8,6 +8,8 @@ It proveds a simple http interface for starting and terminating DuetLapse3 insta
 ###Version 3.2.0###
 - [1]  Initial version.  Requires DuetLapse3 at version 3.2.0 or higher
 
+###Version 3.2.1###
+- [1]  A minor change to prevent system messages when stopped with CTRL+C
 
 ## General Description
 
