@@ -50,7 +50,7 @@ The modifications include:
        
 ###Version 3.2.2###
 - [1]  Added resilience to lost connectivity with Duet.  If disconnected the issue will be reported and attempts to reconnect will be made<br>
-- [2]  Made some cosmetic changes to the http responses.  Most now include the local time as pert of the response.
+- [2]  Made some cosmetic changes to the http responses.  Most now include the local time as part of the response.
 - [3]  The status page will automatically refresh every 60 seconds.  Other pages will show the last time they were invoked.
 
 ## General Description
