@@ -11,6 +11,10 @@ It proveds a simple http interface for starting and terminating DuetLapse3 insta
 ###Version 3.2.1###
 - [1]  A minor change to prevent system messages when stopped with CTRL+C
 
+###Version 3.2.2###
+- [1]  Made some cosmetic changes to the http responses.  Most now include the local time as part of the response.
+- [2]  The status page will automatically refresh every 60 seconds.  Other pages will show the last time they were invoked.
+
 ## General Description
 
 startDuetLapse 3 is designed to run continuously and accept http commands either from a browser, curl or other means of sending http get commands.<br>
