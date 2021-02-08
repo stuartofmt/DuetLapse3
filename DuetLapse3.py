@@ -21,7 +21,8 @@
 # 
 #
 """
-
+global duetLapse3Version
+duetLapse3Version = '3.2.2'
 import subprocess
 import sys
 import platform
@@ -32,6 +33,7 @@ import json
 import os
 import socket
 import threading
+import psutil
 
 
 def setStartValues():
@@ -90,7 +92,7 @@ def whitelist(parser):
 
 def init():
 
-    parser = argparse.ArgumentParser(description='Create time lapse video for Duet3D based printer. V3.2.0', allow_abbrev=False)
+    parser = argparse.ArgumentParser(description='Create time lapse video for Duet3D based printer. V'+duetLapse3Version, allow_abbrev=False)
     parser = whitelist(parser)
     args=vars(parser.parse_args())
 
@@ -141,7 +143,6 @@ def init():
     proccount = 0
     allowed = 0
        
-    import psutil
     for p in psutil.process_iter():      
          if 'python3' in p.name() and __file__ in p.cmdline():
               proccount += 1
@@ -298,11 +299,12 @@ def init():
         logger.info('Specify "-detect none" with "-seconds > 0" to trigger on seconds alone.')
         logger.info('************************************************************************************')
         
-    if (startNow()):
+    if (startNow() and not dontwait):
         logger.info('************************************************************************************')
         logger.info('Warning: -seconds '+str(seconds)+' and -detect '+detect)
-        logger.info('This combination implies -dontwait')
+        logger.info('This combination implies -dontwait and will be set automatically')
         logger.info('************************************************************************************')
+        dontwait = True
         
     if ('pause' in detect):
         logger.info('************************************************************************************')
@@ -457,7 +459,7 @@ def init():
     import signal
 
     def quit_gracefully(*args):
-        logger.info('!!!!!! Stopped by SIGINT - Post Processing !!!!!!')
+        logger.info('!!!!!! Stopped by SIGINT or CTL+C - Post Processing !!!!!!')
         nextAction('terminate')
 
     if __name__ == "__main__":
@@ -501,6 +503,21 @@ def startNow():
     else:
         action = 'start'
         return False
+        
+def getThisInstance(thisinstancepid):
+    for p in psutil.process_iter():
+        if ('python3' in p.name() and thisinstancepid == p.pid):
+            cmdline = str(p.cmdline())
+            #clean up the appearance
+            cmdline = cmdline.replace('python3','')
+            cmdline = cmdline.replace('[','')
+            cmdline = cmdline.replace(']','')
+            cmdline = cmdline.replace(',','')
+            cmdline = cmdline.replace("'",'')
+            cmdline = cmdline.replace('  ','')
+            pid = str(p.pid)
+            thisrunning = 'This program is running with<br>Process id:    '+pid+'<br>Command line:    '+cmdline+''
+    return  thisrunning        
     
 #####################################################
 ##  Processing Functions
@@ -658,7 +675,6 @@ def postProcess(cameraname, camera, vidparam):
     logger.info(cameraname+': now making '+str(frame)+' frames into a video')
     if (250 < frame): logger.info("This can take a while...")
     fn = '"'+basedir+'/'+duetname+'/'+cameraname+pid+'-'+time.strftime('%a-%H-%M',time.localtime())+'.mp4"'
-
     if (vidparam == ''):
         if (float(extratime) > 0):  #needs ffmpeg > 4.2
             if(win):
@@ -679,20 +695,53 @@ def postProcess(cameraname, camera, vidparam):
 ##############  Duet API access Functions
 #############################################################################
 
+def urlCall(url,timelimit):
+    loop = 0
+    while (loop < 2):    
+        try:
+            r = requests.get(url, timeout=timelimit)
+            break
+        except requests.ConnectionError as e:
+            logger.info('')
+            logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            logger.info('There was a network failure: '+str(e))
+            logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            logger.info('')            
+            loop += 1
+            error = 'Connection Error'
+        except requests.exceptions.Timeout as e:
+            logger.info('')
+            logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')            
+            logger.info('There was a timeout failure: '+str(e))
+            logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            logger.info('')            
+            loop += 1
+            error = 'Timed Out'
+        time.sleep(1)
+        
+    if (loop >= 2): #Create dummy response
+       class r:
+           ok = False
+           status_code = 9999
+           reason = error
+       
+    return r
+
+
 def  getDuetVersion():
 #Used to get the status information from Duet
     try:
         model = 'rr_model'
         URL=('http://'+duet+'/rr_model?key=boards')
-        r = requests.get(URL, timeout=5)
+        r = urlCall(URL, 5)
         j = json.loads(r.text)
         version = j['result'][0]['firmwareVersion']
         return 'rr_model', version;
     except:
         try:
             model='/machine/system'
-            URL=('http://'+duet+'/machine/status')              
-            r = requests.get(URL, timeout=5)
+            URL=('http://'+duet+'/machine/status')
+            r = urlCall(URL, 5)
             j = json.loads(r.text)
             version = j['boards'][0]['firmwareVersion']
             return 'SBC', version;
@@ -704,7 +753,7 @@ def  getDuetStatus(model):
 #Used to get the status information from Duet
     if (model == 'rr_model'):
         URL=('http://'+duet+'/rr_model?key=state.status')
-        r = requests.get(URL, timeout=120)  #Long timeout to handle restart of Duet
+        r = urlCall(URL, 5)
         if(r.ok):
             try:
                 j = json.loads(r.text)
@@ -714,7 +763,7 @@ def  getDuetStatus(model):
                 pass
     else:
         URL=('http://'+duet+'/machine/status/')
-        r = requests.get(URL, timeout=120)  #Long timeout to handle restart of Duet
+        r = urlCall(URL, 5)
         if(r.ok):
             try:
                 j = json.loads(r.text)
@@ -730,7 +779,7 @@ def  getDuetLayer(model):
 #Used to get the status information from Duet
     if (model == 'rr_model'):
         URL=('http://'+duet+'/rr_model?key=job.layer')
-        r = requests.get(URL, timeout=5)
+        r = urlCall(URL, 5)
         if(r.ok):
             try:
                 j = json.loads(r.text)
@@ -741,7 +790,7 @@ def  getDuetLayer(model):
                 pass
     else:
         URL=('http://'+duet+'/machine/status/')
-        r = requests.get(URL, timeout=5)
+        r = urlCall(URL, 5)
         if(r.ok):
             try:
                 j = json.loads(r.text)
@@ -757,7 +806,7 @@ def  getDuetPosition(model):
 #Used to get the current head position from Duet
     if (model == 'rr_model'):
         URL=('http://'+duet+'/rr_model?key=move.axes')
-        r = requests.get(URL, timeout=5)
+        r = urlCall(URL, 5)
         if(r.ok):
             try:
                 j = json.loads(r.text)
@@ -769,7 +818,7 @@ def  getDuetPosition(model):
                 pass
     else:
         URL=('http://'+duet+'/machine/status')
-        r = requests.get(URL, timeout=5)
+        r = urlCall(URL, 5)
         if(r.ok):
             try:
                 j = json.loads(r.text)
@@ -781,17 +830,17 @@ def  getDuetPosition(model):
                 pass
                 
     logger.info('getDuetPosition failed.  Code: '+str(r.status_code)+' Reason: '+str(r.reason))
-    logger.info('Returning coordinates as 9999, 9999, 9999')
-    return 9999, 9999, 9999;
+    logger.info('Returning coordinates as -1, -1, -1')
+    return -1, -1, -1;
                 
 def  sendDuetGcode(model, command):     
 #Used to get the status information from Duet
     if (model == 'rr_model'):
         URL=('http://'+duet+'/rr_gcode?gcode='+command)
-        r = requests.get(URL, timeout=5)
+        r = urlCall(URL, 5)
     else:
         URL=('http://'+duet+'/machine/code')
-        r = requests.post(URL, data=command)
+        r = urlCall(URL, 5)
 
     if (r.ok):
        return
@@ -832,12 +881,17 @@ class MyHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-type", "text/html")
         self.end_headers()
+        
+    def _refresh(self, message):
+        content = f'<html><head><meta http-equiv="refresh" content="60"> </head><body><h2>{message}</h2></body></html>'
+        return content.encode("utf8")  # NOTE: must return a bytes object!  
 
     def _html(self, message):
         content = f"<html><body><h2>{message}</h2></body></html>"
         return content.encode("utf8")  # NOTE: must return a bytes object!
     
     def do_GET(self):
+        self._set_headers()
         global action, options
         options = ['status', 'start', 'standby', 'pause', 'continue', 'snapshot', 'restart', 'terminate']
         qs = {}
@@ -846,14 +900,20 @@ class MyHandler(BaseHTTPRequestHandler):
             return
                        
         query_components = parse_qs(urlparse(self.path).query)
-        self._set_headers()
+
+        thisrunninginstance = getThisInstance(int(pid))
+        localtime = time.strftime('%A - %H:%M',time.localtime())
         
-        
+        self.wfile.write(self._html('DuetLapse3 Version '+duetLapse3Version+'<br><br>'
+                                    '<h4>'
+                                    +thisrunninginstance+
+                                    '</h4>'   
+                                    ))
         
         command = ''
         if(query_components.get('command')):
             command = query_components['command'][0]
-            self._set_headers()
+
             
             logger.info('!!!!! http '+command+' request recieved !!!!!')
             
@@ -868,30 +928,32 @@ class MyHandler(BaseHTTPRequestHandler):
                                             ))
                 return             
 
-            #process the request
+           #process the request
        
             if (command == 'status'):
-                localtime = time.strftime('%a - %H:%M',time.localtime())
                 if (str(zo1) == '-1'):
                     thislayer = 'None'
                 else:
-                    thislayer = str(zo1)
-                self.wfile.write(self._html('Status of printer on '+duet+' as of '+localtime+'<br>'
-                                            '<h3>'
-                                            '<pre>'
-                                            'Capture Status:            =    '+printState+'<br>'
-                                            'DuetLapse3 State:          =    '+action+'<br>'
-                                            'Duet Status:               =    '+duetStatus+'<br>'
-                                            'Images Captured:           =    '+str(frame1)+'<br>'
-                                            'Current Layer:             =    '+thislayer+
-                                            '</pre>'
-                                            '</h3>'
-                                            ))              
+                    thislayer = str(zo1)                                        
+                    
+                self.wfile.write(self._refresh('Status of printer on '+duet+'<br><br>'
+                                               'Local time is:  '+localtime+'<br><br>'
+                                               '<h3>'
+                                               '<pre>'
+                                               'Capture Status:            =    '+printState+'<br>'
+                                               'DuetLapse3 State:          =    '+action+'<br>'
+                                               'Duet Status:               =    '+duetStatus+'<br>'
+                                               'Images Captured:           =    '+str(frame1)+'<br>'
+                                               'Current Layer:             =    '+thislayer+
+                                               '</pre>'
+                                               '</h3>'
+                                               ))              
             #start / standby
             elif (command == 'start'):
                 if (action == 'standby'):
                     available = [e for e in options if e not in command]
-                    self.wfile.write(self._html('Starting DuetLapse3.<br>'
+                    self.wfile.write(self._html('Starting DuetLapse3.<br><br>'
+                                                'Local time is:  '+localtime+'<br><br>'
                                                 '<h3>'
                                                 'Available actions are command='
                                                 +''.join(str(e+'   ') for e in available)+                                               
@@ -905,7 +967,8 @@ class MyHandler(BaseHTTPRequestHandler):
                 unwanted = {'pause', 'standby','restart', 'terminate'}
                 allowed = [e for e in options if e not in unwanted]
                 if (action in allowed):
-                    self.wfile.write(self._html('Putting DuetLapse3 in standby mode<br>'
+                    self.wfile.write(self._html('Putting DuetLapse3 in standby mode<br><br>'
+                                                'Local time is:  '+localtime+'<br><br>'
                                                 '<h3>'
                                                 'Will NOT create a video.<br>'
                                                 'All captured images will be deleted<br>'
@@ -922,7 +985,8 @@ class MyHandler(BaseHTTPRequestHandler):
                 unwanted = {'pause', 'standby', 'continue', 'restart', 'terminate'}
                 allowed = [e for e in options if e not in unwanted]
                 if (action in allowed):
-                    self.wfile.write(self._html('Pausing DuetLapse3.<br>'
+                    self.wfile.write(self._html('Pausing DuetLapse3.<br><br>'
+                                                'Local time is:  '+localtime+'<br><br>'
                                                 '<h3>'
                                                 'Available action is command=continue'
                                                 '</h3>'
@@ -934,7 +998,8 @@ class MyHandler(BaseHTTPRequestHandler):
             elif (command == 'continue'):
                 if (action == 'pause'):
                     available = [e for e in options if e not in command]                    
-                    self.wfile.write(self._html('Continuing DuetLapse3<br>'
+                    self.wfile.write(self._html('Continuing DuetLapse3<br><br>'
+                                                'Local time is:  '+localtime+'<br><br>'
                                                 '<h3>'
                                                 'Available action is command='
                                                 +''.join(str(e+'   ') for e in available)+ 
@@ -950,7 +1015,8 @@ class MyHandler(BaseHTTPRequestHandler):
                 unwanted = {'snapshot', 'restart', 'terminate'}
                 allowed = [e for e in options if e not in unwanted]
                 if (action in allowed):
-                    self.wfile.write(self._html('Creating an interim snapshot video<br>'
+                    self.wfile.write(self._html('Creating an interim snapshot video<br><br>'
+                                                'Local time is:  '+localtime+'<br><br>'
                                                 '<h3>'
                                                 'Will first create a video with the current images then continue'
                                                 '</h3>'
@@ -963,7 +1029,8 @@ class MyHandler(BaseHTTPRequestHandler):
                 unwanted = {'snapshot','restart', 'terminate'}
                 allowed = [e for e in options if e not in unwanted]
                 if (action in allowed):
-                    self.wfile.write(self._html('Restarting DuetLapse3<br>'
+                    self.wfile.write(self._html('Restarting DuetLapse3<br><br>'
+                                                'Local time is:  '+localtime+'<br><br>'
                                                 '<h3>'
                                                 'Will first create a video with the current images<br>'
                                                 'Then delete all captured images<br>'
@@ -979,7 +1046,8 @@ class MyHandler(BaseHTTPRequestHandler):
                 unwanted = {'snapshot','restart', 'terminate'}
                 allowed = [e for e in options if e not in unwanted]                
                 if (action in allowed):
-                    self.wfile.write(self._html('Terminating DuetLapse3<br>'
+                    self.wfile.write(self._html('Terminating DuetLapse3<br><br>'
+                                                'Local time is:  '+localtime+'<br><br>'
                                                 '<h3>'
                                                 'Will finish last image capture, create a video, then terminate.'
                                                 '</h3>'
@@ -1044,9 +1112,14 @@ def captureLoop():  #Run as a thread
             disconnected += 1
             logger.info('Printer is disconnected - Trying to reconnect')
             if (disconnected > 10): #keep trying for a while just in case it was a transient issue
-                logger.info('Printer was disconnected from Duet')
+                logger.info('')
+                logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')                
+                logger.info('Printer was disconnected from Duet for too long')
+                logger.info('Finishing this capture attempt')
+                logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                logger.info('')                
                 printState = 'Disconnected'
-                nextactionthread = threading.Thread(target=nextAction, args=('disconnected',))   #Note comma in args is needed
+                nextactionthread = threading.Thread(target=nextAction, args=('terminate',))   #Note comma in args is needed
                 nextactionthread.start()
                 return
                 
@@ -1126,7 +1199,9 @@ def nextAction(nextaction):  #can be run as a thread
         if (action == 'start'): capturing = True  #what we do here is the same as the original start action 
     elif(nextaction == 'terminate'):
         makeVideo()
-        terminate()        
+        terminate()
+    elif (nextaction == 'disconnected'):
+        terminate()
     
     if (capturing):
         action = 'start'
@@ -1213,8 +1288,6 @@ if __name__ == "__main__":   #Do not run anything below if the file is imported 
         nextAction(action)
         
     except KeyboardInterrupt:
-        logger.info('!!!!!! Stopped by Ctl+C - Post Processing !!!!!!')
-        nextAction('terminate')
-        #makeVideo()
-        #terminate()
+        pass   # This is handled as SIGINT
+
        
