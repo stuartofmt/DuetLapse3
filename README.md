@@ -115,8 +115,8 @@ status     - returns brief information about the running state of DuetLapse3
 start      - Starts DuetLapse3 recording if the -standby option was used or after a standby command
 standby    - Stops (but does not terminate) DuetLapse3 recording and discards any images capture.  Waits for a start command.
 ----
-pause      - causes DuetLapse3 to temporarily stop capturing images
-continue   - causes DuetLapse3 to resume capturing images after a pause
+pause      - causes DuetLapse3 to temporarily stop capturing images.  Note that this does NOT pause the printer.
+continue   - causes DuetLapse3 to resume capturing images.
 ----
 snapshot   - causes DuetLapse3 to make an interim video and then continue
 restart    - causes DuetLapse3 to stop capturing images, create a video and then restart with a new capture set
