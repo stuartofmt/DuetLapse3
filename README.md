@@ -15,12 +15,12 @@ The modifications include:
 - [6]  Added verbose option
 - [7]  Added control over multiple instances
 - [8]  Added ability to gracefully terminate when executing in background
-- [9]  Added ability to extend the video duration of the last image
+- [9]  Added ability to extend the video duration of the last image (depends on ffmpeg version)
 - [10] Generalized capture with Camera type "other" and arbitrary capture commands
 - [11] Generalized video creation with optional commands
 
 ###Version 3.0.3###
-- [1]  Added support for SBC BUT cannot support -pause yes or -detect pause.  Will be added soon.
+- [1]  Added support for SBC ~~BUT cannot support -pause yes or -detect pause.  Will be added soon.~~
 
 ###Version 3.0.4###
 - [1]  All functionality supported for SBC
@@ -34,7 +34,7 @@ The modifications include:
 - [4]  Changed file naming convention to make filenames unique if multiple instances of DuetLapse3 are running.
 
 ###Version 3.1.1###
-- [1]  if -extratime not specified (default 0) will use ffmpeg syntax compatible with version < 4.2 (4.1.6 tested)
+- [1]  if -extratime not specified (default 0) will use ffmpeg syntax compatible with versions < 4.2 (4.1.6 tested)
 
 ###Version 3.2.0###
 - [1]  Adds the ability to work with startDuetLapse3.  See the description here:<br>
