@@ -915,7 +915,7 @@ class MyHandler(BaseHTTPRequestHandler):
             command = query_components['command'][0]
 
             
-            logger.info('!!!!! http '+command+' request recieved !!!!!')
+            logger.info('!!!!! http '+command+' request received !!!!!')
             
             #check for a valid request
             if (command not in options):
@@ -937,7 +937,7 @@ class MyHandler(BaseHTTPRequestHandler):
                     thislayer = str(zo1)                                        
                     
                 self.wfile.write(self._refresh('Status of printer on '+duet+'<br><br>'
-                                               'Local time is:  '+localtime+'<br><br>'
+                                               'Last Updated:  '+localtime+'<br><br>'
                                                '<h3>'
                                                '<pre>'
                                                'Capture Status:            =    '+printState+'<br>'
@@ -953,7 +953,7 @@ class MyHandler(BaseHTTPRequestHandler):
                 if (action == 'standby'):
                     available = [e for e in options if e not in command]
                     self.wfile.write(self._html('Starting DuetLapse3.<br><br>'
-                                                'Local time is:  '+localtime+'<br><br>'
+                                                'Last Updated:  '+localtime+'<br><br>'
                                                 '<h3>'
                                                 'Available actions are command='
                                                 +''.join(str(e+'   ') for e in available)+                                               
@@ -968,7 +968,7 @@ class MyHandler(BaseHTTPRequestHandler):
                 allowed = [e for e in options if e not in unwanted]
                 if (action in allowed):
                     self.wfile.write(self._html('Putting DuetLapse3 in standby mode<br><br>'
-                                                'Local time is:  '+localtime+'<br><br>'
+                                                'Last Updated:  '+localtime+'<br><br>'
                                                 '<h3>'
                                                 'Will NOT create a video.<br>'
                                                 'All captured images will be deleted<br>'
@@ -986,7 +986,7 @@ class MyHandler(BaseHTTPRequestHandler):
                 allowed = [e for e in options if e not in unwanted]
                 if (action in allowed):
                     self.wfile.write(self._html('Pausing DuetLapse3.<br><br>'
-                                                'Local time is:  '+localtime+'<br><br>'
+                                                'Last Updated:  '+localtime+'<br><br>'
                                                 '<h3>'
                                                 'Available action is command=continue'
                                                 '</h3>'
@@ -999,7 +999,7 @@ class MyHandler(BaseHTTPRequestHandler):
                 if (action == 'pause'):
                     available = [e for e in options if e not in command]                    
                     self.wfile.write(self._html('Continuing DuetLapse3<br><br>'
-                                                'Local time is:  '+localtime+'<br><br>'
+                                                'Last Updated:  '+localtime+'<br><br>'
                                                 '<h3>'
                                                 'Available action is command='
                                                 +''.join(str(e+'   ') for e in available)+ 
@@ -1016,7 +1016,7 @@ class MyHandler(BaseHTTPRequestHandler):
                 allowed = [e for e in options if e not in unwanted]
                 if (action in allowed):
                     self.wfile.write(self._html('Creating an interim snapshot video<br><br>'
-                                                'Local time is:  '+localtime+'<br><br>'
+                                                'Last Updated:  '+localtime+'<br><br>'
                                                 '<h3>'
                                                 'Will first create a video with the current images then continue'
                                                 '</h3>'
@@ -1030,7 +1030,7 @@ class MyHandler(BaseHTTPRequestHandler):
                 allowed = [e for e in options if e not in unwanted]
                 if (action in allowed):
                     self.wfile.write(self._html('Restarting DuetLapse3<br><br>'
-                                                'Local time is:  '+localtime+'<br><br>'
+                                                'Last Updated:  '+localtime+'<br><br>'
                                                 '<h3>'
                                                 'Will first create a video with the current images<br>'
                                                 'Then delete all captured images<br>'
@@ -1047,7 +1047,7 @@ class MyHandler(BaseHTTPRequestHandler):
                 allowed = [e for e in options if e not in unwanted]                
                 if (action in allowed):
                     self.wfile.write(self._html('Terminating DuetLapse3<br><br>'
-                                                'Local time is:  '+localtime+'<br><br>'
+                                                'Last Updated:  '+localtime+'<br><br>'
                                                 '<h3>'
                                                 'Will finish last image capture, create a video, then terminate.'
                                                 '</h3>'
@@ -1231,7 +1231,7 @@ def startMessages():
     if (standby):
         logger.info('')
         logger.info('##########################################################')
-        logger.info('Will not start until command=start recieved from http listener')
+        logger.info('Will not start until command=start received from http listener')
         logger.info('##########################################################')
         logger.info('')
 
