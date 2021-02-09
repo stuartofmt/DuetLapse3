@@ -113,7 +113,7 @@ class MyHandler(BaseHTTPRequestHandler):
                
             if (command == 'status'):
                 self.wfile.write(self._refresh('<h3>'
-                                               '<br><br>Local time is:  '+localtime+'<br><br>'
+                                               '<br><br>Last Updated:  '+localtime+'<br><br>'
                                                'Currently running instances of DuetLapse3 are:<br><br>'
                                                +runninginstances+
                                                '</h3>'
@@ -129,7 +129,7 @@ class MyHandler(BaseHTTPRequestHandler):
                         
                     subprocess.Popen(cmd, shell=True) #run the program
                     self.wfile.write(self._html('Starting DuetLapse3.<br><br>'
-                                                'Local time is:  '+localtime+'<br><br>'
+                                                'Last Updated:  '+localtime+'<br><br>'
                                                 '<h3>'
                                                 +cmd+
                                                 '</h3>'
@@ -162,7 +162,7 @@ class MyHandler(BaseHTTPRequestHandler):
                             pidmsg = 'There was no instance with pid = '+pids
 
                     self.wfile.write(self._html('Sending Terminate to DuetLapse3.<br><br>'
-                                                'Local time is:  '+localtime+'<br><br>'
+                                                'Last Updated:  '+localtime+'<br><br>'
                                                 '<h3>'
                                                 '<pre>'
                                                 +pidmsg+'<br>'
@@ -179,7 +179,7 @@ class MyHandler(BaseHTTPRequestHandler):
 
             elif (command == 'shutdown'):
                 self.wfile.write(self._html('Shutting Down startDuetLapse3.<br><br>'
-                                            'Local time is:  '+localtime+'<br><br>'
+                                            'Last Updated:  '+localtime+'<br><br>'
                                             '<h3>'
                                             'Any instances of DuetLapse3 will continue to run'
                                             '</h3>'
