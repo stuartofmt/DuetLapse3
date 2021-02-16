@@ -8,7 +8,7 @@ Simple HTTP server for starting and stopping DuetLapse3
 # Developed on WSL with Debian Buster. Tested on Raspberry pi, Windows 10 and WSL. SHOULD work on most other linux distributions. 
 """
 global startDuetLapse3Version
-startDuetLapse3Version = '3.2.2'
+startDuetLapse3Version = '3.2.3'
 import argparse
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import os
@@ -17,9 +17,10 @@ import threading
 import subprocess
 import shlex
 import psutil
-from DuetLapse3 import whitelist
+from DuetLapse3 import whitelist, checkInstances
 import socket
 import time
+import platform
 
 def init():
 
@@ -44,7 +45,6 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
 
 class MyHandler(BaseHTTPRequestHandler):
-    #global thisinstance
     def _set_headers(self):
         self.send_response(200)
         self.send_header("Content-type", "text/html")
@@ -109,7 +109,7 @@ class MyHandler(BaseHTTPRequestHandler):
                                         '<h4>'
                                         +thisrunninginstance+
                                         '</h4>'   
-                                           ))
+                                        ))
                
             if (command == 'status'):
                 self.wfile.write(self._refresh('<h3>'
@@ -121,12 +121,17 @@ class MyHandler(BaseHTTPRequestHandler):
             
             elif (command == 'start'):
                 if (args != ''):
-                    basecmd = 'python3 ./DuetLapse3.py '+args
-                    if (nohup == 'yes'):
-                        cmd = 'nohup '+basecmd+' &'
-                    else:
-                        cmd = basecmd+' &'
-                        
+                    if win :
+                        if (nohup == 'yes'):
+                            cmd = 'pythonw DuetLapse3.py '+args
+                        else:
+                            cmd = 'python3 DuetLapse3.py '+args
+                    else:  #Linux
+                        if (nohup == 'yes'):
+                            cmd = 'nohup python3 ./DuetLapse3.py '+args+' &'
+                        else:
+                            cmd = 'python3 ./DuetLapse3.py '+args+' &'
+                                       
                     subprocess.Popen(cmd, shell=True) #run the program
                     self.wfile.write(self._html('Starting DuetLapse3.<br><br>'
                                                 'Last Updated:  '+localtime+'<br><br>'
@@ -145,7 +150,7 @@ class MyHandler(BaseHTTPRequestHandler):
                                                 
             elif (command == 'terminate'):
                 if (pids != ''):
-                    basecmd = 'python3 ./DuetLapse3.py '+args
+                    #basecmd = 'python3 ./DuetLapse3.py '+args
                     if (pids == 'all'):
                         for pid in pidlist:
                             try:
@@ -217,7 +222,6 @@ def createHttpListener():
     global listener
     listener = HTTPServer((host, port), MyHandler)
     listener.serve_forever()
-    #sys.exit(0)  #May not be needed since never returns from serve_forever
     
 def closeHttpListener():
     global listener
@@ -227,26 +231,23 @@ def closeHttpListener():
     print('Terminated')
     sys.exit(0)
     
-def checkInstances(thisinstance):
-    proccount = 0
-    for p in psutil.process_iter():
-        if ('python3' in p.name() and thisinstance in p.cmdline()):
-            proccount += 1
-            if (proccount > 1):
-                print('')
-                print('#############################')
-                print('Process is already running... shutting down.')
-                print('#############################')
-                print('')
-                sys.exit(2)
-    return  
-    
+def getOperatingSystem():
+#  What OS are we using?
+    global win
+    operatingsystem = platform.system()
+    if(operatingsystem == 'Windows'):
+        win = True
+    else:
+        win = False
+        
 def getThisInstance(thisinstancepid):
+    thisrunning = 'Could not find a process running with pid = '+str(thisinstancepid)
     for p in psutil.process_iter():
-        if ('python3' in p.name() and thisinstancepid == p.pid):
+        if (('python3' in p.name() or 'pythonw' in p.name()) and thisinstancepid == p.pid):
             cmdline = str(p.cmdline())
             #clean up the appearance
-            cmdline = cmdline.replace('python3','')
+#            cmdline = cmdline.replace('python3','')
+#            cmdline = cmdline.replace('pythonw','')
             cmdline = cmdline.replace('[','')
             cmdline = cmdline.replace(']','')
             cmdline = cmdline.replace(',','')
@@ -254,16 +255,18 @@ def getThisInstance(thisinstancepid):
             cmdline = cmdline.replace('  ','')
             pid = str(p.pid)
             thisrunning = 'This program is running with<br>Process id:    '+pid+'<br>Command line:    '+cmdline+''
+       
     return  thisrunning  
         
 def getRunningInstances(thisinstance):
     running = ''
     pidlist = []
     for p in psutil.process_iter():
-        if ('python3' in p.name() and not thisinstance in p.cmdline() and '-duet' in p.cmdline()): #Check all other python3 instances
+        if (('python3' in p.name() or 'pythonw' in p.name()) and not thisinstance in p.cmdline() and '-duet' in p.cmdline()): #Check all other python3 instances
             cmdline = str(p.cmdline())
             #clean up the appearance
-            cmdline = cmdline.replace('python3','')
+#            cmdline = cmdline.replace('python3','')
+#            cmdline = cmdline.replace('pythonw','')
             cmdline = cmdline.replace('[','')
             cmdline = cmdline.replace(']','')
             cmdline = cmdline.replace(',','')
@@ -308,8 +311,12 @@ Main Program
 if __name__ == "__main__":
    
     global thisinstance, thisinstancepid
-    thisinstance = __file__
-    checkInstances(thisinstance)    #There can only be one instance running
+    getOperatingSystem()            #some commands are os specific
+    thisinstance = os.path.basename(__file__)
+    if not win:
+        thisinstance = './'+thisinstance
+    print('Trying to check instances for '+thisinstance)
+    _ = checkInstances(thisinstance,'single')    #There can only be one instance running
     thisinstancepid = os.getpid()
     init()
     
