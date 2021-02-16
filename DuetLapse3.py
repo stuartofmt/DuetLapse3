@@ -22,7 +22,7 @@
 #
 """
 global duetLapse3Version
-duetLapse3Version = '3.2.2'
+duetLapse3Version = '3.2.3'
 import subprocess
 import sys
 import platform
@@ -140,25 +140,18 @@ def init():
     #Check to see if this instance is allowed to run  
     ############################################################
     
-    proccount = 0
-    allowed = 0
-       
-    for p in psutil.process_iter():      
-         if 'python3' in p.name() and __file__ in p.cmdline():
-              proccount += 1
-              if ('single' in instances):
-                  allowed += 1
-              if ('oneip' in instances):
-                   if duet in p.cmdline():
-                        allowed += 1
-    
-    if (allowed > 1):
-           print('')
-           print('#############################')
-           print('Process is already running... shutting down.')
-           print('#############################')
-           print('')
-           sys.exit(0)
+    #  What OS are we using?
+    global win
+    operatingsystem = platform.system()
+    if(operatingsystem == 'Windows'):
+        win = True
+    else:
+        win = False
+        
+    thisinstance = os.path.basename(__file__)
+    if not win:
+        thisinstance = './'+thisinstance
+    proccount = checkInstances(thisinstance, instances)
                
     ####################################################
     # Setup for logging and filenames
@@ -168,13 +161,7 @@ def init():
     global pid       
     pid = str(os.getpid())
         
-    #  What OS are we using? Affects cleanupFiles() and logger setup
-    global win
-    operatingsystem = platform.system()
-    if(operatingsystem == 'Windows'):
-        win = True
-    else:
-        win = False
+
        
     # How much output
     if (verbose) :
@@ -189,6 +176,7 @@ def init():
             
     # set base directory for files
     if (basedir == ''): basedir = os.path.dirname(os.path.realpath(__file__))
+    print('Basedir: '+basedir)
  
     #duetname used for filenames and directories
     duetname = duet.replace('.' , '-')
@@ -442,7 +430,7 @@ def init():
     if (majorVersion >= 3):
         logger.info('')
         logger.info('###############################################################')
-        logger.info('Connected to printer at '+duet+' using version '+printerVersion+' and API access using '+apiModel)
+        logger.info('Connected to printer at '+duet+' using Duet version '+printerVersion+' and API access using '+apiModel)
         logger.info('###############################################################')
         logger.info('')
     else:
@@ -505,11 +493,13 @@ def startNow():
         return False
         
 def getThisInstance(thisinstancepid):
+    thisrunning = 'Could not find a process running with pid = '+str(thisinstancepid)
     for p in psutil.process_iter():
-        if ('python3' in p.name() and thisinstancepid == p.pid):
+        if (('python3' in p.name() or 'pythonw' in p.name()) and thisinstancepid == p.pid):
             cmdline = str(p.cmdline())
             #clean up the appearance
-            cmdline = cmdline.replace('python3','')
+#            cmdline = cmdline.replace('python3','')
+#            cmdline = cmdline.replace('pythonw','')
             cmdline = cmdline.replace('[','')
             cmdline = cmdline.replace(']','')
             cmdline = cmdline.replace(',','')
@@ -517,11 +507,36 @@ def getThisInstance(thisinstancepid):
             cmdline = cmdline.replace('  ','')
             pid = str(p.pid)
             thisrunning = 'This program is running with<br>Process id:    '+pid+'<br>Command line:    '+cmdline+''
+           
     return  thisrunning        
     
 #####################################################
 ##  Processing Functions
 #####################################################
+
+def checkInstances(thisinstance, instances):
+    proccount = 0
+    allowed = 0
+       
+    for p in psutil.process_iter():
+
+         if (('python3' in p.name() or 'pythonw' in p.name()) and thisinstance in p.cmdline()):
+            proccount += 1
+            if ('single' in instances):
+                allowed += 1
+            if ('oneip' in instances):
+                if duet in p.cmdline():
+                    allowed += 1
+    
+    if (allowed > 1):
+           print('')
+           print('#############################')
+           print('Process is already running... shutting down.')
+           print('#############################')
+           print('')
+           sys.exit(0)
+
+    return proccount
 
 def checkForPause(layer):
     # Checks to see if we should pause and reposition heads.
@@ -590,7 +605,10 @@ def onePhoto(cameraname, camera, weburl, camparam):
         frame = frame2
         
     s=str(frame).zfill(8)
-    fn = '"'+basedir+'/'+duetname+'/tmp/'+cameraname+pid+'-'+s+'.jpeg"'
+    if (win):
+        fn = '"'+basedir+'\\'+duetname+'\\tmp\\'+cameraname+pid+'-'+s+'.jpeg"'
+    else:
+        fn = '"'+basedir+'/'+duetname+'/tmp/'+cameraname+pid+'-'+s+'.jpeg"'
 
     if ('usb' in camera): 
         cmd = 'fswebcam --quiet --no-banner '+fn+debug
@@ -656,10 +674,6 @@ def oneInterval(cameraname, camera, weburl, camparam):
         logger.info(cameraname+': capturing frame '+str(frame)+' at layer '+str(zn)+' after '+str(seconds)+' seconds')
         onePhoto(cameraname, camera, weburl, camparam)
     
-      
-            
-        
-
 def postProcess(cameraname, camera, vidparam):
     
     logger.info('')
@@ -674,16 +688,24 @@ def postProcess(cameraname, camera, vidparam):
      
     logger.info(cameraname+': now making '+str(frame)+' frames into a video')
     if (250 < frame): logger.info("This can take a while...")
-    fn = '"'+basedir+'/'+duetname+'/'+cameraname+pid+'-'+time.strftime('%a-%H-%M',time.localtime())+'.mp4"'
+    
+    if (win):
+        fn = '"'+basedir+'\\'+duetname+'\\'+cameraname+pid+'-'+time.strftime('%a-%H-%M',time.localtime())+'.mp4"'
+    else:
+        fn = '"'+basedir+'/'+duetname+'/'+cameraname+pid+'-'+time.strftime('%a-%H-%M',time.localtime())+'.mp4"'
+        
     if (vidparam == ''):
         if (float(extratime) > 0):  #needs ffmpeg > 4.2
             if(win):
                 #Windows version does not like fps=10 argument   
-                cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+basedir+'/'+duetname+'/tmp/'+cameraname+pid+'-%08d.jpeg" -c:v libx264 -vf tpad=stop_mode=clone:stop_duration='+extratime+' '+fn+debug
+                cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+basedir+'\\'+duetname+'\\tmp\\'+cameraname+pid+'-%08d.jpeg" -c:v libx264 -vf tpad=stop_mode=clone:stop_duration='+extratime+' '+fn+debug
             else:
                 cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+basedir+'/'+duetname+'/tmp/'+cameraname+pid+'-%08d.jpeg" -c:v libx264 -vf tpad=stop_mode=clone:stop_duration='+extratime+',fps=10 '+fn+debug
         else: #Using an earlier version of ffmpeg that does not support tpad (and hence extratime)
-            cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+basedir+'/'+duetname+'/tmp/'+cameraname+pid+'-%08d.jpeg" -vcodec libx264 -y '+fn+debug
+            if (win):
+                cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+basedir+'\\'+duetname+'\\tmp\\'+cameraname+pid+'-%08d.jpeg" -vcodec libx264 -y '+fn+debug
+            else:
+                cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+basedir+'/'+duetname+'/tmp/'+cameraname+pid+'-%08d.jpeg" -vcodec libx264 -y '+fn+debug
     else:
         cmd = eval(vidparam)    
               
@@ -697,7 +719,8 @@ def postProcess(cameraname, camera, vidparam):
 
 def urlCall(url,timelimit):
     loop = 0
-    while (loop < 2):    
+    limit = 2  #Started at 2 - seems good enough to catch transients
+    while (loop < limit):    
         try:
             r = requests.get(url, timeout=timelimit)
             break
@@ -719,7 +742,7 @@ def urlCall(url,timelimit):
             error = 'Timed Out'
         time.sleep(1)
         
-    if (loop >= 2): #Create dummy response
+    if (loop >= limit): #Create dummy response
        class r:
            ok = False
            status_code = 9999
@@ -1246,7 +1269,12 @@ def startMessages():
 
 def startHttpListener(host,port):
     sock = socket.socket()
-    if sock.connect_ex((host, port)) == 0:
+    if (host == '0.0.0.0' and win):  #Windows does not report properly with 0.0.0.0
+        portcheck = sock.connect_ex(('127.0.0.1', port))
+    else:
+        portcheck = sock.connect_ex((host, port))
+
+    if (portcheck == 0):
         logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         logger.info('Sorry, port '+str(port)+' is already in use.')
         logger.info('Shutting down this instance.')
