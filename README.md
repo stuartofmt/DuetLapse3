@@ -103,8 +103,8 @@ Take note of editing the path variable(s) so that python3 and it's /libraries/mo
 The python script can be started from the command line or, more usually, from a bash or similar script.  Although there are defaults for many of the options - it's unlikely that the script will do exactly what you want with just the defaults.
 The script will usually be started just before you starting a printing - but this is not critical.  Depending on options (e.g. dontwait) it will either immediately start creating still images or wait until the printer changes status from "Idle" to "Processing".<br>
 At the end of the print job the script combines the still images into a mp4 video to create the time lapse.<br>
-If the script is run in foreground it can be stopped (before the print job completes) using CTl+C.  If the script is run in background it can be stopped using SIGINT (kill -2 <pid> in linux).  The example bash script here https://github.com/stuartofmt/DuetLapse3/blob/main/timelapse  gives examples for starting and stopping the program on a Linux system.
-
+If the script is run in foreground it can be stopped (before the print job completes) using CTRL+C (on linux) or CTRL+Break(on Windows).  If the script is run in background it can be stopped using SIGINT (kill -2 <pid> in linux).  The example bash script here https://github.com/stuartofmt/DuetLapse3/blob/main/timelapse  gives examples for starting and stopping the program on a Linux system.
+ 
 An **Integrated http listener** is available for basic control of DuetLapse3 (not the attached printer).<br>
 The http listener is activated by specifying a port number using the -port option.<br>
 In conjunction with the -host option it provides the following functionality from a browser (or curl or other method of performing a http get).
@@ -127,9 +127,10 @@ terminate  - causes DuetLapse3 to stop capturing images, create a video and then
              Note that depending on your system - it may take several minutes for the http listener to completely shutdown following a terminate request.
 </pre>
 
-**Note that the http listener will stop responding if DuetLapse3 is run from a command console that is then closed.  This will happen even if started in background.  To avoid this - use nohup (linux).<br>
-Windows does not have an (easy) equivalent to nohup so you would need to leave the command console open.  An alternative if you are on Win10 is to use  Windows Subsystem for Linux (WSL) and run DuetLapse as a linux application inside WSL.<br>
-If running in nohup mode CTRL+C cannot be used so you need to send the terminate command (?command=terminate) from the http listener**
+**Note that the http listener will stop responding if DuetLapse3 is run from a command console that is then closed.  This will happen even if started in background.  To avoid this - use nohup (linux) or pythonw (Windows)<br>
+An alternative if you are on Win10 is to use  Windows Subsystem for Linux (WSL) and run DuetLapse as a linux application inside WSL.<br>
+If running in nohup mode CTRL+C cannot be used so you need to send the terminate command (?command=terminate) from the http listener
+The same applies if running in Windows with pythonw**
 
 ### Options
 
