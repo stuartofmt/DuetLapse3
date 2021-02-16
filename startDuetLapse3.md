@@ -15,6 +15,9 @@ It proveds a simple http interface for starting and terminating DuetLapse3 insta
 - [1]  Made some cosmetic changes to the http responses.  Most now include the local time as part of the response.
 - [2]  The status page will automatically refresh every 60 seconds.  Other pages will show the last time they were invoked.
 
+###Version 3.2.3###
+- [1]  Fixed some inconsistencies when running on Windows due to slightly different behavior of python3.
+
 ## General Description
 
 startDuetLapse 3 is designed to run continuously and accept http commands either from a browser, curl or other means of sending http get commands.<br>
@@ -22,6 +25,7 @@ It is used to start DuetLapse3 instances without the need of a separate script b
 To avoid misuse - options are checked for validity before any attempt to start DuetLapse3.<br><br>
 It can also terminate specific or all instances of DuetLapse3.
 
+Only one instance of startDuetLapse3 can be running.
 
 Feedback via issues on Duet forum https://forum.duet3d.com/topic/20932/duetlapse3
 
@@ -75,17 +79,16 @@ which will run python in the background (tested with python 3.9)
 Example command line for running startDuetLapse3 in the background (windows)
 Note the use of pythonw and the output files to check if everything was successful
 
-pythonw startDuetLapse3.py -port 8082 1>stdout.txt 2>stderr.txt
+pythonw startDuetLapse3.py -port 8082 > startDuetLapse3.log 2>&1
 
 ```
 
-If the script is run in foreground it can be shutdown using CTl+C.<br>
+If the script is run in foreground it can be shutdown using CTRL+C (on linux) or CTRL+Break (on Windows).<br>
 If the script is run in background it can be stopped using http with command=shutdown.
 
 **Note that the http listener will stop responding if startDuetLapse3 is run from a command console that is then closed.<br>
 This will happen even if started in background.<br>
-To avoid this - use nohup (linux).<br>
-Windows does not have an (easy) equivalent to nohup so you would need to leave the command console open.<br>
+To avoid this - use nohup (linux) or start with pythonw (on Windows)<br>
 An alternative if you are on Win10 is to use  Windows Subsystem for Linux (WSL) and run startDuetLapse as a linux application inside WSL.<br>**
 
 
@@ -111,7 +114,7 @@ http://localhost:8082/?command=start&args=-duet 192.168.86.235 -detect none -sec
 
 ```
 
-nohup=yes               - Will run DuetLapse3 with nohup (only use on Linux).
+nohup=yes               - Will run DuetLapse3 with nohup (on Linux).  If on WIndows the program will substitute pythonw.
                           Note that it is not part of the command=start&args= but a separate command
                           In most situations (startDuetLapse3 running in background) you will NOT need to use this option
 
