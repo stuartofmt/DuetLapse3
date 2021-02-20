@@ -170,7 +170,7 @@ In most cases the default will be suitable.
 **example**
 
 -instances single   #There can only be one instance of DuetLapse3.py running<br>
--instance oneip     #For each printer (set by -duet), there can only be one instance of DuetLapse3.py running<br>
+-instances oneip    #For each printer (set by -duet), there can only be one instance of DuetLapse3.py running<br>
 -instances many     #No restriction on the number of instances<br>
 </pre>
 
@@ -223,7 +223,7 @@ It is useful for having DuetLapse running but not actually doing anything until 
 <pre>
 **example**
 
--stopcmd #Causes internal http listener to start and listen on port 8082<br>
+-standby   #Causes internal http listener to start and listen on port 8082<br>
 </pre>
 
 #### -dontwait
@@ -321,8 +321,8 @@ If omitted it has no value. url specifies the location to capture images for cam
 #### -camera2 [usb||pi||web||stream||other]
 If omitted has no default (unlike camera1). Has the same parameters as -camera1
 
-#### -webur2 [url]
-Has the same parameters as -weburl2
+#### -weburl2 [url]
+Has the same parameters as -weburl1
 
 #### -camparam1="[command]"
 If omitted has no default. Used in conjunction with -camera1 to define how the images will be captured.<br>
