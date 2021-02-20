@@ -692,7 +692,7 @@ def oneInterval(cameraname, camera, weburl, camparam):
         onePhoto(cameraname, camera, weburl, camparam)
     
 def postProcess(cameraname, camera, vidparam):
-    if (novideo != 'novideo'):
+    if (novideo != True):
         logger.info('')
         if (cameraname == 'Camera1'):
             frame = frame1
@@ -727,11 +727,12 @@ def postProcess(cameraname, camera, vidparam):
             cmd = eval(vidparam)    
               
         subprocess.call(cmd, shell=True)
-        if (deletepics == 'deletepics'):
+        if (deletepics == True):
             if (win):
-                subprocess.call('rmdir "'+basedir+'\\'+duetname+'\\frames'+timeJobStarted+'" /s /q'+debug, shell=True)
+                subprocess.call('rmdir "'+basedir+'\\'+duetname+'\\frames-'+timeJobStarted+'" /s /q'+debug, shell=True)
             else:
-                subprocess.call('rm -rf "'+basedir+'/'+duetname+'/frames'+timeJobStarted+'"'+debug, shell=True)
+                subprocess.call('rm -rf "'+basedir+'/'+duetname+'/frames-'+timeJobStarted+'"'+debug, shell=True)
+            logger.info('Captured photos deleted')
         logger.info('Video processing complete for '+cameraname)
         logger.info('Video is in file '+fn)
     else:
