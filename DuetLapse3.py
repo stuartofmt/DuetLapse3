@@ -133,7 +133,7 @@ def init():
     global extratime, novideo   
     extratime = str(args['extratime'] [0])
     novideo = args['novideo']
-    if (novideo == 'novideo'): deletepics = ''
+    if (novideo == True): deletepics = False
     
     #Overrides
     global camparam1, camparam2, vidparam1, vidparam2
