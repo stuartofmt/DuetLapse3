@@ -734,7 +734,7 @@ def postProcess(cameraname, camera, vidparam, keeppics, novideo):
         logger.info('Video processing complete for '+cameraname)
         logger.info('Video is in file '+fn)
     else:
-        logger.info('Job complete)
+        logger.info('Job complete')
         if (win):
             logger.info('Pictures can be found in directory '+basedir+'\\'+duetname+'\\frames'+timeJobStarted+')
         else:
