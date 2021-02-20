@@ -249,9 +249,9 @@ def init():
     if (camparam2 != ''):
         logger.info("# Camera2 Override:")
         logger.info("# camparam2    =    {0:50s}".format(camparam2))   
-    logger.info("# deletepics   =     {0:50s}".format(deletepics))
+    logger.info("# deletepics   =     {0:50s}".format(str(deletepics)))
     logger.info("# Video Settings:")
-    logger.info("# novideo   =     {0:50s}".format(novideo))
+    logger.info("# novideo   =     {0:50s}".format(str(novideo)))
     logger.info("# extratime   =     {0:50s}".format(extratime))
     if (vidparam1 != ''):
         logger.info("# Video1 Override:")
@@ -691,7 +691,7 @@ def oneInterval(cameraname, camera, weburl, camparam):
         onePhoto(cameraname, camera, weburl, camparam)
     
 def postProcess(cameraname, camera, vidparam, keeppics, novideo):
-    if (novideo != true):
+    if (novideo != 'novideo'):
         logger.info('')
         if (cameraname == 'Camera1'):
             frame = frame1
@@ -726,7 +726,7 @@ def postProcess(cameraname, camera, vidparam, keeppics, novideo):
             cmd = eval(vidparam)    
               
         subprocess.call(cmd, shell=True)
-        if (deletepics):
+        if (deletepics == 'deletepics'):
             if (win):
                 subprocess.call('rmdir "'+basedir+'\\'+duetname+'\\frames'+timeJobStarted+'" /s /q'+debug, shell=True)
             else:
