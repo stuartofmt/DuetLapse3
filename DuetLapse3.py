@@ -47,7 +47,7 @@ def setStartValues():
     #initialize timers
     timePriorPhoto1 = time.time()
     timePriorPhoto2 = time.time()
-    timeJobStarted = time.strftime("%Y%m%d-%H%M%S")
+    timeJobStarted = time.strftime("%y%m%d-%H%M%S")
     
     #reset the frame counters
     frame1 = 0       
@@ -484,7 +484,7 @@ def cleanupFiles():
     #Make sure there is a directory for the resulting video
     global win
     global timeJobStarted
-    timeJobStarted = time.strftime("%Y%m%d-%H%M%S")
+    timeJobStarted = time.strftime("%y%m%d-%H%M%S")
     if (win):
         subprocess.call('mkdir "'+basedir+'\\'+duetname+'"'+debug, shell=True)
         #Create the tmp directory
