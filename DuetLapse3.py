@@ -327,8 +327,8 @@ def init():
         
     if (novideo and deletepics):
         logger.info('************************************************************************************')
-        logger.info('* Note "-deletepics ignored since having -novideo and -deletepics together would
-        logger.info('* result in nothing being generated
+        logger.info('* Note "-deletepics ignored since having -novideo and -deletepics together would')
+        logger.info('* result in nothing being generated.')
         logger.info('************************************************************************************')
 
     #Invalid combinations
