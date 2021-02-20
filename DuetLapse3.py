@@ -692,7 +692,7 @@ def oneInterval(cameraname, camera, weburl, camparam):
         onePhoto(cameraname, camera, weburl, camparam)
     
 def postProcess(cameraname, camera, vidparam):
-    if (novideo == ''):
+    if (novideo != 'novideo'):
         logger.info('')
         if (cameraname == 'Camera1'):
             frame = frame1
