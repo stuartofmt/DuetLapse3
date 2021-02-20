@@ -736,9 +736,9 @@ def postProcess(cameraname, camera, vidparam, keeppics, novideo):
     else:
         logger.info('Job complete')
         if (win):
-            logger.info('Pictures can be found in directory '+basedir+'\\'+duetname+'\\frames'+timeJobStarted+')
+            logger.info('Pictures can be found in directory '+basedir+'\\'+duetname+'\\frames'+timeJobStarted)
         else:
-            logger.info('Pictures can be found in directory '+basedir+'/'+duetname+'/frames'+timeJobStarted+')
+            logger.info('Pictures can be found in directory '+basedir+'/'+duetname+'/frames'+timeJobStarted)
             
     
 #############################################################################
