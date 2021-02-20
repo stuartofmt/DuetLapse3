@@ -126,7 +126,7 @@ def init():
     camera2   = args['camera2'][0]
     weburl1   = args['weburl1'][0]
     weburl2   = args['weburl2'][0]
-    deletepics  = args['keeppics']
+    deletepics  = args['deletepics']
 
 
     #Video
