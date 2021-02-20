@@ -133,7 +133,6 @@ def init():
     global extratime, novideo   
     extratime = str(args['extratime'] [0])
     novideo = args['novideo']
-    if (novideo == True): deletepics = False
     
     #Overrides
     global camparam1, camparam2, vidparam1, vidparam2
@@ -326,12 +325,6 @@ def init():
         logger.info('************************************************************************************')
 
         
-    if (novideo and deletepics):
-        logger.info('************************************************************************************')
-        logger.info('* Note "-deletepics ignored since having -novideo and -deletepics together would')
-        logger.info('* result in nothing being generated.')
-        logger.info('************************************************************************************')
-
     #Invalid combinations
     
     logger.info('')
@@ -379,7 +372,13 @@ def init():
         logger.info('contain its own pauses.  These cannot be used together.')
         logger.info('************************************************************************************')
         sys.exit(2)
-        
+
+    if (novideo and deletepics):
+        logger.info('************************************************************************************')
+        logger.info('* Invalid Combination: "-deletepics and -novideo together would result in nothing being generated.')
+        logger.info('************************************************************************************')
+        sys.exit(2)
+
 
     def checkDependencies(camera):        
         #
