@@ -690,7 +690,7 @@ def oneInterval(cameraname, camera, weburl, camparam):
         logger.info(cameraname+': capturing frame '+str(frame)+' at layer '+str(zn)+' after '+str(seconds)+' seconds')
         onePhoto(cameraname, camera, weburl, camparam)
     
-def postProcess(cameraname, camera, vidparam, keeppics, novideo):
+def postProcess(cameraname, camera, vidparam):
     if (novideo != 'novideo'):
         logger.info('')
         if (cameraname == 'Camera1'):
