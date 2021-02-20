@@ -205,9 +205,9 @@ def init():
    
     if ('file' in logtype or 'both' in logtype) :
         if (proccount > 1):
-             f_handler = logging.FileHandler(basedir+'/'+duetname+'/DuetLapse3.log', mode='a')
+             f_handler = logging.FileHandler(basedir+'/'+duetname+'/DuetLapse3-'+timeJobStarted+'.log', mode='a')
         else:
-             f_handler = logging.FileHandler(basedir+'/'+duetname+'/DuetLapse3.log', mode='w')        
+             f_handler = logging.FileHandler(basedir+'/'+duetname+'/DuetLapse3-'+timeJobStarted+'.log', mode='w')        
 
         f_format = logging.Formatter(duet+' - %(asctime)s - %(message)s')
         f_handler.setFormatter(f_format)
