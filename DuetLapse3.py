@@ -121,7 +121,7 @@ def init():
     movehead = args['movehead']  
     standby = args['standby']
     #Camera
-    global camera1, camera2, weburl1, weburl2, keeppics     
+    global camera1, camera2, weburl1, weburl2, deletepics     
     camera1   = args['camera1'][0]
     camera2   = args['camera2'][0]
     weburl1   = args['weburl1'][0]
@@ -133,6 +133,7 @@ def init():
     global extratime, novideo   
     extratime = str(args['extratime'] [0])
     novideo = args['novideo']
+    if (novideo == 'novideo'): deletepics = ''
     
     #Overrides
     global camparam1, camparam2, vidparam1, vidparam2
@@ -691,7 +692,7 @@ def oneInterval(cameraname, camera, weburl, camparam):
         onePhoto(cameraname, camera, weburl, camparam)
     
 def postProcess(cameraname, camera, vidparam):
-    if (novideo != 'novideo'):
+    if (novideo == ''):
         logger.info('')
         if (cameraname == 'Camera1'):
             frame = frame1
