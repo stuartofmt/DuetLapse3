@@ -47,6 +47,7 @@ def setStartValues():
     #initialize timers
     timePriorPhoto1 = time.time()
     timePriorPhoto2 = time.time()
+    timeJobStarted = time.strftime("%Y%m%d-%H%M%S")
     
     #reset the frame counters
     frame1 = 0       
@@ -79,8 +80,10 @@ def whitelist(parser):
     parser.add_argument('-weburl1',type=str,nargs=1,default=[''],help='Url for Camera1 if web or stream') 
     parser.add_argument('-camera2',type=str,nargs=1,choices=['usb','pi','web','stream','other'],default=[''],help='Optional second camera. No Default')
     parser.add_argument('-weburl2',type=str,nargs=1,default=[''],help='Url for Camera2 if web or stream')
+    parser.add_argument('-deletepics',action='store_true',help='Delete the jpeg files when the video has been generated, will not delete files if video generation fails')
     #Video
     parser.add_argument('-extratime',type=float,nargs=1,default=[0],help='Time to repeat last image, Default = 0')
+    parser.add_argument('-novideo',action='store_true',help='Do not generate a video')
     #Overrides
     parser.add_argument('-camparam1',type=str,nargs=1,default=[''],help='Camera1 Capture overrides. Use -camparam1="parameters"')
     parser.add_argument('-camparam2',type=str,nargs='*',default=[''],help='Camera2 Capture overrides. Use -camparam2="parameters"')
@@ -118,16 +121,18 @@ def init():
     movehead = args['movehead']  
     standby = args['standby']
     #Camera
-    global camera1, camera2, weburl1, weburl2     
+    global camera1, camera2, weburl1, weburl2, keeppics     
     camera1   = args['camera1'][0]
     camera2   = args['camera2'][0]
     weburl1   = args['weburl1'][0]
     weburl2   = args['weburl2'][0]
+    deletepics  = args['keeppics']
 
 
     #Video
-    global extratime   
+    global extratime, novideo   
     extratime = str(args['extratime'] [0])
+    novideo = args['novideo']
     
     #Overrides
     global camparam1, camparam2, vidparam1, vidparam2
@@ -244,7 +249,9 @@ def init():
     if (camparam2 != ''):
         logger.info("# Camera2 Override:")
         logger.info("# camparam2    =    {0:50s}".format(camparam2))   
+    logger.info("# deletepics   =     {0:50s}".format(deletepics))
     logger.info("# Video Settings:")
+    logger.info("# novideo   =     {0:50s}".format(novideo))
     logger.info("# extratime   =     {0:50s}".format(extratime))
     if (vidparam1 != ''):
         logger.info("# Video1 Override:")
@@ -316,7 +323,14 @@ def init():
         logger.info('* in the gcode, specify:')
         logger.info('* "-detect pause"')
         logger.info('************************************************************************************')
+
         
+    if (novideo and deletepics):
+        logger.info('************************************************************************************')
+        logger.info('* Note "-deletepics ignored since having -novideo and -deletepics together would
+        logger.info('* result in nothing being generated
+        logger.info('************************************************************************************')
+
     #Invalid combinations
     
     logger.info('')
@@ -465,19 +479,21 @@ def cleanupFiles():
     """
        Todo - add logic if multiple instances allowed for file cleanup? 
     """    
-    # Make and clean up directorys.
+    # Make directories.
     #Make sure there is a directory for the resulting video
     global win
+    global timeJobStarted
+    timeJobStarted = time.strftime("%Y%m%d-%H%M%S")
     if (win):
         subprocess.call('mkdir "'+basedir+'\\'+duetname+'"'+debug, shell=True)
-        #Clean up the tmp directory
-        subprocess.call('rmdir "'+basedir+'\\'+duetname+'\\tmp" /s /q'+debug, shell=True)
-        subprocess.call('mkdir "'+basedir+'\\'+duetname+'\\tmp"'+debug, shell=True)
+        #Create the tmp directory
+        #subprocess.call('rmdir "'+basedir+'\\'+duetname+'\\frames" /s /q'+debug, shell=True)
+        subprocess.call('mkdir "'+basedir+'\\'+duetname+'\\frames-'+timeJobStarted+'"'+debug, shell=True)
     else:
-        subprocess.call('mkdir "'+basedir+'/'+duetname+'"'+debug, shell=True)
-        #Clean up the tmp directory
-        subprocess.call('rm -rf "'+basedir+'/'+duetname+'/tmp"'+debug, shell=True)
-        subprocess.call('mkdir "'+basedir+'/'+duetname+'/tmp"'+debug, shell=True)
+        subprocess.call('mkdir -p "'+basedir+'/'+duetname+'"'+debug, shell=True)
+        #Create the tmp directory
+        #subprocess.call('rm -rf "'+basedir+'/'+duetname+'/frames"'+debug, shell=True)
+        subprocess.call('mkdir -p "'+basedir+'/'+duetname+'/frames-'+timeJobStarted+'"'+debug, shell=True)
         
         
 def startNow():
@@ -606,9 +622,9 @@ def onePhoto(cameraname, camera, weburl, camparam):
         
     s=str(frame).zfill(8)
     if (win):
-        fn = '"'+basedir+'\\'+duetname+'\\tmp\\'+cameraname+pid+'-'+s+'.jpeg"'
+        fn = '"'+basedir+'\\'+duetname+'\\frames-'+timeJobStarted+'\\'+cameraname+pid+'-'+s+'.jpeg"'
     else:
-        fn = '"'+basedir+'/'+duetname+'/tmp/'+cameraname+pid+'-'+s+'.jpeg"'
+        fn = '"'+basedir+'/'+duetname+'/frames-'+timeJobStarted+'/'+cameraname+pid+'-'+s+'.jpeg"'
 
     if ('usb' in camera): 
         cmd = 'fswebcam --quiet --no-banner '+fn+debug
@@ -674,44 +690,56 @@ def oneInterval(cameraname, camera, weburl, camparam):
         logger.info(cameraname+': capturing frame '+str(frame)+' at layer '+str(zn)+' after '+str(seconds)+' seconds')
         onePhoto(cameraname, camera, weburl, camparam)
     
-def postProcess(cameraname, camera, vidparam):
-    
-    logger.info('')
-    if (cameraname == 'Camera1'):
-        frame = frame1
-    else:
-        frame = frame2
+def postProcess(cameraname, camera, vidparam, keeppics, novideo):
+    if (novideo != true):
+        logger.info('')
+        if (cameraname == 'Camera1'):
+            frame = frame1
+        else:
+            frame = frame2
         
-    if (frame < 10):
-        logger.info(cameraname+': Cannot create video with only '+str(frame)+' frames')
-        return
+        if (frame < 10):
+            logger.info(cameraname+': Cannot create video with only '+str(frame)+' frames')
+            return
      
-    logger.info(cameraname+': now making '+str(frame)+' frames into a video')
-    if (250 < frame): logger.info("This can take a while...")
+        logger.info(cameraname+': now making '+str(frame)+' frames into a video')
+        if (250 < frame): logger.info("This can take a while...")
     
-    if (win):
-        fn = '"'+basedir+'\\'+duetname+'\\'+cameraname+pid+'-'+time.strftime('%a-%H-%M',time.localtime())+'.mp4"'
-    else:
-        fn = '"'+basedir+'/'+duetname+'/'+cameraname+pid+'-'+time.strftime('%a-%H-%M',time.localtime())+'.mp4"'
+        if (win):
+            fn = '"'+basedir+'\\'+duetname+'\\'+cameraname+pid+'-'+time.strftime('%a-%H-%M',time.localtime())+'.mp4"'
+        else:
+            fn = '"'+basedir+'/'+duetname+'/'+cameraname+pid+'-'+time.strftime('%a-%H-%M',time.localtime())+'.mp4"'
         
-    if (vidparam == ''):
-        if (float(extratime) > 0):  #needs ffmpeg > 4.2
-            if(win):
-                #Windows version does not like fps=10 argument   
-                cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+basedir+'\\'+duetname+'\\tmp\\'+cameraname+pid+'-%08d.jpeg" -c:v libx264 -vf tpad=stop_mode=clone:stop_duration='+extratime+' '+fn+debug
-            else:
-                cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+basedir+'/'+duetname+'/tmp/'+cameraname+pid+'-%08d.jpeg" -c:v libx264 -vf tpad=stop_mode=clone:stop_duration='+extratime+',fps=10 '+fn+debug
-        else: #Using an earlier version of ffmpeg that does not support tpad (and hence extratime)
-            if (win):
-                cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+basedir+'\\'+duetname+'\\tmp\\'+cameraname+pid+'-%08d.jpeg" -vcodec libx264 -y '+fn+debug
-            else:
-                cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+basedir+'/'+duetname+'/tmp/'+cameraname+pid+'-%08d.jpeg" -vcodec libx264 -y '+fn+debug
-    else:
-        cmd = eval(vidparam)    
+        if (vidparam == ''):
+            if (float(extratime) > 0):  #needs ffmpeg > 4.2
+                if(win):
+                    #Windows version does not like fps=10 argument   
+                    cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+basedir+'\\'+duetname+'\\frames-'+timeJobStarted+'\\'+cameraname+pid+'-%08d.jpeg" -c:v libx264 -vf tpad=stop_mode=clone:stop_duration='+extratime+' '+fn+debug
+                else:
+                    cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+basedir+'/'+duetname+'/frames-'+timeJobStarted+'/'+cameraname+pid+'-%08d.jpeg" -c:v libx264 -vf tpad=stop_mode=clone:stop_duration='+extratime+',fps=10 '+fn+debug
+            else: #Using an earlier version of ffmpeg that does not support tpad (and hence extratime)
+                if (win):
+                    cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+basedir+'\\'+duetname+'\\frames-'+timeJobStarted+'\\'+cameraname+pid+'-%08d.jpeg" -vcodec libx264 -y '+fn+debug
+                else:
+                    cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+basedir+'/'+duetname+'/frames-'+timeJobStarted+'/'+cameraname+pid+'-%08d.jpeg" -vcodec libx264 -y '+fn+debug
+        else:
+            cmd = eval(vidparam)    
               
-    subprocess.call(cmd, shell=True)
-    logger.info('Video processing complete for '+cameraname)
-    logger.info('Video is in file '+fn)
+        subprocess.call(cmd, shell=True)
+        if (deletepics):
+            if (win):
+                subprocess.call('rmdir "'+basedir+'\\'+duetname+'\\frames'+timeJobStarted+'" /s /q'+debug, shell=True)
+            else:
+                subprocess.call('rm -rf "'+basedir+'/'+duetname+'/frames'+timeJobStarted+'"'+debug, shell=True)
+        logger.info('Video processing complete for '+cameraname)
+        logger.info('Video is in file '+fn)
+    else:
+        logger.info('Job complete)
+        if (win):
+            logger.info('Pictures can be found in directory '+basedir+'\\'+duetname+'\\frames'+timeJobStarted+')
+        else:
+            logger.info('Pictures can be found in directory '+basedir+'/'+duetname+'/frames'+timeJobStarted+')
+            
     
 #############################################################################
 ##############  Duet API access Functions
