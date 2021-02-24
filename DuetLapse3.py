@@ -22,7 +22,7 @@
 #
 """
 global duetLapse3Version
-duetLapse3Version = '3.2.3'
+duetLapse3Version = '3.3.0'
 import subprocess
 import sys
 import platform
@@ -606,9 +606,9 @@ def onePhoto(cameraname, camera, weburl, camparam):
         
     s=str(frame).zfill(8)
     if (win):
-        fn = '"'+basedir+'\\'+duetname+'\\tmp\\'+cameraname+pid+'-'+s+'.jpeg"'
+        fn = ' "'+basedir+'\\'+duetname+'\\tmp\\'+cameraname+pid+'-'+s+'.jpeg"'
     else:
-        fn = '"'+basedir+'/'+duetname+'/tmp/'+cameraname+pid+'-'+s+'.jpeg"'
+        fn = ' "'+basedir+'/'+duetname+'/tmp/'+cameraname+pid+'-'+s+'.jpeg"'
 
     if ('usb' in camera): 
         cmd = 'fswebcam --quiet --no-banner '+fn+debug
@@ -624,7 +624,7 @@ def onePhoto(cameraname, camera, weburl, camparam):
         
     if ('other' in camera):
         cmd = eval(camparam)
-            
+     
     subprocess.call(cmd, shell=True)
     global timePriorPhoto1, timePriorPhoto2
     if (cameraname == 'Camera1'):
@@ -690,9 +690,9 @@ def postProcess(cameraname, camera, vidparam):
     if (250 < frame): logger.info("This can take a while...")
     
     if (win):
-        fn = '"'+basedir+'\\'+duetname+'\\'+cameraname+pid+'-'+time.strftime('%a-%H-%M',time.localtime())+'.mp4"'
+        fn = ' "'+basedir+'\\'+duetname+'\\'+cameraname+pid+'-'+time.strftime('%a-%H-%M',time.localtime())+'.mp4"'
     else:
-        fn = '"'+basedir+'/'+duetname+'/'+cameraname+pid+'-'+time.strftime('%a-%H-%M',time.localtime())+'.mp4"'
+        fn = ' "'+basedir+'/'+duetname+'/'+cameraname+pid+'-'+time.strftime('%a-%H-%M',time.localtime())+'.mp4"'
         
     if (vidparam == ''):
         if (float(extratime) > 0):  #needs ffmpeg > 4.2
@@ -707,8 +707,7 @@ def postProcess(cameraname, camera, vidparam):
             else:
                 cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+basedir+'/'+duetname+'/tmp/'+cameraname+pid+'-%08d.jpeg" -vcodec libx264 -y '+fn+debug
     else:
-        cmd = eval(vidparam)    
-              
+        cmd = eval(vidparam)              
     subprocess.call(cmd, shell=True)
     logger.info('Video processing complete for '+cameraname)
     logger.info('Video is in file '+fn)
@@ -912,125 +911,210 @@ class MyHandler(BaseHTTPRequestHandler):
     def _html(self, message):
         content = f"<html><body><h2>{message}</h2></body></html>"
         return content.encode("utf8")  # NOTE: must return a bytes object!
+        
+    def update_content(self):
+        options = 'status, start, terminate'
+        global pidlist
+        pidlist = []
+        localtime = time.strftime('%A - %H:%M',time.localtime())
+        #portlist = []
+        #runninginstances, pidlist = getRunningInstances(thisinstance, referer)
+        thisrunninginstance = getThisInstance(int(pid))
+        if (str(zo1) == '-1'):
+           thislayer = 'None'
+        else:
+           thislayer = str(zo1)        
+    
+        header =    ('DuetLapse3 Version '+duetLapse3Version+'<br>'
+                    '<h4>'
+                    +thisrunninginstance+
+                    '</h4>'   
+                    )    
+            
+        status =    ('<h3>'
+                    'Status of printer on '+duet+'<br><br>'
+                    'Last Updated:  '+localtime+'<br><br>'
+                    '<h3>'
+                    '<pre>'
+                    'Capture Status:            =    '+printState+'<br>'
+                    'DuetLapse3 State:          =    '+action+'<br>'
+                    'Duet Status:               =    '+duetStatus+'<br>'
+                    'Images Captured:           =    '+str(frame1)+'<br>'
+                    'Current Layer:             =    '+thislayer+
+                    '</pre>'
+                    '</h3>'
+                    )                                    
+        
+        buttons =   ('<div class="divider">'
+                    '<form action="http://'+referer+'">'
+                    '<input type="hidden" name="command" value="status" />'
+                    '<input type="submit" value="Status" style="background-color:green"/>'                    
+                    '</form>'
+                    '</div>'
+                    '<div class="divider">'                                    
+                    '<form action="http://'+referer+'">'
+                    '<input type="hidden" name="command" value="start" />'                                    
+                    '<input type="submit" value="Start" style="background-color:orange"/>'
+                    '</form>'
+                    '</div>'
+                    '<div class="divider">'                                    
+                    '<form action="http://'+referer+'">'
+                    '<input type="hidden" name="command" value="standby" />'                                    
+                    '<input type="submit" value="Standby" style="background-color:orange"/>'
+                    '</form>'
+                    '</div>'                    
+                    '<div class="divider">'                                   
+                    '<form action="http://'+referer+'">'
+                    '<input type="hidden" name="command" value="pause" />'                                   
+                    '<input type="submit" value="Pause" style="background-color:pink"/>'
+                    '</form>'
+                    '</div>'
+                    '<div class="divider">'                                   
+                    '<form action="http://'+referer+'">'
+                    '<input type="hidden" name="command" value="continue" />'                                   
+                    '<input type="submit" value="Continue" style="background-color:pink"/>'
+                    '</form>'
+                    '</div>'
+                    '<div class="divider">'                                   
+                    '<form action="http://'+referer+'">'
+                    '<input type="hidden" name="command" value="snapshot" />'                                   
+                    '<input type="submit" value="Snapshot" style="background-color:green"/>'
+                    '</form>'
+                    '</div>'
+                    '<div class="divider">'                                   
+                    '<form action="http://'+referer+'">'
+                    '<input type="hidden" name="command" value="restart" />'                                   
+                    '<input type="submit" value="Restart" style="background-color:yellow"/>'
+                    '</form>'
+                    '</div>'                    
+                    '<div class="divider">'                                     
+                    '<form action="http://'+referer+'">'
+                    '<input type="hidden" name="command" value="terminate" />'
+                    '<input type="submit" value="Terminate" style="background-color:red"/>'
+                    '</form>'
+                    '</div>'
+                    '<style type="text/css">'
+                    '{'
+                    'position:relative;'
+                    'width:200px;'
+                    '}'
+                    '.divider{'
+                    'width:200px;'
+                    'height:auto;'
+                    'display:inline-block;'
+                    '}'
+                    '.pad30{'
+                    'margin-left: 30px;' 
+                    '}'
+                    'input[type=submit] {'
+                    'width: 10em;  height: 2em;'
+                    '}'
+                    '</style>'
+                    )        
+        return header , status , buttons;
     
     def do_GET(self):
         self._set_headers()
-        global action, options
+        global action, options, referer
+        referer = self.headers['Host']       
+        #Update main content
+        header, status, buttons = self.update_content()
+        
         options = ['status', 'start', 'standby', 'pause', 'continue', 'snapshot', 'restart', 'terminate']
-        qs = {}
+        #qs = {}
         path = self.path
         if ('favicon.ico' in path):
             return
                        
         query_components = parse_qs(urlparse(self.path).query)
 
-        thisrunninginstance = getThisInstance(int(pid))
-        localtime = time.strftime('%A - %H:%M',time.localtime())
-        
-        self.wfile.write(self._html('DuetLapse3 Version '+duetLapse3Version+'<br><br>'
-                                    '<h4>'
-                                    +thisrunninginstance+
-                                    '</h4>'   
-                                    ))
+        #thisrunninginstance = getThisInstance(int(pid))
+        #localtime = time.strftime('%A - %H:%M',time.localtime())        
         
         command = ''
         if(query_components.get('command')):
-            command = query_components['command'][0]
-
-            
+            command = query_components['command'][0]         
             logger.info('!!!!! http '+command+' request received !!!!!')
             
             #check for a valid request
             if (command not in options):
-                self.wfile.write(self._html('Illegal value for ?command=<br>'
-                                            '<h3>'
-                                            '<pre>'
-                                            'Valid options are:   '+''.join(str(e+'   ') for e in options)+
-                                            '</pre>'
-                                            '</h3>'
-                                            ))
+                illegal =   ('<h3>'
+                             '<pre>'
+                             'Illegal value for ?command=<br>'
+                             'Valid options are:   '+''.join(str(e+'   ') for e in options)+
+                             '</pre>'
+                             '</h3>'
+                             )
+                
+                self.wfile.write(self._html(header+status+buttons+illegal))
                 return             
 
            #process the request
        
             if (command == 'status'):
-                if (str(zo1) == '-1'):
-                    thislayer = 'None'
-                else:
-                    thislayer = str(zo1)                                        
-                    
-                self.wfile.write(self._refresh('Status of printer on '+duet+'<br><br>'
-                                               'Last Updated:  '+localtime+'<br><br>'
-                                               '<h3>'
-                                               '<pre>'
-                                               'Capture Status:            =    '+printState+'<br>'
-                                               'DuetLapse3 State:          =    '+action+'<br>'
-                                               'Duet Status:               =    '+duetStatus+'<br>'
-                                               'Images Captured:           =    '+str(frame1)+'<br>'
-                                               'Current Layer:             =    '+thislayer+
-                                               '</pre>'
-                                               '</h3>'
-                                               ))              
+                refreshing = ('<h3><pre>'
+                              'Status will update every 60 seconds'
+                              '</pre></h3>'
+                              )
+                self.wfile.write(self._refresh(header+status+buttons+refreshing))                     
+              
             #start / standby
             elif (command == 'start'):
                 if (action == 'standby'):
                     available = [e for e in options if e not in command]
-                    self.wfile.write(self._html('Starting DuetLapse3.<br><br>'
-                                                'Last Updated:  '+localtime+'<br><br>'
-                                                '<h3>'
-                                                'Available actions are command='
-                                                +''.join(str(e+'   ') for e in available)+                                               
-                                                '</h3>'
-                                                ))
+                    start =    ('<h3><pre>'
+                                'Starting DuetLapse3.'
+                                '</pre></h3>'
+                                )
+
+                    self.wfile.write(self._html(header+status+buttons+start))                                                
                     nextAction(command)
                 else:
-                    self.wfile.write(self._html(self.ignoreCommandMsg(command,action)))
+                    self.wfile.write(self._html(header+status+buttons+self.ignoreCommandMsg(command,action)))
             
             elif (command == 'standby'):  #can be called at any time
                 unwanted = {'pause', 'standby','restart', 'terminate'}
                 allowed = [e for e in options if e not in unwanted]
                 if (action in allowed):
-                    self.wfile.write(self._html('Putting DuetLapse3 in standby mode<br><br>'
-                                                'Last Updated:  '+localtime+'<br><br>'
-                                                '<h3>'
-                                                'Will NOT create a video.<br>'
-                                                'All captured images will be deleted<br>'
-                                                'This is the same as if DuetLapse was just started with -standby<br>'
-                                                'Available action is command=start'
-                                                '</h3>'
-                                                ))
+                    standby =  ('<h3><pre>'
+                                'Putting DuetLapse3 in standby mode<br><br>'
+                                'Will NOT create a video.<br>'
+                                'All captured images will be deleted<br>'
+                                'This is the same as if DuetLapse was just started with -standby<br>'
+                                'Next available action is start'
+                                '</pre></h3>'
+                                )
+                    self.wfile.write(self._html(header+status+buttons+standby))                                                
                     nextAction(command)
                 else:
-                    self.wfile.write(self._html(self.ignoreCommandMsg(command,action)))
+                    self.wfile.write(self._html(header+status+buttons+self.ignoreCommandMsg(command,action)))
 
             #pause / continue
             elif (command == 'pause'):
                 unwanted = {'pause', 'standby', 'continue', 'restart', 'terminate'}
                 allowed = [e for e in options if e not in unwanted]
                 if (action in allowed):
-                    self.wfile.write(self._html('Pausing DuetLapse3.<br><br>'
-                                                'Last Updated:  '+localtime+'<br><br>'
-                                                '<h3>'
-                                                'Available action is command=continue'
-                                                '</h3>'
-                                                ))
+                    pause =    ('<h3><pre>'
+                                'Pausing DuetLapse3.<br><br>'
+                                'Next available action is continue'
+                                '</pre></h3>'
+                                )
+                    self.wfile.write(self._html(header+status+buttons+pause))                                
                     nextAction(command)
                 else:
-                    self.wfile.write(self._html(self.ignoreCommandMsg(command,action)))
+                    self.wfile.write(self._html(header+status+buttons+self.ignoreCommandMsg(command,action)))
             
             elif (command == 'continue'):
                 if (action == 'pause'):
                     available = [e for e in options if e not in command]                    
-                    self.wfile.write(self._html('Continuing DuetLapse3<br><br>'
-                                                'Last Updated:  '+localtime+'<br><br>'
-                                                '<h3>'
-                                                'Available action is command='
-                                                +''.join(str(e+'   ') for e in available)+ 
-                                                '</h3>'
-                                                ))
+                    unpause = ('<h3><pre>'
+                               'Continuing DuetLapse3<br><br>'
+                               '</pre></h3>'
+                               )
+                    self.wfile.write(self._html(header+status+buttons+unpause))
                     nextAction(command)
                 else:
-                    self.wfile.write(self._html(self.ignoreCommandMsg(command,action)))
+                    self.wfile.write(self._html(header+status+buttons+self.ignoreCommandMsg(command,action)))
             
             # snapshot / restart / terminate
                     
@@ -1038,39 +1122,38 @@ class MyHandler(BaseHTTPRequestHandler):
                 unwanted = {'snapshot', 'restart', 'terminate'}
                 allowed = [e for e in options if e not in unwanted]
                 if (action in allowed):
-                    self.wfile.write(self._html('Creating an interim snapshot video<br><br>'
-                                                'Last Updated:  '+localtime+'<br><br>'
-                                                '<h3>'
-                                                'Will first create a video with the current images then continue'
-                                                '</h3>'
-                                                ))
+                    snapshot =  ('<h3><pre>'
+                                 'Creating an interim snapshot video<br><br>'
+                                 'Will first create a video with the current images then continue'
+                                 '</pre></h3>'
+                                 )
+                    self.wfile.write(self._html(header+status+buttons+snapshot))                                                
                     nextAction(command)
                 else:
-                    self.wfile.write(self._html(self.ignoreCommandMsg(command,action)))                   
+                    self.wfile.write(self._html(header+status+buttons+self.ignoreCommandMsg(command,action)))                   
                                       
             elif (command == 'restart'):
                 unwanted = {'snapshot','restart', 'terminate'}
                 allowed = [e for e in options if e not in unwanted]
                 if (action in allowed):
-                    self.wfile.write(self._html('Restarting DuetLapse3<br><br>'
-                                                'Last Updated:  '+localtime+'<br><br>'
-                                                '<h3>'
-                                                'Will first create a video with the current images<br>'
-                                                'Then delete all captured images<br>'
-                                                'The restart behavior is the same as initially used to start DuetLapse3'
-                                                '</h3>'
-                                                ))
+                    restart =  ('<h3><pre>'
+                                'Restarting DuetLapse3<br><br>'
+                                'Will first create a video with the current images<br>'
+                                'Then delete all captured images<br>'
+                                'The restart behavior is the same as initially used to start DuetLapse3'
+                                '</pre></h3>'
+                                )
+                    self.wfile.write(self._html(header+status+buttons+restart))                                                
                     nextAction(command)
                                                 
                 else:
-                    self.wfile.write(self._html(self.ignoreCommandMsg(command,action)))
+                    self.wfile.write(self._html(header+status+buttons+self.ignoreCommandMsg(command,action)))
                                                 
             elif (command == 'terminate'):
                 unwanted = {'snapshot','restart', 'terminate'}
                 allowed = [e for e in options if e not in unwanted]                
                 if (action in allowed):
                     self.wfile.write(self._html('Terminating DuetLapse3<br><br>'
-                                                'Last Updated:  '+localtime+'<br><br>'
                                                 '<h3>'
                                                 'Will finish last image capture, create a video, then terminate.'
                                                 '</h3>'
@@ -1078,16 +1161,15 @@ class MyHandler(BaseHTTPRequestHandler):
                     logger.info('!!!!! Sending http Terminate request !!!!!')
                     nextAction(command)
                 else:
-                    self.wfile.write(self._html(self.ignoreCommandMsg(command,action)))
+                    self.wfile.write(self._html(header+status+buttons+self.ignoreCommandMsg(command,action)))
 
             return
-        
-        self.wfile.write(self._html('Invalid Argument<br>'
-                                    '<h3>'
-                                    'The only valid argument is ?command=<br>'
-                                    'Valid options are:   '+''.join(str(e+'   ') for e in options)+
-                                    '</h3>'
-                                    ))       
+        refreshing = ('<h3><pre>'
+                      'Status will update every 60 seconds'
+                      '</pre></h3>'
+                      )
+        self.wfile.write(self._refresh(header+status+buttons+refreshing))        
+      
         return
     """
     End of do_Get
@@ -1099,12 +1181,12 @@ class MyHandler(BaseHTTPRequestHandler):
         pass
             
     def ignoreCommandMsg(self,command,action):
-        msg = (command+
-               ' request Ignored<br>'
-               '<h3>'
-               'Already servicing '
+        msg = ('<h3>'
+               '<pre>'
+               +command+
+               ' request has been ignored<br>'
                +action+
-               ' request'
+               ' state is currently enabled'
                '</h3>'
                )
         return msg
@@ -1317,5 +1399,4 @@ if __name__ == "__main__":   #Do not run anything below if the file is imported 
         
     except KeyboardInterrupt:
         pass   # This is handled as SIGINT
-
-       
+    
