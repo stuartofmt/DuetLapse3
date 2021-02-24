@@ -54,8 +54,10 @@ The modifications include:
 - [3]  The status page will automatically refresh every 60 seconds.  Other pages will show the last time they were invoked.
 
 ###Version 3.2.3###<br>
-
 - [1] Fixed some inconsistencies when running on Windows due to slightly different behavior of python3.
+
+###Version 3.3.0###<br>
+- [1] Completely revised the UI when running the http listener.  The main change the addition of buttons to make navigation easier.
 
 ## General Description
 Provides the ability to generate time lapse videos from for Duet based 3D printers.
