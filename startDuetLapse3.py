@@ -8,7 +8,7 @@ Simple HTTP server for starting and stopping DuetLapse3
 # Developed on WSL with Debian Buster. Tested on Raspberry pi, Windows 10 and WSL. SHOULD work on most other linux distributions. 
 """
 global startDuetLapse3Version
-startDuetLapse3Version = '3.2.3'
+startDuetLapse3Version = '3.3.0'
 import argparse
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import os
@@ -21,7 +21,13 @@ from DuetLapse3 import whitelist, checkInstances
 import socket
 import time
 import platform
+import urllib
+import html
 
+class whitelistParser(argparse.ArgumentParser):
+    def exit(self, status=0, message=None):
+        if status:
+            raise ValueError(message)
 def init():
 
     # parse command line arguments
@@ -29,13 +35,15 @@ def init():
     #Environment
     parser.add_argument('-host',type=str,nargs=1,default=['0.0.0.0'],help='The ip address this service listens on. Default = 0.0.0.0')
     parser.add_argument('-port',type=int,nargs=1,default=[0],help='Specify the port on which the server listens. Default = 0')
+    parser.add_argument('-args',type=str,nargs=argparse.PARSER,default=[''],help='Arguments. Default = ""')
     args=vars(parser.parse_args())
 
-    global host, port
+    global host, port, defaultargs
 
     host = args['host'][0]
     port = args['port'][0]
-         
+    defaultargs = args['args'][0]
+
 
 ###########################
 # Integral Web Server
@@ -45,6 +53,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
 
 class MyHandler(BaseHTTPRequestHandler):
+    
     def _set_headers(self):
         self.send_response(200)
         self.send_header("Content-type", "text/html")
@@ -55,37 +64,96 @@ class MyHandler(BaseHTTPRequestHandler):
         return content.encode("utf8")  # NOTE: must return a bytes object!        
 
     def _html(self, message):
-        content = f"<html><body><h2>{message}</h2></body></html>"
+        content = f'<html><head></head><body><h2>{message}</h2></body></html>'
         return content.encode("utf8")  # NOTE: must return a bytes object!
+  
+    def update_content(self):
+        options = 'status, start, terminate'
+        global pidlist
+        pidlist = []
+        localtime = time.strftime('%A - %H:%M',time.localtime())
+        #portlist = []
+        runninginstances, pidlist = getRunningInstances(thisinstance, referer)
+        thisrunninginstance = getThisInstance(thisinstancepid)
     
+        header =    ('startDuetLapse3 Version '+startDuetLapse3Version+'<br>'
+                    '<h4>'
+                    +thisrunninginstance+
+                    '</h4>'   
+                    )    
+            
+        status =    ('<h3>'
+                    '<br>As of :  '+localtime+'<br><br>'
+                    'Running instances of DuetLapse3 were:<br><br>'
+                    +runninginstances+
+                    '</h3>'    
+                    )                                    
+        
+        buttons =   ('<div class="divider">'
+                    '<form action="http://'+referer+'">'
+                    '<input type="hidden" name="command" value="status" />'
+                    '<input type="submit" value="Status" style="background-color:green"/>'                    
+                    '</form>'
+                    '</div>'
+                    '<div class="divider">'                                    
+                    '<form action="http://'+referer+'">'
+                    '<input type="hidden" name="command" value="start" />'                                    
+                    '<input type="submit" value="Start" style="background-color:orange"/>'
+                    '</form>'
+                    '</div>'                                    
+                    '<div class="divider">'                                   
+                    '<form action="http://'+referer+'">'
+                    '<input type="hidden" name="command" value="terminate" />'                                   
+                    '<input type="submit" value="Terminate" style="background-color:yellow"/>'
+                    '</form>'
+                    '</div>'
+                    '<div class="divider">'                                     
+                    '<form action="http://'+referer+'">'
+                    '<input type="hidden" name="command" value="shutdown" />'
+                    '<input type="submit" value="Shutdown" style="background-color:red"/>'
+                    '</form>'
+                    '</div>'
+                    '<style type="text/css">'
+                    '{'
+                    'position:relative;'
+                    'width:200px;'
+                    '}'
+                    '.divider{'
+                    'width:200px;'
+                    'height:auto;'
+                    'display:inline-block;'
+                    '}'
+                    '.pad30{'
+                    'margin-left: 30px;' 
+                    '}'
+                    'input[type=submit] {'
+                    'width: 10em;  height: 2em;'
+                    '}'
+                    '</style>'
+                    )        
+        return header , status , buttons;
+        
     def do_GET(self):
         self._set_headers()
-        options = 'status, start, terminate'
-        qs = {}
+        global referer
+        referer = self.headers['Host']       
+        #Update main content
+        header, status, buttons = self.update_content()
+
         path = self.path
 
         if ('favicon.ico' in path):
             return
-                       
+            
         query_components = parse_qs(urlparse(self.path).query)
             
         command = ''
         if(query_components.get('command')):
             command = query_components['command'][0]
-            if(query_components.get('args')):
-                args = query_components['args'][0]
-                checkarguments = argparse.ArgumentParser(description='Checking for valid inputs to DuetLapse3', allow_abbrev=False)
-                checkarguments = whitelist(checkarguments)
-                try:
-                    checkedargs=vars(checkarguments.parse_args(shlex.split(args)))
-                    duetport = checkedargs['port'][0]
 
-                except:
-                    self.wfile.write(self._html('There was one or more invalid arguments for DuetLapse3<br><h3>Check for the correct syntax.<br><br>'+args+'</h3>'))
-                    return
-            else:
-                args = ''
+
                 
+
             if(query_components.get('nohup')):
                 nohup = query_components['nohup'][0]
             else:
@@ -97,29 +165,42 @@ class MyHandler(BaseHTTPRequestHandler):
             if(query_components.get('pids')):
                 pids = query_components['pids'][0]
             else:
-                pids = ''    
+                pids = ''                
             
-            #get information on running instances                             
-            pidlist = []
-            runninginstances, pidlist = getRunningInstances(thisinstance)
-            thisrunninginstance = getThisInstance(thisinstancepid)
-            localtime = time.strftime('%A - %H:%M',time.localtime())
-            
-            self.wfile.write(self._html('startDuetLapse3 Version '+startDuetLapse3Version+'<br><br>'
-                                        '<h4>'
-                                        +thisrunninginstance+
-                                        '</h4>'   
-                                        ))
+            #self.main()
                
             if (command == 'status'):
-                self.wfile.write(self._refresh('<h3>'
-                                               '<br><br>Last Updated:  '+localtime+'<br><br>'
-                                               'Currently running instances of DuetLapse3 are:<br><br>'
-                                               +runninginstances+
-                                               '</h3>'
-                                               ))
+                refreshing = ('<h3><pre>'
+                              'Status will update every 60 seconds'
+                              '</pre></h3>'
+                              )
+                self.wfile.write(self._refresh(header+status+buttons+refreshing))
             
             elif (command == 'start'):
+                whitelisterror = ''
+                if(query_components.get('args')):
+                    args = query_components['args'][0]
+                    global defaultargs
+                    #need to put back encoded punctuation
+                    defaultargs = html.escape(args)
+                    #Test to see if the options are valid
+                    checkarguments = whitelistParser(description='Checking for valid inputs to DuetLapse3', allow_abbrev=False)
+                    checkarguments = whitelist(checkarguments)
+                    try:
+                        checkedargs=vars(checkarguments.parse_args(shlex.split(args)))
+                        duetport = checkedargs['port'][0]
+                    except ValueError as message:
+                        whitelisterror =    ('<h3>'
+                                            'The following errors were detected:<br>'
+                                            '<pre>'
+                                            +str(message)+
+                                            '</pre>'
+                                            '</h3>'
+                                            )                   
+                        args = ''                    
+                else:  
+                    args = ''
+                
                 if (args != ''):
                     if win :
                         if (nohup == 'yes'):
@@ -131,65 +212,78 @@ class MyHandler(BaseHTTPRequestHandler):
                             cmd = 'nohup python3 ./DuetLapse3.py '+args+' &'
                         else:
                             cmd = 'python3 ./DuetLapse3.py '+args+' &'
-                                       
+                            
                     subprocess.Popen(cmd, shell=True) #run the program
-                    self.wfile.write(self._html('Starting DuetLapse3.<br><br>'
-                                                'Last Updated:  '+localtime+'<br><br>'
-                                                '<h3>'
-                                                +cmd+
-                                                '</h3>'
-                                                ))
+                    setstart =  ('<h3>'
+                                'Attempting to start DuetLapse3 with following options:<br>'
+                                '<pre>'
+                                +cmd+
+                                '</pre>'
+                                '</h3>'
+                                )                        
+
+ 
+                    self.wfile.write(self._html( header+status+buttons+setstart))
                     
                 else:
-                    self.wfile.write(self._html('Start request Ignored<br>'
-                                                '<h3>'
-                                                'command=start also requires arg={DuetLapse3 option}<br>'
-                                                'and optionally nohup=yes'
-                                                '</h3>'
-                                                )) 
+                    print('C: '+ defaultargs)
+                    getstart =  ('<div>'                                    
+                                '<form action="http://'+referer+'">'
+                                '<input type="hidden" name="command" value="start" />'
+                                '<input type="text" id="args" name="args" value="'+defaultargs+'" size="200"/>'                                    
+                                '<input class = "pad30" type="submit" value="Start" style="background-color:orange"/>'
+                                '</form>'
+                                '</div>'
+                                )                     
+                    self.wfile.write(self._html( header+status+buttons+getstart+whitelisterror))
                                                 
             elif (command == 'terminate'):
                 if (pids != ''):
-                    #basecmd = 'python3 ./DuetLapse3.py '+args
                     if (pids == 'all'):
                         for pid in pidlist:
                             try:
                                 os.kill(pid, 2)
                             except:
                                 pass
-                        pidmsg = 'For all running instances'
+                        pidmsg = 'All running instances'
                     else:
                         pid = int(pids)
                         try:
                             os.kill(pid, 2)
-                            pidmsg = 'For instance with pid = '+pids
+                            pidmsg = 'The instance with pid = '+pids
                         except:
                             pidmsg = 'There was no instance with pid = '+pids
+                    setterminate =   ('<h3>'
+                                     'Terminating the following DuetLapse3 Instances.<br>'
+                                     '<pre>'
+                                     +pidmsg+'<br>'
+                                     'Note that some instances may take several minutes to shut down'
+                                     '</pre>'
+                                     '</h3>'
+                                     )
+                    
+                    self.wfile.write(self._html( header+status+buttons+setterminate))
 
-                    self.wfile.write(self._html('Sending Terminate to DuetLapse3.<br><br>'
-                                                'Last Updated:  '+localtime+'<br><br>'
-                                                '<h3>'
-                                                '<pre>'
-                                                +pidmsg+'<br>'
-                                                'Note that some instances can take several minutes to shut down'
-                                                '</pre>'
-                                                '</h3>'
-                                                ))                       
                 else:
-                    self.wfile.write(self._html('terminate request Ignored<br>'
-                                                '<h3>'
-                                                'command=terminate also requires pids=all or pids={processid}<br>'
-                                                '</h3>'
-                                                ))                                      
+                    getterminate =  ('<div>'                                    
+                                    '<form action="http://'+referer+'">'
+                                    '<input type="hidden" name="command" value="terminate" />'
+                                    '<input type="text" id="pid" name="pids" value="all" size="6"/>'                                    
+                                    '<input class = "pad30" type="submit" value="Terminate" style="background-color:yellow"/>'
+                                    '</form>'
+                                    '</div>'
+                                    )
+                    self.wfile.write(self._html( header+status+buttons+getterminate))                           
 
             elif (command == 'shutdown'):
+                localtime = time.strftime('%A - %H:%M',time.localtime())
                 self.wfile.write(self._html('Shutting Down startDuetLapse3.<br><br>'
-                                            'Last Updated:  '+localtime+'<br><br>'
+                                            'At:  '+localtime+'<br><br>'
                                             '<h3>'
                                             'Any instances of DuetLapse3 will continue to run'
                                             '</h3>'
                                             ))
-                print('!!!!!! Stopped by http request !!!!!!')                            
+                print('!!!!!! Stopped by http request !!!!!!')
                 terminate()
 
             else:
@@ -199,17 +293,14 @@ class MyHandler(BaseHTTPRequestHandler):
                                             ))
                        
             return
-        self.wfile.write(self._html('Invalid Request<br>'
-                                    '<h3>'
-                                    '<pre>Valid request are command=<br>'
-                                    'with options:   '+options+'</pre><br>'
-                                    'if command=start is used then args= must be used<br>'
-                                    'with valid options for DuetLapse3<br>'
-                                    'additionally nohup=yes can be added<br><br>'
-                                    'If command=terminate is used pids= must be used<br>'
-                                    'with either pids=all or pids={process id}'
-                                    '</h3>'
-                                    ))       
+
+        refreshing = ('<h3><pre>'
+                      'Status will update every 60 seconds'
+                      '</pre></h3>'
+                      )
+        self.wfile.write(self._refresh(header+status+buttons+refreshing))
+
+        
         return
 
     def log_request(self, code=None, size=None):
@@ -244,39 +335,53 @@ def getThisInstance(thisinstancepid):
     thisrunning = 'Could not find a process running with pid = '+str(thisinstancepid)
     for p in psutil.process_iter():
         if (('python3' in p.name() or 'pythonw' in p.name()) and thisinstancepid == p.pid):
-            cmdline = str(p.cmdline())
+            cmdlinestr = str(p.cmdline())
             #clean up the appearance
-#            cmdline = cmdline.replace('python3','')
-#            cmdline = cmdline.replace('pythonw','')
-            cmdline = cmdline.replace('[','')
-            cmdline = cmdline.replace(']','')
-            cmdline = cmdline.replace(',','')
-            cmdline = cmdline.replace("'",'')
-            cmdline = cmdline.replace('  ','')
+            cmdlinestr = cmdlinestr.replace('[','')
+            cmdlinestr = cmdlinestr.replace(']','')
+            cmdlinestr = cmdlinestr.replace(',','')
+            cmdlinestr = cmdlinestr.replace("'",'')
+            cmdlinestr = cmdlinestr.replace('  ','')
             pid = str(p.pid)
-            thisrunning = 'This program is running with<br>Process id:    '+pid+'<br>Command line:    '+cmdline+''
+            thisrunning = 'This program is running with<br>Process id:    '+pid+'<br>Command line:    '+cmdlinestr+''
        
     return  thisrunning  
         
-def getRunningInstances(thisinstance):
+def getRunningInstances(thisinstance, referer):
+    split_referer = referer.split(":", 1)
+    refererip = split_referer[0]  
     running = ''
     pidlist = []
     for p in psutil.process_iter():
         if (('python3' in p.name() or 'pythonw' in p.name()) and not thisinstance in p.cmdline() and '-duet' in p.cmdline()): #Check all other python3 instances
-            cmdline = str(p.cmdline())
+            #Get the port if used else set it to zero 
+            cmdline = p.cmdline()
+            try:
+                index = cmdline.index('-port')
+                index += 1
+                port = cmdline[index]
+            except ValueError:
+                 port = 0
             #clean up the appearance
-#            cmdline = cmdline.replace('python3','')
-#            cmdline = cmdline.replace('pythonw','')
-            cmdline = cmdline.replace('[','')
-            cmdline = cmdline.replace(']','')
-            cmdline = cmdline.replace(',','')
-            cmdline = cmdline.replace("'",'')
-            cmdline = cmdline.replace('  ','')
+            cmdlinestr = str(p.cmdline())
+            cmdlinestr = cmdlinestr.replace('[','')
+            cmdlinestr = cmdlinestr.replace(']','')
+            cmdlinestr = cmdlinestr.replace(',','')
+            cmdlinestr = cmdlinestr.replace("'",'')
+            cmdlinestr = cmdlinestr.replace('  ','')
             pidlist.append(p.pid)
             pid = str(p.pid)
-            running = running+('Process id:  '+pid+'<br>'
-                               +cmdline+'<br>'               
-                              )
+            if (port == 0):
+                running = running+('Process id:  '+pid+'<br>'
+                                   +cmdlinestr+'<br>'               
+                                   )
+            else:  #Formal for html link
+                running = running+('Process id:  '+pid+'<br>'
+                                   '<a href=\"http://'+refererip+':'+str(port)+'\?command=status" target="_blank">'                                  
+                                   +cmdlinestr+'</a>'
+                                   '<br>'               
+                                   ) 
+                
     if (running != ''):
         running = ('<pre>'
                   +running+
@@ -315,7 +420,6 @@ if __name__ == "__main__":
     thisinstance = os.path.basename(__file__)
     if not win:
         thisinstance = './'+thisinstance
-    print('Trying to check instances for '+thisinstance)
     _ = checkInstances(thisinstance,'single')    #There can only be one instance running
     thisinstancepid = os.getpid()
     init()
