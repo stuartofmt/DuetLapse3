@@ -79,7 +79,7 @@ nohup python3 ./startDuetLapse.py -port 8082 &
 ```
 If you provide the option -args, special care needs to be made in formatting it correctly.  In the following example note the following:
 - [1]  double quote characters around the entire -args options list
-- [2]  the use of &quot; and &apos; for all double or single quotes
+- [2]  the use of ```&quot;``` and ```&apos;``` for all double or single quotes
 
 ```
 python3 ./start3.py -port 8082 -args="-duet 192.168.86.235 -port 8083 -standby -dontwait -seconds 15 -detect none -weburl1 http://192.168.86.230:8081/stream.mjpg -camera1 other -camparam1=&quot;&apos;ffmpeg&apos; +ffmpegquiet + &apos; -y -i &apos; +weburl+ &apos; -vframes 1 &apos; +fn+debug&quot;"
