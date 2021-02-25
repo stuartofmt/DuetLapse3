@@ -82,7 +82,7 @@ If you provide the option -args, special care needs to be made in formatting it 
 - [2]  the use of ```&quot;``` and ```&apos;``` for all other double or single quotes inside the outer quotes used for the -args options list.
 
 ```
-python3 ./start3.py -port 8082 -args="-duet 192.168.86.235 -port 8083 -standby -dontwait -seconds 15 -detect none -weburl1 http://192.168.86.230:8081/stream.mjpg -camera1 other -camparam1=&quot;&apos;ffmpeg&apos; +ffmpegquiet + &apos; -y -i &apos; +weburl+ &apos; -vframes 1 &apos; +fn+debug&quot;"
+python3 ./startDuetLapse3.py -port 8082 -args="-duet 192.168.86.235 -port 8083 -standby -dontwait -seconds 15 -detect none -weburl1 http://192.168.86.230:8081/stream.mjpg -camera1 other -camparam1=&quot;&apos;ffmpeg&apos; +ffmpegquiet + &apos; -y -i &apos; +weburl+ &apos; -vframes 1 &apos; +fn+debug&quot;"
 ```
 
 
