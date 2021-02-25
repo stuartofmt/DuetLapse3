@@ -77,7 +77,7 @@ or if you plan to close the command console - use nohup
 
 nohup python3 ./startDuetLapse.py -port 8082 &
 ```
-If you provide the option -args, special care needs to be made in formatting it correctly.  In the following example note the following:
+If you provide the option -args, special care needs to be made in formatting it correctly.  In the example below note the following:
 - [1]  double quote characters around the entire -args options list
 - [2]  the use of ```&quot;``` and ```&apos;``` for all other double or single quotes inside the outer quotes used for the -args options list.
 
