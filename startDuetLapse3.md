@@ -18,6 +18,11 @@ It proveds a simple http interface for starting and terminating DuetLapse3 insta
 ###Version 3.2.3###
 - [1]  Fixed some inconsistencies when running on Windows due to slightly different behavior of python3.
 
+###Version 3.3.0###
+- [1]  Completely revised the UI with the addition of buttons to make navigation easier.
+- [2]  Added the ability to directly enter the start options for DuetLapse3.
+- [3]  Added an optional argument (-args) to set default options for starting DuetLapse3
+
 ## General Description
 
 startDuetLapse 3 is designed to run continuously and accept http commands either from a browser, curl or other means of sending http get commands.<br>
@@ -72,6 +77,16 @@ or if you plan to close the command console - use nohup
 
 nohup python3 ./startDuetLapse.py -port 8082 &
 ```
+If you provide the option -args, special care needs to be made in formatting it correctly.  In the following example note the following:
+- [1]  double quote characters around the entire -args options list
+- [2]  the use of &quot; and &apos; for all double or single quotes
+
+```
+python3 ./start3.py -port 8082 -args="-duet 192.168.86.235 -port 8083 -standby -dontwait -seconds 15 -detect none -weburl1 http://192.168.86.230:8081/stream.mjpg -camera1 other -camparam1=&quot;&apos;ffmpeg&apos; +ffmpegquiet + &apos; -y -i &apos; +weburl+ &apos; -vframes 1 &apos; +fn+debug&quot;"
+```
+
+
+
 On windows things are slightly different - note the use of pythonw
 which will run python in the background (tested with python 3.9)
  
@@ -93,7 +108,8 @@ An alternative if you are on Win10 is to use  Windows Subsystem for Linux (WSL) 
 
 
 
-startDuetLapse3 is typically controlled from a browser with commands of the form:
+startDuetLapse3 is typically controlled from a browser using the buttons and inputs (as of release 3.3.0).  The buttons essentially invoke the followong commands.
+These can still be used manually or invoked without the browser UI (for example using curl):
 
 ```
 http://<ipaddress>:<port>/?<commands>
@@ -106,6 +122,7 @@ command=status            - Returns brief information about the running state of
                             For each instance it proved the process id together with the options used to start the instance
 ----
 command=start&args=       - Starts an instance of DuetLapse3 with the options specified in args
+NOTE IF ENTERED FROM THE BROWSER ADDRESS LINE certain symbols must be made url safe.  For example the + symbol must be replaced with %2b.  This is not required if using the input field in the UI.
 
 ```
 Example
