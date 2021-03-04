@@ -23,6 +23,11 @@ It proveds a simple http interface for starting and terminating DuetLapse3 insta
 - [2]  Added the ability to directly enter the start options for DuetLapse3.
 - [3]  Added an optional argument (-args) to set default options for starting DuetLapse3
 
+###Version 3.4.0###
+[1] Changed how http terminate requests were handled for better cross platfom compatibility.
+[2] Added the ability to navigate the directory structure from a browser (new button)
+[3] Made some cosmetic changes to the html pages.
+
 ## General Description
 
 startDuetLapse 3 is designed to run continuously and accept http commands either from a browser, curl or other means of sending http get commands.<br>
@@ -38,7 +43,7 @@ Feedback via issues on Duet forum https://forum.duet3d.com/topic/20932/duetlapse
 
 * Python3 (must be accessible without specifying the path)
 * Linux OS,  Windows 10, Windows Subsystem Linux (WSL) tested
-* DuetLapse3 at version 3.2.0 or greater.
+* DuetLapse3 at version 3.4.0 or greater.
 
 **Note that startDuetLapse3 will NOT run without DuetLapse3 being present and in the same directory.**<br>
 It imports key functions from DuetLapse3
