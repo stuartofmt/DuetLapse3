@@ -24,9 +24,9 @@ It proveds a simple http interface for starting and terminating DuetLapse3 insta
 - [3]  Added an optional argument (-args) to set default options for starting DuetLapse3
 
 ###Version 3.4.0###
-[1] Changed how http terminate requests were handled for better cross platfom compatibility.
-[2] Added the ability to navigate the directory structure from a browser (new button)
-[3] Made some cosmetic changes to the html pages.
+- [1] Changed how http terminate requests were handled for better cross platfom compatibility.
+- [2] Added the ability to navigate the directory structure from a browser (new button)
+- [3] Made some cosmetic changes to the html pages.
 
 ## General Description
 
