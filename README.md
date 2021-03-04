@@ -59,6 +59,13 @@ The modifications include:
 ###Version 3.3.0###<br>
 - [1] Completely revised the UI when running the http listener.  The main change the addition of buttons to make navigation easier.
 
+###Version 3.4.0###<br>
+- [1] Completely revised the diectory and filenameing structure to facilitate many-to-many relationshipos between computers runing DUetLapse3, Duet Printers and mutiple instances of DuetLapse3 running.
+- [2] Changed how http terminate requests were handled for better cross platfom compatibility.
+- [3] Added the ability to navigate the directory structure from a browser (new button).Also in startDuetLapse3.
+- [4] Added three new options: -keeplogs, -deletepics and -novideo
+- [5] Made some cosmetic changes to the html pages.
+
 ## General Description
 Provides the ability to generate time lapse videos from for Duet based 3D printers.
 
@@ -410,9 +417,9 @@ basedir/
 ```
 The interpretation is:
 Starting from the basedir
-- [1]For each computer that DuetLapse3 is running on there will be a separate directory(computername).  Technically the computername will be the fully qualified domain name (FQDN).  In any case - each computer needs to (and in any case should) have a unique FQDN
-- [2]Underneath the computername directory  there will be a separate directory for each Duet that computer is connected to (duetip).   All videos for this computer and duet combination go into this directory as well as the respective  logfiles.
-- [3]Underneath the duetip directory will be temporary directories (processid_jobname).If the printjob has not started at that time - there will be no _jobname portion.  This handles the the situation where  multiple instances of DuetLapse3 are running on the same computer against the same Duet. This directory is created when the first image is captured.
+- [1] For each computer that DuetLapse3 is running on there will be a separate directory(computername).  Technically the computername will be the fully qualified domain name (FQDN).  In any case - each computer needs to (and in any case should) have a unique FQDN
+- [2] Underneath the computername directory  there will be a separate directory for each Duet that computer is connected to (duetip).   All videos for this computer and duet combination go into this directory as well as the respective  logfiles.
+- [3] Underneath the duetip directory will be temporary directories (processid_jobname).If the printjob has not started at that time - there will be no _jobname portion.  This handles the the situation where  multiple instances of DuetLapse3 are running on the same computer against the same Duet. This directory is created when the first image is captured.
 
 Note that the Videos and logfiles are prefixed by the processid.
 To provide cross platorm compatibility, colons are replaced by raised colons (more-or-less look the same).  Spaces in filenames are replaced by underscrore.  
