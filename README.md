@@ -366,18 +366,56 @@ This example is the same as the standard video creation.
 #### -camparam2 and -vidparam2
 Have the same parameters as -camparam1 and -vidparam1.  Variable references are for Camera2
 
+#### -keeplogs
+If omitted the default is False
+If **-keeplogs** is NOT used.  The FIRST instance of DuetLapse3 (with no other instances running) will delete the old logfiles.  If -keeplogs is used then the logfiles will not be deleted.  This means that if you typically use -keeplogs you can affect a cleanup by running a single instance of DuetLapse3 without -keeplogs.
+
+#### -deletepics
+If omitted the default is False
+if **-deletepics** is used.  When DuetLapse3 terminates - basedir/computername/duetip/processid directory will be deleted (i.e. the images will be deleted).
+
+#### -novideo
+If omitted the default is False
+If **-novideo** is used. When DuetLapse3 terminates - no video will be created.  If BOTH **-novideo** and **-deletepics** are specified- this means that if you want to use the images you need to have done so before terminating that instance of DuetLapse3. For example using the snapshot feature provided by the html listener.
 
 ### Directory Structure
-
-The directory structure organized to allow multiple instances of DuetLapse3 to keep files separate.  
+The directory structure is (with repeating units [] as appropriate to your use-case)
 ```
 basedir/
-       duet-address/   
-                    tmp/
-``` 
-**duet-address** is derived from the -duet option.  Periods are replaced by a dash for example -duet 192.168.1.10 creates the sub directory 192-168-1-10, -duet myduet.local becomes myduet-local.<br>
-The duet-address subdirectory contains the video files as well as a log file *DuetLapse3.log* relating to the specific printer.  The video files are named according to this scheme  "<Camera><pid>-Day-Hour:Min.mp4"  where <Camera> is Camera1 or Camera2 and <pid> is the process id. e.g  Camera110978-Thur-22:31.mp4<br>
-**tmp** is used to capture the still images for the printer. It is cleared out when DuetLapse3 starts or restarts.  This way - if anything goes wrong with the video creation a command line use of ffmpeg (or other program) can be used to attempt recovery.  
+   |
+   computername/
+   |   |
+   |   duetip/
+   |      |
+   |      |processid_jobname/         #_jobname if available
+   |      |
+   |      |[/processid_jobname}
+   |
+   |
+   [computername 
+     #repeat of structure above
+   ]         
+```
+
+For many (most ?)  users it will simply look like this
+
+```
+basedir/
+   |
+   computername/
+      |
+      duetip/
+         |
+         |processid_jobname/         #_jobname if available
+```
+The interpretation is:
+Starting from the basedir
+(1) For each computer that DuetLapse3 is running on there will be a separate directory(computername).  Technically the computername will be the fully qualified domain name (FQDN).  In any case - each computer needs to (and in any case should) have a unique FQDN
+(2)Underneath the computername directory  there will be a separate directory for each Duet that computer is connected to (duetip).   All videos for this computer and duet combination go into this directory as well as the respective  logfiles.
+(3)Underneath the duetip directory will be temporary directories (processid_jobname).If the printjob has not started at that time - there will be no _jobname portion.  This handles the the situation where  multiple instances of DuetLapse3 are running on the same computer against the same Duet. This directory is created when the first image is captured.
+
+Note that the Videos and logfiles are prefixed by the processid.
+To provide cross platorm compatibility, colons are replaced by raised colons (more-or-less look the same).  Spaces in filenames are replaced by underscrore.  
  
 ## Usage Examples
 
