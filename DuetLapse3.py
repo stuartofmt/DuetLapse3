@@ -22,7 +22,7 @@
 #
 """
 global duetLapse3Version
-duetLapse3Version = '3.3.0'
+duetLapse3Version = '3.4.0'
 import subprocess
 import sys
 import platform
@@ -67,6 +67,10 @@ def whitelist(parser):
     parser.add_argument('-verbose',action='store_true',help='Output stdout and stderr from system calls')
     parser.add_argument('-host',type=str,nargs=1,default=['0.0.0.0'],help='The ip address this service listens on. Default = 0.0.0.0')
     parser.add_argument('-port',type=int,nargs=1,default=[0],help='Specify the port on which the server listens. Default = 0')
+    parser.add_argument('-keeplogs',action='store_true', help='Does not delete logs.')    
+    parser.add_argument('-novideo',action='store_true', help='Does not create a video.')    
+    parser.add_argument('-deletepics',action='store_true', help='Deletes images on Terminate')    
+    
     #Execution
     parser.add_argument('-dontwait',action='store_true',help='Capture images immediately.')
     parser.add_argument('-seconds',type=float,nargs=1,default=[0])
@@ -98,6 +102,7 @@ def init():
 
     #Environment
     global duet, basedir, poll, instances, logtype, verbose, host, port
+    global keeplogs, novideo, deletepics
     #Derived  globals
     global duetname, debug, ffmpegquiet, httpListener   
     duet     = args['duet'][0]
@@ -108,7 +113,9 @@ def init():
     verbose = args['verbose']
     host = args['host'][0]
     port = args['port'][0]
-
+    keeplogs = args['keeplogs']    
+    novideo = args['novideo']
+    deletepics = args['deletepics']    
     #Execution
     global dontwait, seconds, detect, pause, movehead, standby       
     dontwait = args['dontwait']
@@ -160,9 +167,7 @@ def init():
     #pid is used to create unique filenames
     global pid       
     pid = str(os.getpid())
-        
-
-       
+     
     # How much output
     if (verbose) :
         debug = ''
@@ -174,15 +179,33 @@ def init():
         else:
             debug = ' > nul 2>&1'
             
-    # set base directory for files
-    if (basedir == ''): basedir = os.path.dirname(os.path.realpath(__file__))
-    print('Basedir: '+basedir)
- 
     #duetname used for filenames and directories
-    duetname = duet.replace('.' , '-')
-    
-    #  Set up directories and clean up files 
-    cleanupFiles()
+    duetname = duet.replace('.' , '-')        
+            
+    # set directories for files
+    global topdir, baseworkingdir, workingdir, logname
+ 
+    if (basedir == ''): basedir = os.path.dirname(os.path.realpath(__file__))
+
+    if (win):
+        topdir = basedir+'\\'+socket.getfqdn()+'\\'+duetname
+        baseworkingdir = topdir+'\\'+pid #may be changed later
+        logname = pid+'_'+time.strftime('%y-%m-%dT%H:%M:%S',time.localtime())+'.log'
+        logfilename = logname.replace(':',u'\u02f8') # cannot use regular colon in windows file names
+        logname = topdir+'\\'+logname
+        logfilename = topdir+'\\'+logfilename
+        subprocess.call('mkdir "'+topdir+'"'+debug, shell=True)
+    else:
+        topdir = basedir+'/'+socket.getfqdn()+'/'+duetname
+        baseworkingdir = topdir+'/'+pid  #may be changed later
+        logname = pid+'_'+time.strftime('%y-%m-%dT%H:%M:%S',time.localtime())+'.log'
+        logfilename = logname.replace(':',u'\u02f8') # cannot use regular colon in windows file names
+        logname = topdir+'/'+logname
+        logfilename = topdir+'/'+logfilename
+        subprocess.call('mkdir -p "'+topdir+'"'+debug, shell=True)
+        
+    #  Clean up files
+    cleanupFiles('startup')    
     
     # Create a custom logger
     import logging
@@ -197,16 +220,13 @@ def init():
         c_handler.setFormatter(c_format)
         logger.addHandler(c_handler)
    
-   
     if ('file' in logtype or 'both' in logtype) :
-        if (proccount > 1):
-             f_handler = logging.FileHandler(basedir+'/'+duetname+'/DuetLapse3.log', mode='a')
-        else:
-             f_handler = logging.FileHandler(basedir+'/'+duetname+'/DuetLapse3.log', mode='w')        
-
+        f_handler = logging.FileHandler(logfilename, mode='w')    
         f_format = logging.Formatter(duet+' - %(asctime)s - %(message)s')
         f_handler.setFormatter(f_format)
-        logger.addHandler(f_handler)    
+        logger.addHandler(f_handler)
+
+
     
     ####################################################
     # Display options selected.
@@ -223,6 +243,9 @@ def init():
     logger.info("# host            = {0:50s}".format(str(host)))    
     logger.info("# port            = {0:50s}".format(str(port)))
     logger.info("# pid             = {0:50s}".format(pid))
+    logger.info("# keeplogs        = {0:50s}".format(str(keeplogs)))    
+    logger.info("# novideo         = {0:50s}".format(str(novideo)))    
+    logger.info("# deletepics      = {0:50s}".format(str(deletepics)))    
     logger.info("#Execution Setings:")    
     logger.info("# dontwait        = {0:50s}".format(str(dontwait)))
     logger.info("# seconds         = {0:50s}".format(str(seconds)))   
@@ -263,7 +286,7 @@ def init():
                          
     #Polling interval should be at least = seconds so as not to miss interval
     if (poll > seconds and seconds != 0): poll = seconds    #Need to poll at least as often as seconds
-    if ('none' in detect and seconds != 0): poll = seconds  #No point in polling more often
+    #if ('none' in detect and seconds != 0): poll = seconds  #No point in polling more often
         
     #  Port number must be given for httpListener to be active
     if (port != 0):
@@ -273,53 +296,9 @@ def init():
     # Inform regarding valid and invalid combinations
     #########################################################################
     
-    #Valid
-        
-    if (standby and not httpListener):
-        logger.info('************************************************************************************')
-        logger.info('Warning: -standby ignored.  It has no effect unless http Listener is active.')
-        logger.info('Specify -localhost and -port to activate http Listener')
-        logger.info('************************************************************************************')        
-        
-    if ((seconds > 0) and (not 'none' in detect)):
-        logger.info('************************************************************************************')
-        logger.info('Warning: -seconds '+str(seconds)+' and -detect '+detect+' will trigger on both.')
-        logger.info('Specify "-detect none" with "-seconds > 0" to trigger on seconds alone.')
-        logger.info('************************************************************************************')
-        
-    if (startNow() and not dontwait):
-        logger.info('************************************************************************************')
-        logger.info('Warning: -seconds '+str(seconds)+' and -detect '+detect)
-        logger.info('This combination implies -dontwait and will be set automatically')
-        logger.info('************************************************************************************')
-        dontwait = True
-        
-    if ('pause' in detect):
-        logger.info('************************************************************************************')
-        logger.info('* Note "-detect pause" means that the G-Code on the printer already contains pauses,')
-        logger.info('* and that this program will detect them, take a photo, and issue a resume.')
-        logger.info('* Head position during those pauses is can be controlled by the pause.g macro ')
-        logger.info('* on the duet, or by specifying "-movehead nnn nnn".')
-        logger.info('*')
-        logger.info('* If instead, it is desired that this program force the printer to pause with no')
-        logger.info('* pauses in the gcode, specify either:')
-        logger.info('* "-pause yes -detect layer" or "-pause yes -seconds nnn".')
-        logger.info('************************************************************************************')
-
-
-    if ('yes' in pause):
-        logger.info('************************************************************************************')
-        logger.info('* Note "-pause yes" means this program will pause the printer when the -detect and / or ')
-        logger.info('* -seconds flags trigger.')
-        logger.info('*')
-        logger.info('* If instead, it is desired that this program detect pauses that are already in')
-        logger.info('* in the gcode, specify:')
-        logger.info('* "-detect pause"')
-        logger.info('************************************************************************************')
-        
-    #Invalid combinations
     
-    logger.info('')
+    #Invalid Combinations that will abort program     
+    
     if (camera1 !='other' and camparam1 !=''):
         logger.info('************************************************************************************')
         logger.info('Invalid Combination: Camera type '+camera1+' cannot be used with camparam1')  
@@ -364,6 +343,58 @@ def init():
         logger.info('contain its own pauses.  These cannot be used together.')
         logger.info('************************************************************************************')
         sys.exit(2)
+        
+    #Information and Warnings
+        
+    if (standby and not httpListener):
+        logger.info('************************************************************************************')
+        logger.info('Warning: -standby ignored.  It has no effect unless http Listener is active.')
+        logger.info('Specify -localhost and -port to activate http Listener')
+        logger.info('************************************************************************************')        
+        
+    if ((seconds > 0) and (not 'none' in detect)):
+        logger.info('************************************************************************************')
+        logger.info('Warning: -seconds '+str(seconds)+' and -detect '+detect+' will trigger on both.')
+        logger.info('Specify "-detect none" with "-seconds > 0" to trigger on seconds alone.')
+        logger.info('************************************************************************************')
+        
+    if (startNow() and not dontwait):
+        logger.info('************************************************************************************')
+        logger.info('Warning: -seconds '+str(seconds)+' and -detect '+detect)
+        logger.info('This combination implies -dontwait and will be set automatically')
+        logger.info('************************************************************************************')
+        dontwait = True
+        
+    if ('pause' in detect):
+        logger.info('************************************************************************************')
+        logger.info('* Note "-detect pause" means that the G-Code on the printer already contains pauses,')
+        logger.info('* and that this program will detect them, take a photo, and issue a resume.')
+        logger.info('* Head position during those pauses is can be controlled by the pause.g macro ')
+        logger.info('* on the duet, or by specifying "-movehead nnn nnn".')
+        logger.info('*')
+        logger.info('* If instead, it is desired that this program force the printer to pause with no')
+        logger.info('* pauses in the gcode, specify either:')
+        logger.info('* "-pause yes -detect layer" or "-pause yes -seconds nnn".')
+        logger.info('************************************************************************************')
+
+
+    if ('yes' in pause):
+        logger.info('************************************************************************************')
+        logger.info('* Note "-pause yes" means this program will pause the printer when the -detect and / or ')
+        logger.info('* -seconds flags trigger.')
+        logger.info('*')
+        logger.info('* If instead, it is desired that this program detect pauses that are already in')
+        logger.info('* in the gcode, specify:')
+        logger.info('* "-detect pause"')
+        logger.info('************************************************************************************')
+        
+    logger.info('')
+    if (novideo and deletepics):
+        logger.info('************************************************************************************')
+        logger.info('Warning: The combination of -novideo and -deletepics will not create any output')  
+        logger.info('************************************************************************************')         
+    
+        
         
 
     def checkDependencies(camera):        
@@ -449,9 +480,11 @@ def init():
     def quit_gracefully(*args):
         logger.info('!!!!!! Stopped by SIGINT or CTL+C - Post Processing !!!!!!')
         nextAction('terminate')
+        #threading.Thread(target=nextAction, args=('terminate',)).start()
 
     if __name__ == "__main__":
         signal.signal(signal.SIGINT, quit_gracefully)
+
 
 """
 End of init()
@@ -460,25 +493,104 @@ End of init()
 #####################################################
 ##  Utility Functions
 #####################################################
+"""
+def get_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # doesn't even have to be reachable
+        s.connect(('10.255.255.255', 1))
+        IP = s.getsockname()[0]
+    except Exception:
+        IP = '127.0.0.1'
+    finally:
+        s.close()
+    return IP
+"""
 
-def cleanupFiles():           
-    """
-       Todo - add logic if multiple instances allowed for file cleanup? 
-    """    
+def getRunningInstancePids():
+    pidlist = []
+    for p in psutil.process_iter():
+        if (('python3' in p.name() or 'pythonw' in p.name()) and '-duet' in p.cmdline()): #Check all other python3 instances
+            pidlist.append(str(p.pid))  
+    return pidlist
+
+def getPidDirs():
+    dirlist = []
+    for item in os.listdir(topdir):
+        if os.path.isdir(os.path.join(topdir, item)):
+            dirlist.append(item)    
+    return dirlist
+    
+def createWorkingDir(baseworkingdir):
+    global workingdir_exists, workingdir
+    jobname = getDuetJobname(apiModel)
+    if jobname != '':
+        jobname = jobname.replace(' ','_')
+        jobname = jobname.replace('.gcode','')
+        jobname = jobname.replace('gcodes/','')
+        jobname = jobname.replace(':',u'\u02f8')
+        split_jobname = jobname.split("/", 1)
+        jobname = split_jobname[1]
+        workingdir = baseworkingdir+'_'+jobname
+    else:
+        workingdir = baseworkingdir
+        
+    if win:
+        subprocess.call('mkdir "'+workingdir+'"'+debug, shell=True)
+    else:
+        subprocess.call('mkdir -p "'+workingdir+'"'+debug, shell=True)
+    logger.info('Working directory created at: '+workingdir)    
+    workingdir_exists = True
+    return workingdir
+    
+def cleanupFiles(phase):
+    global workingdir_exists
+    print('Cleaning up phase:  '+phase)
+    pidlist = []
+    dirlist = []
+    pidlist = getRunningInstancePids()
+    dirlist = getPidDirs()
+
     # Make and clean up directorys.
     #Make sure there is a directory for the resulting video
-    global win
-    if (win):
-        subprocess.call('mkdir "'+basedir+'\\'+duetname+'"'+debug, shell=True)
-        #Clean up the tmp directory
-        subprocess.call('rmdir "'+basedir+'\\'+duetname+'\\tmp" /s /q'+debug, shell=True)
-        subprocess.call('mkdir "'+basedir+'\\'+duetname+'\\tmp"'+debug, shell=True)
-    else:
-        subprocess.call('mkdir "'+basedir+'/'+duetname+'"'+debug, shell=True)
-        #Clean up the tmp directory
-        subprocess.call('rm -rf "'+basedir+'/'+duetname+'/tmp"'+debug, shell=True)
-        subprocess.call('mkdir "'+basedir+'/'+duetname+'/tmp"'+debug, shell=True)
-        
+    
+    if (phase == 'startup'):
+        if win:
+            for dirs in dirlist:
+                split_dirs = dirs.split("-", 1)
+                dirpid = split_dirs[0]
+                if dirpid not in pidlist:
+                    subprocess.call('rmdir "'+topdir+'\\'+dirs+'" /s /q'+debug, shell=True)
+            if (not keeplogs and len(pidlist) == 1):  #only delete logs if no other processes running
+                print('Deleting log files')
+                subprocess.call('del /s "'+topdir+'\\"*.log'+debug, shell=True)   #Note position of last " so that shell expands *.log portion 
+        else:
+            for dirs in dirlist:
+                split_dirs = dirs.split("-", 1)
+                dirpid = split_dirs[0]
+                if dirpid not in pidlist:
+                    subprocess.call('rm -rf "'+topdir+'/'+dirs+'"'+debug, shell=True)           
+            if (not keeplogs and len(pidlist) == 1):  #only delete logs if no other processes running
+                subprocess.call('rm -f "'+topdir+'/"*.log'+debug, shell=True)   #Note position of last " so that shell expands *.log portion
+    
+    elif (phase == 'standby'):  #delete images directory will be recreated on first capture
+        if workingdir_exists:    
+            if win:
+                subprocess.call('rmdir "'+workingdir+'" /s /q'+debug, shell=True)          
+            else:
+                subprocess.call('rm -rf "'+workingdir+'"'+debug, shell=True)
+        workingdir_exists = False
+    
+    elif (phase == 'restart'):
+        workingdir_exists = False
+    
+    elif (phase == 'terminate'):
+        if deletepics:
+            if win:
+                subprocess.call('rmdir "'+workingdir+'" /s /q'+debug, shell=True)           
+            else:
+                subprocess.call('rm -rf "'+workingdir+'"'+debug, shell=True)
+            
         
 def startNow():
     global action
@@ -595,7 +707,9 @@ def unPause():
 
 
 def onePhoto(cameraname, camera, weburl, camparam): 
-    global frame1, frame2
+    global frame1, frame2, workingdir
+    if not workingdir_exists:
+        workingdir = createWorkingDir(baseworkingdir) #created as late as possible - adds job fileName if available
     
     if (cameraname == 'Camera1'):
         frame1 += 1
@@ -606,9 +720,9 @@ def onePhoto(cameraname, camera, weburl, camparam):
         
     s=str(frame).zfill(8)
     if (win):
-        fn = ' "'+basedir+'\\'+duetname+'\\tmp\\'+cameraname+pid+'-'+s+'.jpeg"'
+        fn = ' "'+workingdir+'\\'+cameraname+'_'+s+'.jpeg"'
     else:
-        fn = ' "'+basedir+'/'+duetname+'/tmp/'+cameraname+pid+'-'+s+'.jpeg"'
+        fn = ' "'+workingdir+'/'+cameraname+'_'+s+'.jpeg"'
 
     if ('usb' in camera): 
         cmd = 'fswebcam --quiet --no-banner '+fn+debug
@@ -688,24 +802,25 @@ def postProcess(cameraname, camera, vidparam):
      
     logger.info(cameraname+': now making '+str(frame)+' frames into a video')
     if (250 < frame): logger.info("This can take a while...")
+    timestamp = time.strftime('%a-%H-%M',time.localtime())
     
     if (win):
-        fn = ' "'+basedir+'\\'+duetname+'\\'+cameraname+pid+'-'+time.strftime('%a-%H-%M',time.localtime())+'.mp4"'
+        fn = ' "'+topdir+'\\'+pid+'_'+cameraname+'_'+timestamp+'.mp4"'
     else:
-        fn = ' "'+basedir+'/'+duetname+'/'+cameraname+pid+'-'+time.strftime('%a-%H-%M',time.localtime())+'.mp4"'
+        fn = ' "'+topdir+'/'+pid+'_'+cameraname+'_'+timestamp+'.mp4"'
         
     if (vidparam == ''):
         if (float(extratime) > 0):  #needs ffmpeg > 4.2
             if(win):
                 #Windows version does not like fps=10 argument   
-                cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+basedir+'\\'+duetname+'\\tmp\\'+cameraname+pid+'-%08d.jpeg" -c:v libx264 -vf tpad=stop_mode=clone:stop_duration='+extratime+' '+fn+debug
+                cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+workingdir+'\\'+cameraname+'_%08d.jpeg" -c:v libx264 -vf tpad=stop_mode=clone:stop_duration='+extratime+' '+fn+debug
             else:
-                cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+basedir+'/'+duetname+'/tmp/'+cameraname+pid+'-%08d.jpeg" -c:v libx264 -vf tpad=stop_mode=clone:stop_duration='+extratime+',fps=10 '+fn+debug
+                cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+workingdir+'/'+cameraname+'_%08d.jpeg" -c:v libx264 -vf tpad=stop_mode=clone:stop_duration='+extratime+',fps=10 '+fn+debug
         else: #Using an earlier version of ffmpeg that does not support tpad (and hence extratime)
             if (win):
-                cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+basedir+'\\'+duetname+'\\tmp\\'+cameraname+pid+'-%08d.jpeg" -vcodec libx264 -y '+fn+debug
+                cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+workingdir+'\\'+cameraname+'_%08d.jpeg" -vcodec libx264 -y '+fn+debug
             else:
-                cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+basedir+'/'+duetname+'/tmp/'+cameraname+pid+'-%08d.jpeg" -vcodec libx264 -y '+fn+debug
+                cmd  = 'ffmpeg'+ffmpegquiet+' -r 10 -i "'+workingdir+'/'+cameraname+'_%08d.jpeg" -vcodec libx264 -y '+fn+debug
     else:
         cmd = eval(vidparam)              
     subprocess.call(cmd, shell=True)
@@ -769,6 +884,33 @@ def  getDuetVersion():
             return 'SBC', version;
         except:
             return 'none', '0';
+            
+def  getDuetJobname(model):
+#Used to get the print jobname from Duet
+    if (model == 'rr_model'):
+        URL=('http://'+duet+'/rr_model?key=job.file.fileName')
+        r = urlCall(URL, 5)
+        if(r.ok):
+            try:
+                j = json.loads(r.text)
+                jobname = j['result']
+                if jobname is None: jobname = ''
+                return jobname           
+            except:
+                pass
+    else:
+        URL=('http://'+duet+'/machine/status/')
+        r = urlCall(URL, 5)
+        if(r.ok):
+            try:
+                j = json.loads(r.text)
+                jobname = j['job']['file']['fileName']
+                if jobname is None: jobname = ''
+                return jobname
+            except requests.exceptions.RequestException as e:
+                pass
+    logger.info('getDuetJobname failed to get data. Code: '+str(r.status_code)+' Reason: '+str(r.reason))
+    return ''            
       
 
 def  getDuetStatus(model):
@@ -876,6 +1018,7 @@ def makeVideo():
     
 def terminate():
     global httpListener, listener
+    cleanupFiles('terminate')
     #close the nextaction thead if necessary.  nextAction will have close the capturethread
     try: 
         nextactionthread.join(10)
@@ -894,11 +1037,13 @@ def terminate():
 # Integral Web Server
 ###########################
 
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
-class MyHandler(BaseHTTPRequestHandler):
-
+class MyHandler(SimpleHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory= topdir, **kwargs)    
+    
     def _set_headers(self):
         self.send_response(200)
         self.send_header("Content-type", "text/html")
@@ -909,7 +1054,7 @@ class MyHandler(BaseHTTPRequestHandler):
         return content.encode("utf8")  # NOTE: must return a bytes object!  
 
     def _html(self, message):
-        content = f"<html><body><h2>{message}</h2></body></html>"
+        content = f"<html><head></head><body><h2>{message}</h2></body></html>"
         return content.encode("utf8")  # NOTE: must return a bytes object!
         
     def update_content(self):
@@ -923,14 +1068,22 @@ class MyHandler(BaseHTTPRequestHandler):
         if (str(zo1) == '-1'):
            thislayer = 'None'
         else:
-           thislayer = str(zo1)        
+           thislayer = str(zo1)
+           
+        if workingdir_exists:
+            imagelocation =  'Images are located here: '+workingdir+'<br>'
+        else:
+            imagelocation = ''
     
         header =    ('DuetLapse3 Version '+duetLapse3Version+'<br>'
                     '<h4>'
-                    +thisrunninginstance+
+                    +thisrunninginstance+'<br><br>'
+                    'Logs and Videos are located here: '+topdir+'<br>'
+                    +imagelocation+
+                    'The logfile for this instance is: '+logname+
                     '</h4>'   
                     )    
-            
+        
         status =    ('<h3>'
                     'Status of printer on '+duet+'<br><br>'
                     'Last Updated:  '+localtime+'<br><br>'
@@ -993,6 +1146,12 @@ class MyHandler(BaseHTTPRequestHandler):
                     '<input type="submit" value="Terminate" style="background-color:red"/>'
                     '</form>'
                     '</div>'
+                    '<div class="divider">'
+                    '<form target="_blank" action="http://'+referer+'">'
+                    '<input type="hidden" name="files" value= '+topdir+' />'
+                    '<input type="submit" value="Files" style="background-color:green"/>'                    
+                    '</form>'
+                    '</div>'                    
                     '<style type="text/css">'
                     '{'
                     'position:relative;'
@@ -1014,23 +1173,26 @@ class MyHandler(BaseHTTPRequestHandler):
         return header , status , buttons;
     
     def do_GET(self):
-        self._set_headers()
-        global action, options, referer
-        referer = self.headers['Host']       
-        #Update main content
-        header, status, buttons = self.update_content()
-        
-        options = ['status', 'start', 'standby', 'pause', 'continue', 'snapshot', 'restart', 'terminate']
-        #qs = {}
-        path = self.path
-        if ('favicon.ico' in path):
+        if ('favicon.ico' in self.path):
             return
-                       
+            
         query_components = parse_qs(urlparse(self.path).query)
 
-        #thisrunninginstance = getThisInstance(int(pid))
-        #localtime = time.strftime('%A - %H:%M',time.localtime())        
-        
+        if ((query_components and not query_components.get('command')) or (not query_components and self.path != '/')):
+            super().do_GET()        
+            return    
+            
+        global referer, refererip
+        referer = self.headers['Host']
+        split_referer = referer.split(":", 1)
+        refererip = split_referer[0]            
+        #Update main content
+        header, status, buttons = self.update_content()                      
+        self._set_headers()       
+
+        global action, options
+        options = ['status', 'start', 'standby', 'pause', 'continue', 'snapshot', 'restart', 'terminate']
+                                      
         command = ''
         if(query_components.get('command')):
             command = query_components['command'][0]         
@@ -1063,12 +1225,14 @@ class MyHandler(BaseHTTPRequestHandler):
                 if (action == 'standby'):
                     available = [e for e in options if e not in command]
                     start =    ('<h3><pre>'
-                                'Starting DuetLapse3.'
+                                'Starting DuetLapse3.<br><br>'
+                                'Press Status to refresh'
                                 '</pre></h3>'
                                 )
 
                     self.wfile.write(self._html(header+status+buttons+start))                                                
-                    nextAction(command)
+                    #nextAction(command)
+                    threading.Thread(target=nextAction, args=(command,)).start()
                 else:
                     self.wfile.write(self._html(header+status+buttons+self.ignoreCommandMsg(command,action)))
             
@@ -1080,12 +1244,15 @@ class MyHandler(BaseHTTPRequestHandler):
                                 'Putting DuetLapse3 in standby mode<br><br>'
                                 'Will NOT create a video.<br>'
                                 'All captured images will be deleted<br>'
-                                'This is the same as if DuetLapse was just started with -standby<br>'
+                                'This is the same as if DuetLapse was just started with -standby<br><br>'
                                 'Next available action is start'
                                 '</pre></h3>'
                                 )
-                    self.wfile.write(self._html(header+status+buttons+standby))                                                
-                    nextAction(command)
+                    self.wfile.write(self._html(header+status+buttons+standby))
+                    #Fire and forget - assumed to be successful
+                    #nextAction(command)
+                    threading.Thread(target=nextAction, args=(command,)).start()
+
                 else:
                     self.wfile.write(self._html(header+status+buttons+self.ignoreCommandMsg(command,action)))
 
@@ -1100,7 +1267,8 @@ class MyHandler(BaseHTTPRequestHandler):
                                 '</pre></h3>'
                                 )
                     self.wfile.write(self._html(header+status+buttons+pause))                                
-                    nextAction(command)
+                    #nextAction(command)
+                    threading.Thread(target=nextAction, args=(command,)).start()
                 else:
                     self.wfile.write(self._html(header+status+buttons+self.ignoreCommandMsg(command,action)))
             
@@ -1109,10 +1277,12 @@ class MyHandler(BaseHTTPRequestHandler):
                     available = [e for e in options if e not in command]                    
                     unpause = ('<h3><pre>'
                                'Continuing DuetLapse3<br><br>'
+                               'Press Status to refresh'
                                '</pre></h3>'
                                )
                     self.wfile.write(self._html(header+status+buttons+unpause))
-                    nextAction(command)
+                    #nextAction(command)
+                    threading.Thread(target=nextAction, args=(command,)).start()
                 else:
                     self.wfile.write(self._html(header+status+buttons+self.ignoreCommandMsg(command,action)))
             
@@ -1124,11 +1294,13 @@ class MyHandler(BaseHTTPRequestHandler):
                 if (action in allowed):
                     snapshot =  ('<h3><pre>'
                                  'Creating an interim snapshot video<br><br>'
-                                 'Will first create a video with the current images then continue'
+                                 'Will first create a video with the current images then continue<br><br>'
+                                 'Press Status to refresh'
                                  '</pre></h3>'
                                  )
                     self.wfile.write(self._html(header+status+buttons+snapshot))                                                
-                    nextAction(command)
+                    #nextAction(command)
+                    threading.Thread(target=nextAction, args=(command,)).start()
                 else:
                     self.wfile.write(self._html(header+status+buttons+self.ignoreCommandMsg(command,action)))                   
                                       
@@ -1140,11 +1312,13 @@ class MyHandler(BaseHTTPRequestHandler):
                                 'Restarting DuetLapse3<br><br>'
                                 'Will first create a video with the current images<br>'
                                 'Then delete all captured images<br>'
-                                'The restart behavior is the same as initially used to start DuetLapse3'
+                                'The restart behavior is the same as initially used to start DuetLapse3<br><br>'
+                                'Press Status to refresh'
                                 '</pre></h3>'
                                 )
                     self.wfile.write(self._html(header+status+buttons+restart))                                                
-                    nextAction(command)
+                    #nextAction(command)
+                    threading.Thread(target=nextAction, args=(command,)).start()
                                                 
                 else:
                     self.wfile.write(self._html(header+status+buttons+self.ignoreCommandMsg(command,action)))
@@ -1153,24 +1327,28 @@ class MyHandler(BaseHTTPRequestHandler):
                 unwanted = {'snapshot','restart', 'terminate'}
                 allowed = [e for e in options if e not in unwanted]                
                 if (action in allowed):
-                    self.wfile.write(self._html('Terminating DuetLapse3<br><br>'
-                                                '<h3>'
-                                                'Will finish last image capture, create a video, then terminate.'
-                                                '</h3>'
-                                                ))
+                    terminate = ('<h1><pre>'
+                                 'Terminating DuetLapse3<br><br>'
+                                 'Will finish last image capture, create a video, then terminate.'
+                                 '</pre></h1>'
+                                 )            
+                    self.wfile.write(self._html(header+status+buttons+terminate))                            
                     logger.info('!!!!! Sending http Terminate request !!!!!')
-                    nextAction(command)
+                    #nextAction(command)
+                    threading.Thread(target=nextAction, args=(command,)).start()
+
                 else:
                     self.wfile.write(self._html(header+status+buttons+self.ignoreCommandMsg(command,action)))
 
             return
-        refreshing = ('<h3><pre>'
-                      'Status will update every 60 seconds'
-                      '</pre></h3>'
-                      )
-        self.wfile.write(self._refresh(header+status+buttons+refreshing))        
-      
-        return
+        else:    
+            refreshing = ('<h3><pre>'
+                          'Status will update every 60 seconds'
+                          '</pre></h3>'
+                          )
+            self.wfile.write(self._refresh(header+status+buttons+refreshing))        
+          
+            return
     """
     End of do_Get
     """
@@ -1193,7 +1371,7 @@ class MyHandler(BaseHTTPRequestHandler):
             
 def createHttpListener():    
     global listener
-    listener = HTTPServer((host, port), MyHandler)
+    listener = ThreadingHTTPServer((host, port), MyHandler)
     listener.serve_forever()
     sys.exit(0)  #May not be needed since never returns from serve_forever
     
@@ -1254,7 +1432,7 @@ def captureLoop():  #Run as a thread
             nextactionthread.start()
             return
             
-        if (capturing): #Allow sleep to be shorcut cut for speedier response  
+        if (capturing): #If no longer capturing - sleep is by-passed for speedier exit response  
             lastDuetStatus = duetStatus
             time.sleep(poll)  # poll every n seconds - placed here to speeed startup           
             
@@ -1287,7 +1465,7 @@ def nextAction(nextaction):  #can be run as a thread
     if (nextaction == 'start'):
         capturing = True 
     elif (nextaction == 'standby'):
-        cleanupFiles()   #clean up and start again
+        cleanupFiles(nextaction)   #clean up and start again
         setStartValues()
     if (nextaction == 'pause'):
         pass 
@@ -1298,12 +1476,15 @@ def nextAction(nextaction):  #can be run as a thread
         capturing = True
     elif (nextaction == 'restart'):
         makeVideo()
-        cleanupFiles()   #clean up and start again
+        cleanupFiles(nextaction)   #clean up and start again
         setStartValues()
         startNow()
         if (action == 'start'): capturing = True  #what we do here is the same as the original start action 
     elif(nextaction == 'terminate'):
-        makeVideo()
+        if novideo:
+            logger.info('Video creation was skipped')
+        else:
+            makeVideo()
         terminate()
     elif (nextaction == 'disconnected'):
         terminate()
@@ -1343,7 +1524,8 @@ def startMessages():
     logger.info('')
     logger.info('##########################################################')
     logger.info('Video will be created when printing ends.')
-    logger.info('Or, press Ctrl+C one time to stop capture and create video.')
+    logger.info('On Linux   -  press Ctrl+C one time to stop capture and create video.')
+    logger.info('On Windows -  Ctrl+C will NOT create a video. You must use the http listener')
     logger.info('##########################################################')
     logger.info('')
 
@@ -1364,8 +1546,8 @@ def startHttpListener(host,port):
         sys.exit(2)
     
     #import threading
-    httpthread = threading.Thread(target=createHttpListener, args=())
-    httpthread.start()
+    httpthread = threading.Thread(target=createHttpListener, args=()).start()
+    #httpthread.start()
     logger.info('')
     logger.info('##########################################################')
     logger.info('***** Started http listener *****')
@@ -1376,12 +1558,13 @@ def startHttpListener(host,port):
 # Program  begins here
 ###########################
 if __name__ == "__main__":   #Do not run anything below if the file is imported by another program
-    
+
     # Globals.
-    global  httpListener, win , pid, action
+    global  httpListener, win , pid, action, workingdir_exists
     httpListener = False             # Indicates if an integral httpListener should be started
     win = False                      # Windows OS
-    pid = ''                         # pid for this instance - used for temp filenames                 
+    pid = ''                         # pid for this instance - used for temp filenames
+    workingdir_exists = False
     
     setStartValues()       #Default startup global values
     
@@ -1399,4 +1582,5 @@ if __name__ == "__main__":   #Do not run anything below if the file is imported 
         
     except KeyboardInterrupt:
         pass   # This is handled as SIGINT
-    
+
+       
