@@ -60,7 +60,7 @@ The modifications include:
 - [1] Completely revised the UI when running the http listener.  The main change the addition of buttons to make navigation easier.
 
 ###Version 3.4.0###<br>
-- [1] Completely revised the diectory and filenameing structure to facilitate many-to-many relationshipos between computers runing DUetLapse3, Duet Printers and mutiple instances of DuetLapse3 running.
+- [1] Completely revised the directory and file-naming structure to facilitate many-to-many relationships between computers running DuetLapse3, Duet Printers and multiple instances of DuetLapse3.
 - [2] Changed how http terminate requests were handled for better cross platfom compatibility.
 - [3] Added the ability to navigate the directory structure from a browser (new button).Also in startDuetLapse3.
 - [4] Added three new options: -keeplogs, -deletepics and -novideo
