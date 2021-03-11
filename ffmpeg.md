@@ -86,13 +86,16 @@ libpostproc    55.  8.100 / 55.  8.100
 Check that tpad is available
 
 ```
- ffmpeg - filters | grep tpad   #shows tpad being available.
+ ffmpeg - filters | grep tpad
 ```
 
 ###NOTE:  Sometimes the directories where the new ffmeg is installed get "confused".
 If ffmpeg - version gives an error note the path that it is trying to use (oldpath)
-Then run whereis ffmpeg and note the path (newpath)
-you can then create a symbolic ling and all should be well
+Then run
+```
+whereis ffmpeg
+```
+and note the path (newpath). You can then create a symbolic ling and all should be well
 
 ```
 sudo ln -s newpath oldpath
