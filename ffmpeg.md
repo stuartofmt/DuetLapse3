@@ -64,7 +64,9 @@ git clone --depth 1 https://github.com/FFmpeg/FFmpeg.git ~/FFmpeg \
   && make -j$(nproc) \
   && sudo make install
 ```
-  
+### Note that I also compiled this Debian on windows with the following changes:
+replace -arch=armel with -arch-x86
+delete: --enable-mmal, --enable-omx, --enable-omx-rpi
   
   5.  Check the  ffmpeg version
   
@@ -89,7 +91,7 @@ Check that tpad is available
  ffmpeg - filters | grep tpad
 ```
 
-###NOTE:  Sometimes the directories where the new ffmeg is installed get "confused".
+### NOTE:  Sometimes the directories where the new ffmeg is installed get "confused".
 If ffmpeg - version gives an error note the path that it is trying to use (oldpath)
 Then run
 ```
