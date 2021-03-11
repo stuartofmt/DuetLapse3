@@ -82,6 +82,16 @@ libswscale      5.  8.100 /  5.  8.100
 libswresample   3.  8.100 /  3.  8.100
 libpostproc    55.  8.100 / 55.  8.100
 ```
-  
- 
- ffmpeg - filters shows tpad being available.
+
+'''
+ ffmpeg - filters | grep tpad   #shows tpad being available.
+'''
+
+###NOTE:  Sometimes the directories where the new ffmeg is installed get "confused".
+If ffmpeg - version gives an error note the path that it is trying to use (oldpath)
+Then run whereis ffmpeg and note the path (newpath)
+you can then create a symbolic ling and all should be well
+
+'''
+sudo ln -s newpath oldpath
+'''
