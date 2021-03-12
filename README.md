@@ -316,7 +316,7 @@ If omitted the default is usb. Determines how images are captured.
 -camera1 pi       #Uses the camera associated with the rasberry pi camera's standard installation<br>
 -camera1 web      #Uses wget to capture images from a camera that provides still jpeg<br>
 -camera1 stream   #Uses ffmpeg to capture images from a video feed<br>
--camera1 other    #Canonly be used in conjunction with -camparam1 (see below)<br>
+-camera1 other    #Can only be used in conjunction with -camparam1 (see below)<br>
 </pre>
 
 #### -weburl1 [url]
@@ -339,7 +339,6 @@ If omitted has no default. Used in conjunction with -camera1 to define how the i
 There are 3 internal variables that can be used weburl (which has the value of weburl1), fn (which is the file for the captured images) , debug (which controls verbose logging)
 <pre>
 **example**
-
 -camparam1="'ffmpeg -y -i '+weburl+ ' -vframes 1 ' +fn+debug"<br>
 </pre>
 This example is the same as if -camera1 stream was used. The value of weburl1 would be substituted for weburl and the output goes the the file specification fn. the results are verbose of not is defermined by the internal variable debug.  In general both fn and debug should be used.  The use of weburl would depend on the capture method being used.
