@@ -32,7 +32,7 @@ It proveds a simple http interface for starting and terminating DuetLapse3 insta
 - [1] Changed the browser UI to a single page layout.
 - [2] Added an optional argument (-topdir) to set the top level directory for file functions.
       If used - this would normally be set the same as DuetLapse or at the "duetip" level
-- [3] File functins expanded to allow delete and zip.  This is "conservative" - will not allow deletion of files / directories of running instances.  Can only zip directories.  
+- [3] File functions expanded to allow delete and zip.  This is "conservative" - will not allow deletion of files / directories of running instances.  Can only zip directories.  
 
 ## General Description
 
