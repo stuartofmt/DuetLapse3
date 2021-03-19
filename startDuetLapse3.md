@@ -169,6 +169,29 @@ http://localhost:8082/?command=terminate&pids=12345   #Will cause DuetLapse3 wit
 ```
 ----
 command=shutdown   - causes startDuetLapse3 to shutdown.
+
+----
+
+delete=<name>                      - <name> is a filename or directoryname RELATIVE to the -topdir setting
+
+```
+Example
+Assuming -topdir is set to /home/pi/me.local/192-168-1-230
+http://localhost:8082/?delete=/123454/     #Will delete the directory /home/pi/me.local/192-168-1-230/123456
+Assuming -topdir is set to /home/pi/me.local
+http://localhost:8082/?delete=/192-168-1-230/Camera1.mp4/     #Will delete the file /home/pi/me.local/192-168-1-230/Camera1.mp4
+```
+----
+zip=<dir>                          - <dir> is a directoryname RELATIVE to the -topdir setting  
+
+```
+Example
+Assuming -topdir is set to /home/pi/me.local/192-168-1-230
+http://localhost:8082/?zip=/123454/     #Will create the file /home/pi/me.local/192-168-1-230/123456.zip
+Note that zip ONLY works on directories
+```
+----
+
 </pre>
 
 
