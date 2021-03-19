@@ -66,6 +66,14 @@ The modifications include:
 - [4] Added three new options: -keeplogs, -deletepics and -novideo
 - [5] Made some cosmetic changes to the html pages.
 
+###Version 3.4.1###
+- [1] Changed the browser UI to a single page layout.
+- [2] The file funcion is restricted to the specific instance.
+- [3] File functins expanded to allow deletion of video files. startDuetLapse3 has more options.
+- [4] If using -detect layer capture starts one layer earlier.
+- [5] An additional image is captured immediately before a video is created, independent of other settings.
+- [6] If the version of ffmpeg does not support -extratime it is ignored. 
+
 ## General Description
 Provides the ability to generate time lapse videos from for Duet based 3D printers.
 
