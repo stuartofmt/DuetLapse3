@@ -123,12 +123,12 @@ startDuetLapse3 is typically controlled from a browser using the buttons and inp
 These can still be used manually or invoked without the browser UI (for example using curl).  As of release 3.4.1 the the response is html - so needs to be handled accordingly.
 
 ```
-http://<ipaddress>:<port>/?<instructions>
+http://<ipaddress>:<port>/?{instructions}
 
 ```
 
 <pre>
-Valid <instructions> are:
+Valid {instructions} are:
 command=status                     - Returns brief information about the running state of DuetLapse3 instances
                                      For each instance it proved the process id together with the options used to start the instance
                       
@@ -172,17 +172,18 @@ command=shutdown   - causes startDuetLapse3 to shutdown.
 
 ----
 
-delete=<name>                      - <name> is a filename or directoryname RELATIVE to the -topdir setting
+delete={name}                      - {name} is a filename or directoryname RELATIVE to the -topdir setting
 
 ```
 Example
 Assuming -topdir is set to /home/pi/me.local/192-168-1-230
 http://localhost:8082/?delete=/123454/     #Will delete the directory /home/pi/me.local/192-168-1-230/123456
+
 Assuming -topdir is set to /home/pi/me.local
 http://localhost:8082/?delete=/192-168-1-230/Camera1.mp4/     #Will delete the file /home/pi/me.local/192-168-1-230/Camera1.mp4
 ```
 ----
-zip=<dir>                          - <dir> is a directoryname RELATIVE to the -topdir setting  
+zip={dir}                          - {dir} is a directoryname RELATIVE to the -topdir setting  
 
 ```
 Example
