@@ -28,6 +28,12 @@ It proveds a simple http interface for starting and terminating DuetLapse3 insta
 - [2] Added the ability to navigate the directory structure from a browser (new button)
 - [3] Made some cosmetic changes to the html pages.
 
+###Version 3.4.1###
+- [1] Changed the browser UI to a single page layout.
+- [2] Added an optional argument (-topdir) to set the top level directory for file functions.
+      If used - this would normally be set the same as DuetLapse or at the "duetip" level
+- [3] File functins expanded to allow delete and zip.  This is "conservative" - will not allow deletion of files / directories of running instances.  Can only zip directories.  
+
 ## General Description
 
 startDuetLapse 3 is designed to run continuously and accept http commands either from a browser, curl or other means of sending http get commands.<br>
@@ -114,20 +120,23 @@ An alternative if you are on Win10 is to use  Windows Subsystem for Linux (WSL) 
 
 
 startDuetLapse3 is typically controlled from a browser using the buttons and inputs (as of release 3.3.0).  The buttons essentially invoke the followong commands.
-These can still be used manually or invoked without the browser UI (for example using curl):
+These can still be used manually or invoked without the browser UI (for example using curl).  As of release 3.4.1 the the response is html - so needs to be handled accordingly.
 
 ```
-http://<ipaddress>:<port>/?<commands>
+http://<ipaddress>:<port>/?<instructions>
 
 ```
 
 <pre>
-Valid commands are:
-command=status            - Returns brief information about the running state of DuetLapse3 instances
-                            For each instance it proved the process id together with the options used to start the instance
+Valid <instructions> are:
+command=status                     - Returns brief information about the running state of DuetLapse3 instances
+                                     For each instance it proved the process id together with the options used to start the instance
+                      
 ----
+
 command=start&args=       - Starts an instance of DuetLapse3 with the options specified in args
 NOTE IF ENTERED FROM THE BROWSER ADDRESS LINE certain symbols must be made url safe.  For example the + symbol must be replaced with %2b.  This is not required if using the input field in the UI.
+
 
 ```
 Example
