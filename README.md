@@ -68,8 +68,8 @@ The modifications include:
 
 ###Version 3.4.1###
 - [1] Changed the browser UI to a single page layout.
-- [2] The file funcion is restricted to the specific instance.
-- [3] File functins expanded to allow deletion of video files. startDuetLapse3 has more options.
+- [2] The file function is restricted to the specific instance.
+- [3] File functions expanded to allow deletion of video files. startDuetLapse3 has more options.
 - [4] If using -detect layer capture starts on layer 0 (previously was layer 1).
 - [5] An additional image is captured immediately before a video is created, independent of other settings.
 - [6] If the version of ffmpeg does not support -extratime it is ignored. 
