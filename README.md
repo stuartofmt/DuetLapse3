@@ -74,6 +74,10 @@ The modifications include:
 - [5] An additional image is captured immediately before a video is created, independent of other settings.
 - [6] If the version of ffmpeg does not support -extratime it is ignored. 
 
+###Version 3.4.2###
+- [1] Added a new options: -keepfiles to prevent file deletion on startup and shutdown(See also startDuetLapse3 improvements)
+- [2] Terminate (from the UI) now offers two options: Graceful and Forces.  Graceful is the same as in prior versions.  Forced does a quick shutdown with no image capture.
+
 ## General Description
 Provides the ability to generate time lapse videos from for Duet based 3D printers.
 
@@ -391,6 +395,10 @@ if **-deletepics** is used.  When DuetLapse3 terminates - basedir/computername/d
 #### -novideo
 If omitted the default is False
 If **-novideo** is used. When DuetLapse3 terminates - no video will be created.  If BOTH **-novideo** and **-deletepics** are specified- this means that if you want to use the images you need to have done so before terminating that instance of DuetLapse3. For example using the snapshot feature provided by the html listener.
+
+#### -keepfile
+If omitted the default is False
+If **-keepfiles** is used. When DuetLapse3 starts or terminates - no files are deleted.  If BOTH **-keepfiles** and **-deletepics** are specified deletepics is ignored.
 
 ### Directory Structure
 The directory structure is (with repeating units [] as appropriate to your use-case)
