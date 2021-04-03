@@ -44,7 +44,7 @@ def init():
                         help='Specify the port on which the server listens. Default = 0')
     parser.add_argument('-args', type=str, nargs=argparse.PARSER, default=[''], help='Arguments. Default = ""')
     parser.add_argument('-topdir', type=str, nargs=1, default=[''], help='default = This program directory')
-    parser.add_argument('-maxffmpeg', type=int, nargs=1, default=[2],help='Max instances of ffmpeg during video creation. Default = 3')
+    parser.add_argument('-maxffmpeg', type=int, nargs=1, default=[2],help='Max instances of ffmpeg during video creation. Default = 2')
     args = vars(parser.parse_args())
 
     global host, port, defaultargs, topdir, maxffmpeg
