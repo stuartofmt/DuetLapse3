@@ -32,7 +32,12 @@ It proveds a simple http interface for starting and terminating DuetLapse3 insta
 - [1] Changed the browser UI to a single page layout.
 - [2] Added an optional argument (-topdir) to set the top level directory for file functions.
       If used - this would normally be set the same as DuetLapse or at the "duetip" level
-- [3] File functions expanded to allow delete and zip.  This is "conservative" - will not allow deletion of files / directories of running instances.  Can only zip directories.  
+- [3] File functions expanded to allow delete and zip.  This is "conservative" - will not allow deletion of files / directories of running instances.  Can only zip directories. 
+
+###Version 3.4.2###
+- [1] Can now delete empty directories (provided they are not in use). This allows a complete cleanup of the directory tree.
+- [2] Added file function to create a Video on directories containing jpeg files (provided they are not in use).
+- [3] Added an optional argument (-maxffmpeg) that limits the number of concurrent ffmpeg instances.  Otherwise ffmpgeg can fail due to lack of resources. 
 
 ## General Description
 
@@ -225,3 +230,14 @@ If the selected port is already in use the program will not start
 -port 8082      #Causes internal http listener to start and listen on port 8082<br>
 </pre>
 
+#### -topdir [full path name]
+If omitted - the default dir is the location of startDuetLapse3.py. 
+<pre>
+**example**
+
+-topdir /home/pi/mydir  #output files start at /home/pi/mydir
+</pre>
+
+#### -maxffmpeg [number]
+If omitted the default is 3
+When DuetLapse3 tries to create a video it will limit the number of ffmpeg instances running to the specified number.  This can prevent ffmpeg failing because it cannot get resources (e.g. CPU / Memory)
