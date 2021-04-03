@@ -37,7 +37,7 @@ It proveds a simple http interface for starting and terminating DuetLapse3 insta
 ###Version 3.4.2###
 - [1] Can now delete empty directories (provided they are not in use). This allows a complete cleanup of the directory tree.
 - [2] Added file function to create a Video on directories containing jpeg files (provided they are not in use).
-- [3] Added an optional argument (-maxffmpeg) that limits the number of concurrent ffmpeg instances.  Ffmpgeg can fail due to lack of resources - the default is 3 instances. 
+- [3] Added an optional argument (-maxffmpeg) that limits the number of concurrent ffmpeg instances.  Ffmpgeg can fail due to lack of resources - the default is 2 instances. 
 
 ## General Description
 
