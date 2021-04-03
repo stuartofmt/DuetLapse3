@@ -77,6 +77,7 @@ The modifications include:
 ###Version 3.4.2###
 - [1] Added a new options: -keepfiles to prevent file deletion on startup and shutdown(See also startDuetLapse3 improvements)
 - [2] Terminate (from the UI) now offers two options: Graceful and Forces.  Graceful is the same as in prior versions.  Forced does a quick shutdown with no image capture.
+- [3] Added an optional argument (-maxffmpeg) that limits the number of concurrent ffmpeg instances.  Otherwise ffmpgeg can fail due to lack of resources.
 
 ## General Description
 Provides the ability to generate time lapse videos from for Duet based 3D printers.
@@ -399,6 +400,10 @@ If **-novideo** is used. When DuetLapse3 terminates - no video will be created. 
 #### -keepfile
 If omitted the default is False
 If **-keepfiles** is used. When DuetLapse3 starts or terminates - no files are deleted.  If BOTH **-keepfiles** and **-deletepics** are specified deletepics is ignored.
+
+#### -maxffmpeg
+If omitted the default is 2
+When DuetLapse3 tries to create a video it will limit the number of ffmpeg instances running to the specified number.  This can prevent ffmpeg failing because it cannot get resources (e.g. CPU / Memory)
 
 ### Directory Structure
 The directory structure is (with repeating units [] as appropriate to your use-case)
