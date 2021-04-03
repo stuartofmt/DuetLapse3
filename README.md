@@ -77,7 +77,8 @@ The modifications include:
 ###Version 3.4.2###
 - [1] Added a new options: -keepfiles to prevent file deletion on startup and shutdown(See also startDuetLapse3 improvements)
 - [2] Terminate (from the UI) now offers two options: Graceful and Forces.  Graceful is the same as in prior versions.  Forced does a quick shutdown with no image capture.
-- [3] Added an optional argument (-maxffmpeg) that limits the number of concurrent ffmpeg instances.  Otherwise ffmpgeg can fail due to lack of resources.
+- [3] Added an optional argument (-maxffmpeg) that limits the number of concurrent ffmpeg instances. Ffmpgeg can fail due to lack of resources - the default is 2 instances.
+      Note that this only applies to video creation.  Image capture, because it is transient, is not limited.
 
 ## General Description
 Provides the ability to generate time lapse videos from for Duet based 3D printers.
@@ -178,7 +179,6 @@ As a simple test - a browser should be able to access the Duet Web Controller us
 
 #### -basedir [full path name]
 If omitted - the default dir is the location of DuetLapse3.py.  This is the logical root for output files See Directory Structure (below).
-If supplied, do NOT put in a trailing slash /
 <pre>
 **example**
 
