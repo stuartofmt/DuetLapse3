@@ -1,8 +1,8 @@
 #!python3
 
 """
-#Python program to take Time Lapse photographs during a print on 
-#   a Duet based 3D printer and convert them into a video. 
+#Python program to take Time Lapse photographs during a print on
+#   a Duet based 3D printer and convert them into a video.
 #
 # From the original work of Danal Estes
 # Copyright (C) 2020 Danal Estes all rights reserved.
@@ -13,16 +13,16 @@
 # Released under The MIT License. Full text available via https://opensource.org/licenses/MIT
 #
 #
-# Developed on Raspberry Pi and WSL with Debian Buster and on Windows 10. SHOULD work on most other linux didtributions. 
-# For USB or Pi camera, The Camera MUST be physically attached to the Pi computer.  
+# Developed on Raspberry Pi and WSL with Debian Buster and on Windows 10. SHOULD work on most other linux didtributions.
+# For USB or Pi camera, The Camera MUST be physically attached to the Pi computer.
 # For Webcam, the camera must be network reachable and via a defined URL for a still image.
 # For Stream   the camera must be network reachable and via a defined URL
-# The Duet printer must be RepRap firmware V3 and must be network reachable. 
-# 
+# The Duet printer must be RepRap firmware V3 and must be network reachable.
+#
 #
 """
 global duetLapse3Version
-duetLapse3Version = '3.4.2'
+duetLapse3Version = '3.4.3'
 import subprocess
 import sys
 import platform
@@ -313,7 +313,7 @@ def init():
     if port != 0:
         httpListener = True
 
-    ########################################################################       
+    ########################################################################
     # Inform regarding valid and invalid combinations
     #########################################################################
 
@@ -709,7 +709,7 @@ def checkInstances(thisinstance, instances):
         print('Process is already running... shutting down.')
         print('#############################')
         print('')
-        sys.exit(0)
+        sys.exit(2)
 
     return proccount
 
@@ -1869,7 +1869,7 @@ def captureLoop():  # Run as a thread
 
         if capturing:  # If no longer capturing - sleep is by-passed for speedier exit response
             lastDuetStatus = duetStatus
-            time.sleep(poll)  # poll every n seconds - placed here to speeed startup           
+            time.sleep(poll)  # poll every n seconds - placed here to speeed startup
 
     logger.info('Exiting Capture loop')
     capturing = False
