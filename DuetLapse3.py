@@ -22,7 +22,7 @@
 #
 """
 global duetLapse3Version
-duetLapse3Version = '3.4.3'
+duetLapse3Version = '3.4.3 Draft'
 import subprocess
 import sys
 import platform
