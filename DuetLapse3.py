@@ -537,9 +537,9 @@ End of init()
 
 def tpad_supported():
     if win:
-        cmd = 'ffmpeg '+ffmpegquiet+' -filters | findstr "tpad"'
+        cmd = 'ffmpeg -filters | findstr "tpad"'
     else:
-        cmd = 'ffmpeg '+ffmpegquiet+'-filters | grep tpad'
+        cmd = 'ffmpeg -filters | grep tpad'
 
     try:
         subprocess.check_call(cmd, shell=True)
@@ -547,7 +547,6 @@ def tpad_supported():
         return False
     except OSError:
         return False
-
     return True
 
 
