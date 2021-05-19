@@ -5,7 +5,7 @@ After=multi-user.target
 WorkingDirectory=/home/pi/Lapse
 User=pi
 Type=idle
-ExecStart=python3 /home/pi/Lapse/DuetLapse3.py -port 8082 -duet 192.196.1.10 -detect layer -camera1 pi
+ExecStart=python3 /home/pi/Lapse/DuetLapse3.py -port 8082 -duet 192.196.1.11 -detect layer -camera1 pi
 Restart=always
 [Install]
 WantedBy=multi-user.target
