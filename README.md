@@ -139,16 +139,22 @@ http://<ip-address><port>/?command=<valid command>
 Valid commands are:
 status     - returns brief information about the running state of DuetLapse3
 ----
-start      - Starts DuetLapse3 recording if the -standby option was used or after a standby command
-standby    - Stops (but does not terminate) DuetLapse3 recording and discards any images capture.  Waits for a start command.
+start      - Starts DuetLapse3 recording if the -standby option was used
+             or after a standby command
+standby    - Stops (but does not terminate) DuetLapse3 recording
+             and discards any images capture.  Waits for a start command.
 ----
-pause      - causes DuetLapse3 to temporarily stop capturing images.  Note that this does NOT pause the printer.
+pause      - causes DuetLapse3 to temporarily stop capturing images.
+             Note that this does NOT pause the printer.
 continue   - causes DuetLapse3 to resume capturing images.
 ----
 snapshot   - causes DuetLapse3 to make an interim video and then continue
-restart    - causes DuetLapse3 to stop capturing images, create a video and then restart with a new capture set
-terminate  - causes DuetLapse3 to stop capturing images, create a video and then terminate the program. This is the same as CTRL+C or SIGINT.<br>
-             Note that depending on your system - it may take several minutes for the http listener to completely shutdown following a terminate request.
+restart    - causes DuetLapse3 to stop capturing images, create a video
+             and then restart with a new capture set
+terminate  - causes DuetLapse3 to stop capturing images, create a video and
+             then terminate the program. This is the same as CTRL+C or SIGINT.<br>
+             Note that depending on your system - it may take several minutes
+             for the http listener to completely shutdown following a terminate request.
 </pre>
 
 **Note that the http listener will stop responding if DuetLapse3 is run from a command console that is then closed.  This will happen even if started in background.  To avoid this - use nohup (linux) or pythonw (Windows)<br>
@@ -170,49 +176,52 @@ The options are described here.  Each option is preceded by a dash -. Some optio
 
 **Mandatory - This is a required option.**  The parameter is the network location of your duet printer.  It can be given as a hostname or an explicit ip address.
 As a simple test - a browser should be able to access the Duet Web Controller using http://<ip address> from the same computer that is running DuetLapse3.py.
-<pre>  
+  
 **example**
-
--duet 192.168.1.10     #Connect to the printer at 192.168.86.10<br>
--duet localhost        #Connect to the printer at localhost<br>
-</pre>
+```
+-duet 192.168.1.10     #Connect to the printer at 192.168.86.10
+-duet localhost        #Connect to the printer at localhost
+```
 
 #### -basedir [full path name]
 If omitted - the default dir is the location of DuetLapse3.py.  This is the logical root for output files See Directory Structure (below).
-<pre>
-**example**
 
+**example**
+```
 -basedir /home/pi/mydir  #output files start at /home/pi/mydir
-</pre>
+```
 
 #### -instances [single||oneip||many]
 If omitted - the default is single. Used to control the number of instances of DuetLapse3.py that can run simultaneously.
 In most cases the default will be suitable.
-<pre>
-**example**
 
--instances single   #There can only be one instance of DuetLapse3.py running<br>
--instance oneip     #For each printer (set by -duet), there can only be one instance of DuetLapse3.py running<br>
--instances many     #No restriction on the number of instances<br>
-</pre>
+**example**
+```
+-instances single   #There can only be one instance of DuetLapse3.py running
+-instance oneip     #For each printer (set by -duet), there can only be one
+                    #instance of DuetLapse3.py running
+-instances many     #No restriction on the number of instances
+```
 
 #### -logtype [console||file||both]
 If omitted - the default is both
-<pre>
-**example**
 
--logtype console   #Only send messages to the console<br>
--logtype file      #Only send messages to the logfile (see Directory Structure for logfile name and location)<br>
--logtype many      #Send messages to both the console and file<br>
-</pre>
+**example**
+```
+-logtype console   #Only send messages to the console
+-logtype file      #Only send messages to the logfile.
+                   #See Directory Structure for logfile name and location
+-logtype many      #Send messages to both the console and file
+```
 
 #### -verbose
 If omitted the default is False
-<pre>
-**example**
 
--verbose       #Causes the output of system calls to be logged according to the setting of -logtype<br>
-</pre>
+**example**
+```
+-verbose       #Causes the output of system calls to be logged according
+               #to the setting of -logtype
+```
 
 #### -poll [seconds]
 If omitted the default is 5 seconds.  This is the time between checking to see if am image needs to be captured.
@@ -221,63 +230,69 @@ If -seconds (see below) is less than -poll then poll is reduced to the value of 
 #### -host [ip address]
 If omitted the default is 0.0.0.0<br>
 Generally this can be left out (default) as it will allow connection to the http listener from localhost:<port> (locally) or from another machine with network access using <actual-ip-address-of-server-running-DuetLapse3><port>.
-<pre>
-**example**
 
--host 192.168.86.10      #Causes internal http listener (if active) to listen at ip address 192.168.86.10<br>
-</pre>
+**example**
+```
+-host 192.168.86.10      #Causes internal http listener (if active) to listen
+                         #at ip address 192.168.86.10
+```
 
 #### -port [port number]
 If omitted the default is 0 AND the internal http listener is NOT started.<br>
 Typical choices for port numbers will br greater than 8000.
 The selected port number MUST be different to one already in use.
 **The http listener is only start if a port number is specified**
-<pre>
-**example**
 
--port 8082      #Causes internal http listener to start and listen on port 8082<br>
-</pre>
+**example**
+```
+-port 8082      #Causes internal http listener to start and listen on port 8082
+```
 
 #### -standby
 If omitted the default is False<br>
 If the http listener is active (i.e. -port is specified) - this option will cause DuetLapse3 to wait for a start command from the http listener before capturing images.<br>
 It is useful for having DuetLapse running but not actually doing anything until commanded to do so.
-<pre>
-**example**
 
--stopcmd #Causes internal http listener to start and listen on port 8082<br>
-</pre>
+**example**
+```
+-standby #Causes internal http listener to start and listen on port 8082
+         #Will not start capturing
+```
 
 #### -dontwait
 If omitted - the default is False
-<pre>
-**example**
 
--dontwait    #Images will be captured immediately (without first waiting for a layer change or pause) if -seconds > 0.
-             #Otherise images will first start being captured on the first layer change or pause (see -detect).
-</pre>
+**example**
+```
+-dontwait    #Images will be captured immediately (without first waiting for a
+             # layer change or pause) if -seconds > 0.
+             #Otherise images will first start being captured on the first
+             #layer change or pause (see -detect).
+```
 
 *Note that if -pause yes is used with dontwait, the program will capture images (based on -seconds) before printing starts<br>
 But when printing starts. **It will pause and require a manual resume on the first layer**<br>* 
 
 #### -seconds [seconds]
 If omitted the default is 0 seconds (i.e. ignored). Can be any positive number.
-<pre>
-**example**
 
--seconds 10  #Images will be captures at least every 10 seconds<br>
-</pre>
+**example**
+```
+-seconds 10  #Images will be captures at least every 10 seconds
+```
 
 #### -detect [layer||pause||none]
 If omitted the default is layer.
-<pre>
-**example**
 
--detect layer     #Will capture an image on each layer change<br>
--detect pause     #Will capture an image if the printer is paused by the print gcode **M226**<br>
-                  #A manual pause is treated the same as one imbeded in the print gcode<br>
--detect none      #Will not capture an image other than as secified by -seconds<br>
-</pre>
+**example**
+```
+-detect layer     #Will capture an image on each layer change
+-detect pause     #Will capture an image if the printer is paused by the print gcode
+                  #**M226**
+                  #A manual pause is treated the same as one imbeded in the print gcode
+-detect none      #Will not capture an image other than as secified by -seconds
+```
+
 *Notes on the use of -detect pause*<br>
 When a pause is detected in the print gcode (supplied by an M226) an image will be captured and a resume print command issued.
 The head position during those pauses is can be controlled by the pause.g macro on the duet,
@@ -288,11 +303,12 @@ If both are specified pause.g will run first then -movehead will reposition the 
 #### -pause [yes||no]
 If omitted the default is no. If - pause yes the program will pause the printer when an image is captured.
 The print job can be manually paused / resumed in the normal manner.
-<pre>
-**example**
 
--pause yes      #Pause the printer each time an image is captured.<br>
-</pre>
+**example**
+```
+-pause yes      #Pause the printer each time an image is captured.
+```
+
 *Notes on the use of -pause yes*<br>
 DuetLapse3 will pause the printer each time an image is to be captured.
 The head position during those pauses can be controlled by the pause.g macro on the duet,
@@ -303,42 +319,46 @@ If both are specified pause.g will run first then -movehead will reposition the 
 #### -movehead [Xposition,Yposition]
 if omitted the head is not moved - equivalent to -movehead 0,0.  Specifies a position to move the head to before capturing an image.
 Valid positions must be greater then 0.0 and less than the maximum allowed by your printer
-<pre>
-**example**
 
--movehead 10,5    #Will move the head to X=10, Y=5 before capturing an image<br>
-</pre>
+**example**
+```
+-movehead 10,5    #Will move the head to X=10, Y=5 before capturing an image
+```
 
 #### -extratime [second]
 If omitted the default is 0.  When creating the video - extends the duration of the last frame by the specified number of seconds.<br>
 To use - requires ffmpeg at version 4.2+
-<pre>
-**example**
 
--extratime 10     #Makes the last frame captured 10 seconds long<br>
-</pre>
+**example**
+```
+-extratime 10     #Makes the last frame captured 10 seconds long
+```
+
 *Notes on the use of - extratime*
 Applies to the last frame captured.  So if, for example, your print job moves the Z axis at the end of the print.  The last frame would occur when the Z axis stops moving - not when the last layer is printed.
 
 #### -camera1 [usb||pi||web||stream||other]
 If omitted the default is usb. Determines how images are captured.
-<pre>
-**example**
 
--camera1 usb      #Uses the camera associated with fswebcam<br>
--camera1 pi       #Uses the camera associated with the rasberry pi camera's standard installation<br>
--camera1 web      #Uses wget to capture images from a camera that provides still jpeg<br>
--camera1 stream   #Uses ffmpeg to capture images from a video feed<br>
--camera1 other    #Can only be used in conjunction with -camparam1 (see below)<br>
-</pre>
+**example**
+```
+-camera1 usb      #Uses the camera associated with fswebcam
+-camera1 pi       #Uses the camera associated with the rasberry pi
+                  #camera's standard installation
+-camera1 web      #Uses wget to capture images from a camera that
+                  #provides still jpeg
+-camera1 stream   #Uses ffmpeg to capture images from a video feed
+-camera1 other    #Can only be used in conjunction with -camparam1
+                  #(see below)
+```
 
 #### -weburl1 [url]
 If omitted it has no value. url specifies the location to capture images for camera1. Only used for -camera1 of types web, stream, or other
-<pre>
-**example**
 
+**example**
+```
 -weburl http://192.168.86.10/stream.mpeg  #capture images from this location
-</pre>
+```
 
 #### -camera2 [usb||pi||web||stream||other]
 If omitted has no default (unlike camera1). Has the same parameters as -camera1
@@ -350,10 +370,12 @@ Has the same parameters as -weburl2
 If omitted has no default. Used in conjunction with -camera1 to define how the images will be captured.<br>
 **Note the use of the = and quoting of the command string.** Single quotes should be used in the command string when needed.<br>
 There are 3 internal variables that can be used weburl (which has the value of weburl1), fn (which is the file for the captured images) , debug (which controls verbose logging)
-<pre>
+
 **example**
--camparam1="'ffmpeg -y -i '+weburl+ ' -vframes 1 ' +fn+debug"<br>
-</pre>
+```
+-camparam1="'ffmpeg -y -i '+weburl+ ' -vframes 1 ' +fn+debug"
+```
+
 This example is the same as if -camera1 stream was used. The value of weburl1 would be substituted for weburl and the output goes the the file specification fn. the results are verbose of not is defermined by the internal variable debug.  In general both fn and debug should be used.  The use of weburl would depend on the capture method being used.
 
 *Notes on the use of -camparam1*<br>
@@ -375,11 +397,13 @@ The following are the standard commands for reference
 If omitted has no default. Defines an alternate video capture command.  If provided - is used instead of the standard capture command.
 **Note the use of the = and quoting of the command string.**  Single quotes should be used in the command string when needed.<br>
 There are 3 internal variables that can be used basedir (has the same meaning as -basedir), cameraname (is the literal "Camera1"), extratime (is the value of -extratime), fn (which is the output file for -camera1) , debug (which controls verbose logging)
-<pre>
+
 **example**
 
--vidparam1="'ffmpeg -r 1 -i '+basedir+'/'+duetname+'/tmp/'+cameraname+'-%08d.jpeg -c:v libx264 -vf tpad=stop_mode=clone:stop_duration='+extratime+',fps=10 '+fn+debug"<br>
-</pre>
+```
+-vidparam1="'ffmpeg -r 1 -i '+basedir+'/'+duetname+'/tmp/'+cameraname+'-%08d.jpeg -c:v libx264 -vf tpad=stop_mode=clone:stop_duration='+extratime+',fps=10 '+fn+debug"
+```
+
 This example is the same as the standard video creation.
 
 #### -camparam2 and -vidparam2
