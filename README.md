@@ -7,7 +7,7 @@ https://github.com/DanalEstes/DuetLapse
 The modifications include:
 
 ###Version 3.0.0###
-- [1]  Removal of dependency on DuetWebAPI.py (by Danal Estes).  DuetLapse3.py is a standalone Python3 script.
+- [1]  Removal of dependency on DuetWebAPI.py (by Danal Estes).  DuetLapse3.py is a standalone Python3 program.
 - [2]  Added support for 2 cameras
 - [3]  Reorganized Directory Structure to allow logical separation of files (by printer)
 - [4]  Added configurable base directory 
@@ -102,7 +102,7 @@ Feedback via issues on Duet forum https://forum.duet3d.com/topic/20932/duetlapse
 * To use -extratime: ffmpeg version newer than 4.2 (this may need to be compiled if your system has an older version as standard)
   The following instructions may help https://github.com/stuartofmt/DuetLapse3/blob/main/ffmpeg.md
 * If not using -extratime ffmpeg version 4.1.6
-* Python dependencies that are missing will be called out by the script
+* Python dependencies that are missing will be called out by the program
 * Duet printer must be reachable via network
 * Depending on camera type, one or more of the following may be required:
   * fswebcam (for USB cameras)
@@ -124,10 +124,10 @@ Take note of editing the path variable(s) so that python3 and it's /libraries/mo
   
 ## Usage
 
-The python script can be started from the command line or, more usually, from a bash or similar script.  Although there are defaults for many of the options - it's unlikely that the script will do exactly what you want with just the defaults.
-The script will usually be started just before you starting a printing - but this is not critical.  Depending on options (e.g. dontwait) it will either immediately start creating still images or wait until the printer changes status from "Idle" to "Processing".<br>
-At the end of the print job the script combines the still images into a mp4 video to create the time lapse.<br>
-If the script is run in foreground it can be stopped (before the print job completes) using CTRL+C (on linux) or CTRL+Break(on Windows).  If the script is run in background it can be stopped using SIGINT (kill -2 <pid> in linux).  The example bash script here https://github.com/stuartofmt/DuetLapse3/blob/main/timelapse  gives examples for starting and stopping the program on a Linux system.
+The python program can be started from the command line or, more usually, from the companion program startDuetLapse3.  Although there are defaults for many of the options - it's unlikely that the program will do exactly what you want with just the defaults.
+The program will usually be started just before you starting a printing - but this is not critical.  Depending on options (e.g. dontwait) it will either immediately start creating still images or wait until the printer changes status from "Idle" to "Processing".<br>
+At the end of the print job the program combines the still images into a mp4 video to create the time lapse.<br>
+If the program is run in foreground it can be stopped (before the print job completes) using CTRL+C (on linux) or CTRL+Break(on Windows).  If the program is run in background it can be stopped using SIGINT (kill -2 <pid> in linux).
  
 An **Integrated http listener** is available for basic control of DuetLapse3 (not the attached printer).<br>
 The http listener is activated by specifying a port number using the -port option.<br>
@@ -470,8 +470,8 @@ To provide cross platorm compatibility, colons are replaced by raised colons (mo
  
 ## Usage Examples
 
-Many options can be combined.  For example, the script can trigger on both "seconds" and "detect layer". It will inform you if you select conflicting options.
-Note that these examples are from the command line.  If running from a script (or to avoid issues closing the console) adding a **&** at the end (in linux) will run the script in background.
+Many options can be combined.  For example, the program can trigger on both "seconds" and "detect layer". It will inform you if you select conflicting options.
+Note that these examples are from the command line.  If running from a program (or to avoid issues closing the console) adding a **&** at the end (in linux) will run the program in background.
 
 Example: Capture an image every 20 seconds, do not respond to layer changes or pauses, use a webcam at the specified url:
 ```
