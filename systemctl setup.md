@@ -20,7 +20,7 @@ Edit the example file paying particular attention to the following:
 ```
 WorkingDir=/home/pi/Lapse
 ```
-This needs to be the directory in which you have DuetLapse3.py installed.  If you are using startDuetLapse3.py it will be in the same directory as DuetLapse3. 
+This needs to be the directory in which you have DuetLapse3.py installed **BUT** with fully qualified filenames.  If you are using startDuetLapse3.py it will be in the same directory as DuetLapse3. 
 ```
 User=pi
 ```

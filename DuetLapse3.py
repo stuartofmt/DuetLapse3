@@ -21,8 +21,7 @@
 #
 #
 """
-global duetLapse3Version
-duetLapse3Version = '3.4.3 Draft'
+
 import subprocess
 import sys
 import platform
@@ -34,9 +33,12 @@ import os
 import socket
 import threading
 import psutil
+import shutil
+import pathlib
 
+duetLapse3Version = '3.4.3'
 
-def setStartValues():
+def setstartvalues():
     global zo1, zo2, printState, capturing, duetStatus, timePriorPhoto1, timePriorPhoto2, frame1, frame2
     zo1 = -1  # Starting layer for Camera1
     zo2 = -1  # Starting layer for Camera2
@@ -75,7 +77,7 @@ def whitelist(parser):
     parser.add_argument('-keeplogs', action='store_true', help='Does not delete logs.')
     parser.add_argument('-novideo', action='store_true', help='Does not create a video.')
     parser.add_argument('-deletepics', action='store_true', help='Deletes images on Terminate')
-    parser.add_argument('-maxffmpeg', type=int, nargs=1, default=[2],help='Max instances of ffmpeg during video creation. Default = 2')
+    parser.add_argument('-maxffmpeg', type=int, nargs=1, default=[2], help='Max instances of ffmpeg during video creation. Default = 2')
     parser.add_argument('-keepfiles', action='store_true', help='Dont delete files on startup or shutdown')
     # Execution
     parser.add_argument('-dontwait', action='store_true', help='Capture images immediately.')
@@ -535,6 +537,85 @@ End of init()
 ##  Utility Functions
 #####################################################
 
+def make_archive(source, destination):
+    base = os.path.basename(destination)
+    format = pathlib.Path(destination).suffix
+    name = destination.replace(format,'')
+    format = format.replace('.','')
+    archive_from = os.path.dirname(source)
+    archive_to = os.path.basename(source.strip(os.sep))
+    try:
+        shutil.make_archive(name, format, archive_from, archive_to)
+        shutil.move('%s.%s' % (name, format), destination)
+        msg = ('Zip processing completed')
+    except Exception as msg1:
+        msg = 'Error: There was a problem creating the zip file --'
+        msg = msg + str(msg1)
+    return msg
+
+def createVideo(directory):
+    # loop through directory count # files and detect if Camera1 / Camera2
+    msg = ''
+    ffmpegquiet = ' -loglevel quiet'
+    if not win:
+        debug = ' > /dev/null 2>&1'
+    else:
+        debug = ' > nul 2>&1'
+
+    try:
+        list = os.listdir(directory)
+    except OSError:
+        msg = 'Error: No permission or directory not found'
+        return msg
+
+    cam1 = False
+    cam2 = False
+    frame = 0
+    Cameras = []
+    for name in list:
+        if not cam1:
+            if 'Camera1' in name:
+                cam1 = True
+                Cameras.append('Camera1')
+        elif not cam2:
+            if 'camera2' in name:
+                cam2 = True
+                Cameras.append('Camera2')
+        frame += 1
+
+    for cameraname in Cameras:
+        if frame < 10:
+            msg = 'Error: ' + cameraname + ': Cannot create video with only ' + str(frame) + ' frames.  Minimum required is 10'
+            return msg
+
+        print(cameraname + ': now making ' + str(frame) + ' frames into a video')
+        if 250 < frame:
+            print("This can take a while...")
+
+        timestamp = time.strftime('%a-%H-%M', time.localtime())
+
+        fn = ' "' + directory + '_' + cameraname + '_' + timestamp + '.mp4"'
+
+        if win:
+            cmd = 'ffmpeg' + ffmpegquiet + ' -r 10 -i "' + directory + '\\' + cameraname + '_%08d.jpeg" -vcodec libx264 -y ' + fn + debug
+        else:
+            cmd = 'ffmpeg' + ffmpegquiet + ' -r 10 -i "' + directory + '/' + cameraname + '_%08d.jpeg" -vcodec libx264 -y ' + fn + debug
+
+        while True:
+            if ffmpeg_available():
+                try:
+                    subprocess.call(cmd, shell=True)
+                except:
+                    msg = ('!!!!!!!!!!!  There was a problem creating the video for '+cameraname+' !!!!!!!!!!!!!!!')
+                break
+            time.sleep(10)  # wait a while before trying again
+
+        print('Video processing complete for ' + cameraname)
+        print('Video is in file ' + fn)
+        msg = 'Video(s) successfully created'
+    return msg
+
+
 def tpad_supported():
     if win:
         cmd = 'ffmpeg -filters | findstr "tpad"'
@@ -921,12 +1002,17 @@ def postProcess(cameraname, camera, weburl, camparam, vidparam):
 ##############  Duet API access Functions
 #############################################################################
 
-def urlCall(url, timelimit):
+def urlCall(url, timelimit, post):
     loop = 0
     limit = 2  # Started at 2 - seems good enough to catch transients
     while loop < limit:
         try:
-            r = requests.get(url, timeout=timelimit)
+            if post == False:
+                r = requests.get(url, timeout=timelimit)
+            else:
+                postobj = {'gcode':post}
+                r = requests.post(url, data=postobj)
+
             break
         except requests.ConnectionError as e:
             logger.info('')
@@ -964,27 +1050,27 @@ def getDuetVersion():
     try:
         model = 'rr_model'
         URL = ('http://' + duet + '/rr_model?key=boards')
-        r = urlCall(URL, 5)
+        r = urlCall(URL, 5, False)
         j = json.loads(r.text)
         version = j['result'][0]['firmwareVersion']
-        return 'rr_model', version;
+        return 'rr_model', version
     except:
         try:
             model = '/machine/system'
             URL = ('http://' + duet + '/machine/status')
-            r = urlCall(URL, 5)
+            r = urlCall(URL, 5, False)
             j = json.loads(r.text)
             version = j['boards'][0]['firmwareVersion']
-            return 'SBC', version;
+            return 'SBC', version
         except:
-            return 'none', '0';
+            return 'none', '0'
 
 
 def getDuetJobname(model):
     # Used to get the print jobname from Duet
     if model == 'rr_model':
         URL = ('http://' + duet + '/rr_model?key=job.file.fileName')
-        r = urlCall(URL, 5)
+        r = urlCall(URL, 5, False)
         if r.ok:
             try:
                 j = json.loads(r.text)
@@ -996,7 +1082,7 @@ def getDuetJobname(model):
                 pass
     else:
         URL = ('http://' + duet + '/machine/status/')
-        r = urlCall(URL, 5)
+        r = urlCall(URL, 5, False)
         if r.ok:
             try:
                 j = json.loads(r.text)
@@ -1014,7 +1100,7 @@ def getDuetStatus(model):
     # Used to get the status information from Duet
     if model == 'rr_model':
         URL = ('http://' + duet + '/rr_model?key=state.status')
-        r = urlCall(URL, 5)
+        r = urlCall(URL, 5, False)
         if r.ok:
             try:
                 j = json.loads(r.text)
@@ -1024,7 +1110,7 @@ def getDuetStatus(model):
                 pass
     else:
         URL = ('http://' + duet + '/machine/status/')
-        r = urlCall(URL, 5)
+        r = urlCall(URL, 5, False)
         if r.ok:
             try:
                 j = json.loads(r.text)
@@ -1040,7 +1126,7 @@ def getDuetLayer(model):
     # Used to get the status information from Duet
     if model == 'rr_model':
         URL = ('http://' + duet + '/rr_model?key=job.layer')
-        r = urlCall(URL, 5)
+        r = urlCall(URL, 5, False)
         if r.ok:
             try:
                 j = json.loads(r.text)
@@ -1052,7 +1138,7 @@ def getDuetLayer(model):
                 pass
     else:
         URL = ('http://' + duet + '/machine/status/')
-        r = urlCall(URL, 5)
+        r = urlCall(URL, 5, False)
         if r.ok:
             try:
                 j = json.loads(r.text)
@@ -1070,47 +1156,47 @@ def getDuetPosition(model):
     # Used to get the current head position from Duet
     if model == 'rr_model':
         URL = ('http://' + duet + '/rr_model?key=move.axes')
-        r = urlCall(URL, 5)
+        r = urlCall(URL, 5, False)
         if r.ok:
             try:
                 j = json.loads(r.text)
                 Xpos = j['result'][0]['machinePosition']
                 Ypos = j['result'][1]['machinePosition']
                 Zpos = j['result'][2]['machinePosition']
-                return Xpos, Ypos, Zpos;
+                return Xpos, Ypos, Zpos
             except:
                 pass
     else:
         URL = ('http://' + duet + '/machine/status')
-        r = urlCall(URL, 5)
+        r = urlCall(URL, 5, False)
         if r.ok:
             try:
                 j = json.loads(r.text)
                 Xpos = j['move']['axes'][0]['machinePosition']
                 Ypos = j['move']['axes'][1]['machinePosition']
                 Zpos = j['move']['axes'][2]['machinePosition']
-                return Xpos, Ypos, Zpos;
+                return Xpos, Ypos, Zpos
             except:
                 pass
 
     logger.info('getDuetPosition failed.  Code: ' + str(r.status_code) + ' Reason: ' + str(r.reason))
     logger.info('Returning coordinates as -1, -1, -1')
-    return -1, -1, -1;
+    return -1, -1, -1
 
 
 def sendDuetGcode(model, command):
     # Used to get the status information from Duet
     if model == 'rr_model':
-        URL = ('http://' + duet + '/rr_gcode?gcode=' + command)
-        r = urlCall(URL, 5)
+        URL = 'http://' + duet + '/rr_gcode?gcode=' + command
+        r = urlCall(URL, 5, False)
     else:
-        URL = ('http://' + duet + '/machine/code')
-        r = urlCall(URL, 5)
+        URL = 'http://' + duet + '/machine/code'  #Not verified by sbc user POST command needed ?
+        r = urlCall(URL, 5, command)
 
     if r.ok:
         return
 
-    logger.info('sendDuetGCode failed with code: ' + str(r.status_code) + 'and reason: ' + str(r.reason))
+    logger.info('sendDuetGCode failed with code: ' + str(r.status_code) + ' and reason: ' + str(r.reason))
     return
 
 
@@ -1121,7 +1207,7 @@ def makeVideo():
 
 
 def terminate():
-    global httpListener, listener
+    global httpListener, listener, nextactionthread, httpthread
     cleanupFiles('terminate')
     # close the nextaction thread if necessary.  nextAction will have close the capturethread
     try:
@@ -1146,7 +1232,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import urllib
 from urllib.parse import urlparse, parse_qs
 import html
-import io
+#import io
 
 
 class MyHandler(SimpleHTTPRequestHandler):
@@ -1232,7 +1318,7 @@ class MyHandler(SimpleHTTPRequestHandler):
         txt.append('</div>')
         startbutton = ''.join(txt)
 
-        txt =[]
+        txt = []
         txt.append('<div class="divider">')
         txt.append('<form action="http://' + referer + '">')
         txt.append('<input type="hidden" name="command" value="standby" />')
@@ -1241,7 +1327,7 @@ class MyHandler(SimpleHTTPRequestHandler):
         txt.append('</div>')
         standbybutton = ''.join(txt)
 
-        txt =[]
+        txt = []
         txt.append('<div class="divider">')
         txt.append('<form action="http://' + referer + '">')
         txt.append('<input type="hidden" name="command" value="pause" />')
@@ -1250,7 +1336,7 @@ class MyHandler(SimpleHTTPRequestHandler):
         txt.append('</div>')
         pausebutton = ''.join(txt)
 
-        txt =[]
+        txt = []
         txt.append('<div class="divider">')
         txt.append('<form action="http://' + referer + '">')
         txt.append('<input type="hidden" name="command" value="continue" />')
@@ -1268,7 +1354,7 @@ class MyHandler(SimpleHTTPRequestHandler):
         txt.append('</div>')
         snapshotbutton = ''.join(txt)
 
-        txt =[]
+        txt = []
         txt.append('<div class="divider">')
         txt.append('<form action="http://' + referer + '">')
         txt.append('<input type="hidden" name="command" value="restart" />')
@@ -1277,7 +1363,7 @@ class MyHandler(SimpleHTTPRequestHandler):
         txt.append('</div>')
         restartbutton = ''.join(txt)
 
-        txt =[]
+        txt = []
         txt.append('<div class="divider">')
         txt.append('<form action="http://' + referer + '">')
         txt.append('<input type="hidden" name="terminate" value='' />')
@@ -1314,7 +1400,7 @@ class MyHandler(SimpleHTTPRequestHandler):
         shutdownbutton = ''.join(txt)
         """
 
-        txt =[]
+        txt = []
         txt.append('<style type="text/css">')
         txt.append('{')
         txt.append('position:relative;')
@@ -1342,17 +1428,17 @@ class MyHandler(SimpleHTTPRequestHandler):
         buttons = statusbutton+startbutton+standbybutton+pausebutton+continuebutton
         buttons = buttons+snapshotbutton+filesbutton+infobutton+restartbutton+terminatebutton+buttonstyle
 
-        return info, status, buttons;
+        return info, status, buttons
 
     def do_GET(self):
         global referer, refererip
-        referer = self.headers['Host'] #Should always be there
-        if not referer: #Lets try authority
+        referer = self.headers['Host']  # Should always be there
+        if not referer:  # Lets try authority
             referer = self.headers['authority']
             if not referer:
-                referer = 'localhost'  #Best guess if all else fails
+                referer = 'localhost'  # Best guess if all else fails
         split_referer = referer.split(":", 1)
-        refererip = split_referer[0]  #just interested in the calling address as we know our port number
+        refererip = split_referer[0]  # just interested in the calling address as we know our port number
         # Update main content
         info, status, buttons = self.update_content()
 
@@ -1367,7 +1453,7 @@ class MyHandler(SimpleHTTPRequestHandler):
                 not query_components and self.path != '/'):
             selectMessage = self.display_dir(self.path)
 
-        if (query_components.get('delete')):
+        if query_components.get('delete'):
             file = query_components['delete'][0]
             filepath, _ = os.path.split(file)
             filepath = filepath + '/'
@@ -1390,7 +1476,7 @@ class MyHandler(SimpleHTTPRequestHandler):
 
             selectMessage = self.display_dir(filepath)
 
-        if (query_components.get('zip')):
+        if query_components.get('zip'):
             file = query_components['zip'][0]
             filepath, _ = os.path.split(file)
             filepath = filepath + '/'
@@ -1401,10 +1487,10 @@ class MyHandler(SimpleHTTPRequestHandler):
                 file = file.replace('/', '\\')
                 zipedfile = zipedfile.replace('/', '\\')
 
-            #threading.Thread(target=make_archive, args=(file, zipedfile,)).start()
+            # threading.Thread(target=make_archive, args=(file, zipedfile,)).start()
             result = make_archive(file, zipedfile)
             selectMessage = '<h3>' + result + '<br></h3>' + self.display_dir(filepath)
-            #selectMessage = self.display_dir(filepath)
+            # selectMessage = self.display_dir(filepath)
 
         if (query_components.get('video')):
             file = query_components['video'][0]
@@ -1415,15 +1501,15 @@ class MyHandler(SimpleHTTPRequestHandler):
             if win:
                 file = file.replace('/', '\\')
 
-            #threading.Thread(target=createVideo, args=(file,)).start()
+            # threading.Thread(target=createVideo, args=(file,)).start()
             result = createVideo(file)
 
             selectMessage = '<h3>'+result+'<br></h3>'+self.display_dir(filepath)
 
-        if query_components.get('terminate'):  #This form is only called from the UI - see also command=terminate
-            type = query_components['terminate'][0]
+        if query_components.get('terminate'):  # This form is only called from the UI - see also command=terminate
+            terminatetype = query_components['terminate'][0]
             logger.info('Terminate Called from UI')
-            selectMessage = self.terminate_process(type)
+            selectMessage = self.terminate_process(terminatetype)
             """
             unwanted = {'snapshot', 'restart'}  # can send terminate second time - had some "hangs"
             allowed = [e for e in options if e not in unwanted]
@@ -1443,7 +1529,7 @@ class MyHandler(SimpleHTTPRequestHandler):
 
             if command == 'status':  # all other command requests are redirected here
                 self._set_headers()
-                if selectMessage == None:
+                if selectMessage is None:
                     selectMessage = refreshing
                 self.wfile.write(self._refresh(status + buttons + selectMessage))
                 selectMessage = refreshing
@@ -1547,9 +1633,10 @@ class MyHandler(SimpleHTTPRequestHandler):
         new_url = 'http://' + referer + '/?command=status'
         self.redirect_url(new_url)
         return
-        """
-        End of do_Get
-        """
+
+    """
+    End of do_Get
+    """
 
     def log_request(self, code=None, size=None):
         pass
@@ -1811,7 +1898,7 @@ def createHttpListener():
 ###################################
 
 def captureLoop():  # Run as a thread
-    global capturing, printState, duetStatus
+    global capturing, printState, duetStatus, nextactionthread
     capturing = True
     disconnected = 0
     printState = 'Not Capturing'
@@ -1877,8 +1964,7 @@ def captureLoop():  # Run as a thread
 
 
 def nextAction(nextaction):  # can be run as a thread
-    global action, capturethread, capturing
-    global options
+    global action, capturethread, capturing, options
     action = nextaction  # default
     # All nextactions assume the capturethread is shutdown
     try:
@@ -1901,7 +1987,7 @@ def nextAction(nextaction):  # can be run as a thread
         capturing = True
     elif nextaction == 'standby':
         cleanupFiles(nextaction)  # clean up and start again
-        setStartValues()
+        setstartvalues()
     if nextaction == 'pause':
         pass
     elif nextaction == 'continue':
@@ -1912,7 +1998,7 @@ def nextAction(nextaction):  # can be run as a thread
     elif nextaction == 'restart':
         makeVideo()
         cleanupFiles(nextaction)  # clean up and start again
-        setStartValues()
+        setstartvalues()
         startNow()
         if action == 'start':
             capturing = True  # what we do here is the same as the original start action
@@ -1969,6 +2055,7 @@ def startMessages():
 
 
 def startHttpListener(host, port):
+    global httpthread
     sock = socket.socket()
     if (host == '0.0.0.0') and win:  # Windows does not report properly with 0.0.0.0
         portcheck = sock.connect_ex(('127.0.0.1', port))
@@ -1984,7 +2071,6 @@ def startHttpListener(host, port):
 
     # import threading
     httpthread = threading.Thread(target=createHttpListener, args=()).start()
-    # httpthread.start()
     logger.info('')
     logger.info('##########################################################')
     logger.info('***** Started http listener *****')
@@ -2004,7 +2090,7 @@ if __name__ == "__main__":  # Do not run anything below if the file is imported 
     pid = ''  # pid for this instance - used for temp filenames
     workingdir_exists = False
 
-    setStartValues()  # Default startup global values
+    setstartvalues()  # Default startup global values
 
     init()
 

@@ -7,8 +7,8 @@ Simple HTTP server for starting and stopping DuetLapse3
 #
 # Developed on WSL with Debian Buster. Tested on Raspberry pi, Windows 10 and WSL. SHOULD work on most other linux distributions. 
 """
-global startDuetLapse3Version
-startDuetLapse3Version = '3.4.2'
+##  global startDuetLapse3Version
+startDuetLapse3Version = '3.4.3'
 import argparse
 import os
 import sys
@@ -20,8 +20,8 @@ from DuetLapse3 import whitelist, checkInstances
 import socket
 import time
 import platform
-import urllib
-import html
+## import urllib
+## import html
 import requests
 import shutil
 
@@ -90,7 +90,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import urllib
 from urllib.parse import urlparse, parse_qs
 import html
-import io
+## import io
 import pathlib
 
 
@@ -215,7 +215,8 @@ class MyHandler(SimpleHTTPRequestHandler):
 
         buttons = statusbutton + startbutton + terminatebutton + filesbutton + shutdownbutton + buttonstyle
 
-        return header, status, buttons;
+        return header, status, buttons
+
 
     def do_GET(self):
         options = 'status, start, terminate'
@@ -309,22 +310,7 @@ class MyHandler(SimpleHTTPRequestHandler):
             header, status, buttons = self.update_content()
 
             command = query_components['command'][0]
-            """        
-            if(query_components.get('nohup')):
-                nohup = query_components['nohup'][0]
-            else:
-                nohup = ''
-                
-            if (nohup != 'yes'):  #normalize
-                nohup = ''
-                
-            if(query_components.get('pids')):
-                pids = query_components['pids'][0]
-            else:
-                pids = ''                
-            
-            #self.main()
-            """
+
             if (command == 'status'):
                 self._set_headers()
                 if selectMessage == None:
@@ -351,9 +337,9 @@ class MyHandler(SimpleHTTPRequestHandler):
         new_url = 'http://' + referer + '/?command=status'
         self.redirect_url(new_url)
         return
-        """
-        End of do_Get
-        """
+        ##
+        ##  End of do_Get
+        ##
 
     def log_request(self, code=None, size=None):
         pass
@@ -398,17 +384,17 @@ class MyHandler(SimpleHTTPRequestHandler):
 
         if (args != ''):
             if win:
-                if (nohup == 'yes'):
+                if nohup == 'yes':
                     cmd = 'pythonw DuetLapse3.py ' + args
                 else:
                     cmd = 'python3 DuetLapse3.py ' + args
             else:  # Linux
-                if (nohup == 'yes'):
+                if nohup == 'yes':
                     cmd = 'nohup python3 ./DuetLapse3.py ' + args + ' &'
                 else:
                     cmd = 'python3 ./DuetLapse3.py ' + args + ' &'
 
-            subprocess.Popen(cmd, shell=True)  # run the program
+            subprocess.Popen(cmd, shell=True, start_new_session=True)  # run the program
             txt = []
             txt.append('<h3>')
             txt.append('Attempting to start DuetLapse3 with following options:<br>')
@@ -490,7 +476,9 @@ class MyHandler(SimpleHTTPRequestHandler):
         txt = []
         txt.append('<h1><pre>')
         txt.append('Shutting Down startDuetLapse3.<br>')
-        txt.append('Any instances of DuetLapse3 will continue to run')
+        txt.append('Any instances of DuetLapse3 will continue to run<br><br>')
+        txt.append('If you use systemctl to shutdown startDuetLapse3<br>')
+        txt.append('DuetLapse3 instances will be terminated as well')
         txt.append('</pre></h1>')
         selectMessage = ''.join(txt)
 
@@ -702,23 +690,24 @@ end of requesthandler
 
 def make_archive(source, destination):
     base = os.path.basename(destination)
-    name = base.split('.')[0]
-    format = base.split('.')[1]
+    format = pathlib.Path(destination).suffix
+    name = destination.replace(format,'')
+    format = format.replace('.','')
     archive_from = os.path.dirname(source)
     archive_to = os.path.basename(source.strip(os.sep))
     try:
         shutil.make_archive(name, format, archive_from, archive_to)
         shutil.move('%s.%s' % (name, format), destination)
         msg = ('Zip processing completed')
-    except:
-        msg = 'Error: There was a problem creating the zip file'
-
+    except Exception as msg1:
+        msg = 'Error: There was a problem creating the zip file --'
+        msg = msg + str(msg1)
     return msg
-
 
 
 def createVideo(directory):
     # loop through directory count # files and detect if Camera1 / Camera2
+    msg = ''
     ffmpegquiet = ' -loglevel quiet'
     if not win:
         debug = ' > /dev/null 2>&1'
@@ -742,7 +731,7 @@ def createVideo(directory):
                 Cameras.append('Camera1')
         elif not cam2:
             if 'camera2' in name:
-                cam2 = true
+                cam2 = True
                 Cameras.append('Camera2')
         frame += 1
 
@@ -838,9 +827,15 @@ def getThisInstance(thisinstancepid):
 def getRunningInstances(thisinstance, refererip):
     running = ''
     pidlist = []
+
     for p in psutil.process_iter():
-        if ((
-                'python3' in p.name() or 'pythonw' in p.name()) and not thisinstance in p.cmdline() and '-duet' in p.cmdline()):  # Check all other python3 instances
+
+        #if (('python3' in p.name() or 'pythonw' in p.name()) and not thisinstance in p.cmdline() and '-duet' in p.cmdline()):  # Check all other python3 instances
+        if 'python' in p.name():
+            #print(thisinstance)
+            cmdstring = ''.join(p.cmdline())
+            if not 'DuetLapse3.py' in cmdstring or 'startDuetLapse3.py' in cmdstring:
+                continue      # Only want DuetLapse3.py instances
             # Get the port if used else set it to zero
             cmdline = p.cmdline()
             try:
@@ -872,7 +867,7 @@ def getRunningInstances(thisinstance, refererip):
                                        '</pre>')
     else:
         running = 'None'
-    return running, pidlist;
+    return running, pidlist
 
 
 def shut_down():
@@ -881,7 +876,8 @@ def shut_down():
         httpthread.join(10)
     except:
         pass
-    os.kill(thisinstancepid, 9)
+    sys.exit(0)
+    #os.kill(thisinstancepid, 9)
 
 
 # Allows process running in background or foreground to be gracefully
