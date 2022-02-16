@@ -85,7 +85,7 @@ Provides the ability to generate time lapse videos from for Duet based 3D printe
 
 Designed and tested on Raspberry Pi but should work on other linux platform. Supports cameras via
 - [1] USB,
-- [2] Pi (ribbon cable)
+- [2] Pi (ribbon cable) **See notes on Pi Bullseye**
 - [3] Webcam delivering streaming video
 - [4] Webcam delivering still images
 
@@ -340,6 +340,7 @@ Applies to the last frame captured.  So if, for example, your print job moves th
 #### -camera1 [usb||pi||web||stream||other]
 If omitted the default is usb. Determines how images are captured.
 
+
 **example**
 ```
 -camera1 usb      #Uses the camera associated with fswebcam
@@ -351,13 +352,20 @@ If omitted the default is usb. Determines how images are captured.
 -camera1 other    #Can only be used in conjunction with -camparam1
                   #(see below)
 ```
+**Note: Pi Bullseye changed the camera libraries so DuetLapse3 will not run.<br>
+The current workaround is to use videostream https://github.com/stuartofmt/videostream <br>
+and instead use -camera other together with -camparam and -weburl  for example:<br>**
+```
+-weburl1 http://192.168.86.230:8081/stream -camera1 other -camparam1="'ffmpeg' +ffmpegquiet + ' -y -i ' +weburl+ ' -vframes 1 ' +fn+debug"
+````
+
 
 #### -weburl1 [url]
 If omitted it has no value. url specifies the location to capture images for camera1. Only used for -camera1 of types web, stream, or other
 
 **example**
 ```
--weburl http://192.168.86.10/stream.mpeg  #capture images from this location
+-weburl http://192.168.86.10/stream  #capture images from this location
 ```
 
 #### -camera2 [usb||pi||web||stream||other]
