@@ -20,7 +20,7 @@ The modifications include:
 - [11] Generalized video creation with optional commands
 
 ###Version 3.0.3###
-- [1]  Added support for SBC ~~BUT cannot support -pause yes or -detect pause.  Will be added soon.~~
+- [1]  Added support for SBC.
 
 ###Version 3.0.4###
 - [1]  All functionality supported for SBC
