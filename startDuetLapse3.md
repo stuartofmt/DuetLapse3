@@ -4,7 +4,6 @@ This is am optional helper program for use with DuetLapse3.
 It provides a simple http interface for starting and terminating DuetLapse3 instances.
 
 
-
 ###Version 3.2.0###
 - [1]  Initial version.  Requires DuetLapse3 at version 3.2.0 or higher
 

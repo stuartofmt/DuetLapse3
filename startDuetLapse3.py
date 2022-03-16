@@ -81,6 +81,7 @@ def init():
     fps = str(args['fps'][0])
 
 
+
     # How much output
     if verbose:
         debug = ''
