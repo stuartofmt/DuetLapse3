@@ -1,12 +1,11 @@
 # DuetLapse3
  
-## This is a modified version of the original DuetLapse created by Danal Estes
-https://github.com/DanalEstes/DuetLapse
-## The core functionality is his work.
+#### This is a modified version of the original DuetLapse created by Danal Estes https://github.com/DanalEstes/DuetLapse
+#### The core functionality is his work.
 
 The modifications include:
 
-###Version 3.0.0###
+### Version 3.0.0
 - [1]  Removal of dependency on DuetWebAPI.py (by Danal Estes).  DuetLapse3.py is a standalone Python3 program.
 - [2]  Added support for 2 cameras
 - [3]  Reorganized Directory Structure to allow logical separation of files (by printer)
@@ -19,54 +18,54 @@ The modifications include:
 - [10] Generalized capture with Camera type "other" and arbitrary capture commands
 - [11] Generalized video creation with optional commands
 
-###Version 3.0.3###
+### Version 3.0.3
 - [1]  Added support for SBC.
 
-###Version 3.0.4###
+###Version 3.0.4
 - [1]  All functionality supported for SBC
 - [2]  More robust error handling
 - [3]  Improvements to pause logic and confirmation of printer head position during pause image capture.
 
-###Version 3.1.0###
+### Version 3.1.0
 - [1]  Added support for Windows
 - [2]  Added automatic detection of operating system (Linux or Windows)
 - [3]  Added integrated http listener for basic browser based control
 - [4]  Changed file naming convention to make filenames unique if multiple instances of DuetLapse3 are running.
 
-###Version 3.1.1###
+### Version 3.1.1
 - [1]  if -extratime not specified (default 0) will use ffmpeg syntax compatible with versions < 4.2 (4.1.6 tested)
 
-###Version 3.2.0###
+### Version 3.2.0
 - [1]  Adds the ability to work with startDuetLapse3.  See the description here:<br>
        https://github.com/stuartofmt/DuetLapse3/blob/main/startDuetLapse3.md<br>
        In summary startDuetLapse3 provides the ability to remotely start / stop DuetLapse3.<br>
 - [2]  Added checks to prevent startup with ports that are already in use.<br>
 - [3]   Changed the shutdown method to reduce low level 'noise' messages.<br>
-- [4]  Restructured to provide better efficiency. Typically less than 1% CPU when idle.<br>
+- [4]  Restructured to provide better efficiency. Typically, this is less than 1% CPU when idle.<br>
 - [5]  Fixed a bug that was introduced in the prior version (not detecting layer changes)<br>
 - [6]  Made further improvements to the handling of pauses.<br>
        There are some edge cases where a printer can get stuck in a paused state.<br>
        The documentation has been updated.  See especially -dontwait
        
-###Version 3.2.2###
+### Version 3.2.2
 - [1]  Added resilience to lost connectivity with Duet.  If disconnected the issue will be reported and attempts to reconnect will be made<br>
 - [2]  Made some cosmetic changes to the http responses.  Most now include the local time as part of the response.
 - [3]  The status page will automatically refresh every 60 seconds.  Other pages will show the last time they were invoked.
 
-###Version 3.2.3###<br>
+###Version 3.2.3
 - [1] Fixed some inconsistencies when running on Windows due to slightly different behavior of python3.
 
-###Version 3.3.0###<br>
+### Version 3.3.0
 - [1] Completely revised the UI when running the http listener.  The main change the addition of buttons to make navigation easier.
 
-###Version 3.4.0###<br>
+### Version 3.4.0
 - [1] Completely revised the directory and file-naming structure to facilitate many-to-many relationships between computers running DuetLapse3, Duet Printers and multiple instances of DuetLapse3.
-- [2] Changed how http terminate requests were handled for better cross platfom compatibility.
+- [2] Changed how http terminate requests were handled for better cross-platform compatibility.
 - [3] Added the ability to navigate the directory structure from a browser (new button).Also in startDuetLapse3.
 - [4] Added three new options: -keeplogs, -deletepics and -novideo
 - [5] Made some cosmetic changes to the html pages.
 
-###Version 3.4.1###
+### Version 3.4.1
 - [1] Changed the browser UI to a single page layout.
 - [2] The file function is restricted to the specific instance.
 - [3] File functions expanded to allow deletion of video files. startDuetLapse3 has more options.
@@ -74,30 +73,48 @@ The modifications include:
 - [5] An additional image is captured immediately before a video is created, independent of other settings.
 - [6] If the version of ffmpeg does not support -extratime it is ignored. 
 
-###Version 3.4.2###
+### Version 3.4.2
 - [1] Added a new options: -keepfiles to prevent file deletion on startup and shutdown(See also startDuetLapse3 improvements)
 - [2] Terminate (from the UI) now offers two options: Graceful and Forces.  Graceful is the same as in prior versions.  Forced does a quick shutdown with no image capture.
 - [3] Added an optional argument (-maxffmpeg) that limits the number of concurrent ffmpeg instances. Ffmpgeg can fail due to lack of resources - the default is 2 instances.
-      Note that this only applies to video creation.  Image capture, because it is transient, is not limited.
+      This only applies to video creation.  Image capture, because it is transient, is not limited.
+
+### Version 3.4.3 and 3.4.4
+- [1] Minor bug fixes
+
+### Version 3.5.0
+- [1]  Changed some system calls to allow for better error handling.
+- [2]  Fixed an issue with sending gcodes to SBC
+- [3]  Improved the handling of  -pause yes and - movehead
+- [4]  Added an optional argument -rest that delays image capture after a pause. This is because the camera feed can be delayed with respect to the actual head position.
+- [5]  Updated documentation with additional notes
+- [6]  Deprecated the use of -camera pi due to changes in Raspberry Pi (see notes in the section on -camera).
+- [7]  Added a new argument -nolog and deprecated -logtype.  Logging will always use the console unless the program is running in the background.
+- [8]  If -verbose is used, much more detail is created.  Should usually only be used for debugging.
+- [9]   Added new argument -fps.  Sets the default frames-per-seconds
+- [10]  Added the ability to change the default frames-per-second (fps) from the main menu.
+- [11]  Added a new argument -hidebuttons.  Hides menu buttons that are currently invalid. Otherwise, invalid buttons are greyed out.
+- [12]  General UI improvements.
+- [13]  After Snapshot, returns to the previous logical state either 'start' or 'pause' 
 
 ## General Description
-Provides the ability to generate time lapse videos from for Duet based 3D printers.
+Provides the ability to generate time-lapse videos from for Duet based 3D printers.
 
 Designed and tested on Raspberry Pi but should work on other linux platform. Supports cameras via
-- [1] USB,
-- [2] Pi (ribbon cable) **See notes on Pi Bullseye**
-- [3] Webcam delivering streaming video
-- [4] Webcam delivering still images
+- [1] USB
+- [2] Pi (ribbon cable)
+- [3] Webcam or software delivering streaming video
+- [4] Webcam or software delivering still images
 
 Produces a video with H.264 encoding in an MP4 container. 
 
-Captures images based on time, layer change, or pause.  Works with existing pauses in G-Code, or can force pauses at other trigger events. Optionally moves the print head to a specified position before capturing images.
+Capture images based on time, layer change, or pause.  Works with existing pauses in G-Code, or can force pauses at other trigger events. Optionally moves the print head to a specified position before capturing images.
 
 Feedback via issues on Duet forum https://forum.duet3d.com/topic/20932/duetlapse3
 
 ## Requirements 
 
-* Python3
+* Python3  V3.7 or greater
 * Duet printer must be RRF V3 or later (i.e. support either the  rr_model or /machine calls)
 * To use -extratime: ffmpeg version newer than 4.2 (this may need to be compiled if your system has an older version as standard)
   The following instructions may help https://github.com/stuartofmt/DuetLapse3/blob/main/ffmpeg.md
@@ -106,7 +123,7 @@ Feedback via issues on Duet forum https://forum.duet3d.com/topic/20932/duetlapse
 * Duet printer must be reachable via network
 * Depending on camera type, one or more of the following may be required:
   * fswebcam (for USB cameras)
-  * raspistill (for Pi cam or Ardu cam)
+  * raspistill or libcamera-still (for Pi cam or Ardu cam)
   * wget (for Web cameras)
 
 ## Installation
@@ -120,13 +137,13 @@ For windows<br>
 Follow the instructions from one of the web sources - for example:<br>
 https://docs.python.org/3/using/windows.html 
 
-Take note of editing the path variable(s) so that python3 and it's /libraries/modules can be found during execution.
+***Note:** Make sure to edit the path variable(s) so that python3 and /libraries/modules can be found.*
   
 ## Usage
 
 The python program can be started from the command line or, more usually, from the companion program startDuetLapse3.  Although there are defaults for many of the options - it's unlikely that the program will do exactly what you want with just the defaults.
 The program will usually be started just before you starting a printing - but this is not critical.  Depending on options (e.g. dontwait) it will either immediately start creating still images or wait until the printer changes status from "Idle" to "Processing".<br>
-At the end of the print job the program combines the still images into a mp4 video to create the time lapse.<br>
+At the end of the print job the program combines the still images into a mp4 video to create the time-lapse.<br>
 If the program is run in foreground it can be stopped (before the print job completes) using CTRL+C (on linux) or CTRL+Break(on Windows).  If the program is run in background it can be stopped using SIGINT (kill -2 <pid> in linux).
  
 An **Integrated http listener** is available for basic control of DuetLapse3 (not the attached printer).<br>
@@ -145,22 +162,23 @@ standby    - Stops (but does not terminate) DuetLapse3 recording
              and discards any images capture.  Waits for a start command.
 ----
 pause      - causes DuetLapse3 to temporarily stop capturing images.
-             Note that this does NOT pause the printer.
+             Note:  This does NOT pause the printer.*
 continue   - causes DuetLapse3 to resume capturing images.
 ----
-snapshot   - causes DuetLapse3 to make an interim video and then continue
+snapshot   - causes DuetLapse3 to make an interim video and then return to its previous state (start or pause).
 restart    - causes DuetLapse3 to stop capturing images, create a video
              and then restart with a new capture set
 terminate  - causes DuetLapse3 to stop capturing images, create a video and
              then terminate the program. This is the same as CTRL+C or SIGINT.<br>
-             Note that depending on your system - it may take several minutes
+             Note: Depending on your system - it may take several minutes
              for the http listener to completely shutdown following a terminate request.
 </pre>
 
-**Note that the http listener will stop responding if DuetLapse3 is run from a command console that is then closed.  This will happen even if started in background.  To avoid this - use nohup (linux) or pythonw (Windows)<br>
+***Note:*** *The http listener will stop responding if DuetLapse3 is run from a command console that is then closed.<br>
+This will happen even if started in background.  To avoid this - use nohup (linux) or pythonw (Windows)<br>
 An alternative if you are on Win10 is to use  Windows Subsystem for Linux (WSL) and run DuetLapse as a linux application inside WSL.<br>
-If running in nohup mode CTRL+C cannot be used so you need to send the terminate command (?command=terminate) from the http listener
-The same applies if running in Windows with pythonw**
+If running in nohup mode CTRL+C cannot be used so, you need to send the terminate command (?command=terminate) from the http listener
+The same applies if running in Windows with pythonw*
 
 ### Options
 
@@ -170,7 +188,7 @@ python3 DuetLapse3.py -h
 ```
 The response will give the version number at the top.
 
-The options are described here.  Each option is preceded by a dash -. Some options have parameters described in the square brackets (the square brackets are NOT used in entering the options. If an option is not specified the default used.
+The options are described here.  Each option is preceded by a dash -. Some options have parameters described in the square brackets. The square brackets are NOT used in entering the options. If an option is not specified the default used.
 
 #### -duet [ip address]
 
@@ -203,7 +221,7 @@ In most cases the default will be suitable.
 -instances many     #No restriction on the number of instances
 ```
 
-#### -logtype [console||file||both]
+#### -logtype [console||file||both]  -- DEPRECATED (see -nolog))
 If omitted - the default is both
 
 **example**
@@ -214,13 +232,24 @@ If omitted - the default is both
 -logtype many      #Send messages to both the console and file
 ```
 
-#### -verbose
-If omitted the default is False
+#### -nolog
+If omitted - the default is False
+Logging will always use the console.  A logfile will be created unless -nolog is used.
 
 **example**
 ```
--verbose       #Causes the output of system calls to be logged according
-               #to the setting of -logtype
+-nolog console   #Only send messages to the console
+```
+
+#### -verbose
+If omitted the default is False
+Causes the output of system calls and more detailed messages to be logged.
+Should usually only be used for debugging.
+
+**example**
+```
+-verbose       #Causes addidtional logging information 
+
 ```
 
 #### -poll [seconds]
@@ -265,13 +294,14 @@ If omitted - the default is False
 **example**
 ```
 -dontwait    #Images will be captured immediately (without first waiting for a
-             # layer change or pause) if -seconds > 0.
+             # layer change) if -seconds > 0.
              #Otherise images will first start being captured on the first
              #layer change or pause (see -detect).
+             # The -pause option is not used untill the first layer is printed
 ```
 
-*Note that if -pause yes is used with dontwait, the program will capture images (based on -seconds) before printing starts<br>
-But when printing starts. **It will pause and require a manual resume on the first layer**<br>* 
+***Note:** If -pause yes is used with dontwait, the program will capture images (based on -seconds) before printing starts.<br>
+Pauses and any -movehead repositions will NOT happen until after the first layer is complete. <br>* 
 
 #### -seconds [seconds]
 If omitted the default is 0 seconds (i.e. ignored). Can be any positive number.
@@ -280,6 +310,8 @@ If omitted the default is 0 seconds (i.e. ignored). Can be any positive number.
 ```
 -seconds 10  #Images will be captures at least every 10 seconds
 ```
+
+***Note:** If used with -pause be careful not to set -seconds too low.  Doing this can lead to a lot of non-printing head repositioning which can result in poor print quality.* 
 
 #### -detect [layer||pause||none]
 If omitted the default is layer.
@@ -293,12 +325,14 @@ If omitted the default is layer.
 -detect none      #Will not capture an image other than as secified by -seconds
 ```
 
-*Notes on the use of -detect pause*<br>
+***Notes on the use of -detect pause**<br>
 When a pause is detected in the print gcode (supplied by an M226) an image will be captured and a resume print command issued.
-The head position during those pauses is can be controlled by the pause.g macro on the duet,
-or by specifying "-movehead nnn nnn".<br>
-If both are specified pause.g will run first then -movehead will reposition the heads. **It is best not use both.**<br>
-**CANNOT be used at the same time as -pause yes (see below)**
+The head position during pauses is controlled by the pause.g macro on the duet,
+and "-movehead Xposition Yposition".<br>
+See the notes on pause.g in the section on -pause<br>*
+
+**-detect pause CANNOT be used at the same time as -pause yes**
+
 
 #### -pause [yes||no]
 If omitted the default is no. If - pause yes the program will pause the printer when an image is captured.
@@ -309,37 +343,67 @@ The print job can be manually paused / resumed in the normal manner.
 -pause yes      #Pause the printer each time an image is captured.
 ```
 
-*Notes on the use of -pause yes*<br>
+***Notes on the use of -pause yes<br>**
 DuetLapse3 will pause the printer each time an image is to be captured.
-The head position during those pauses can be controlled by the pause.g macro on the duet,
-or by specifying "-movehead nnn nnn".<br>
-If both are specified pause.g will run first then -movehead will reposition the heads. **It is best not use both.**<br>
-**CANNOT be used in conjunction with -detect pause (see above)**
+The head position during pauses is controlled by the pause.g macro on the duet,
+and by specifying "-movehead Xposition Yposition". If both are specified pause.g will run first then -movehead will reposition the heads. **You may want to edit pause.g to remove the head park gcode (see example below).**<br>
+If you use -detect layer as well, be careful with prints that have areas with quick layer changes as frequent pauses can cause poor print quality.<br>*
+
+Example pause.g
+```
+; pause.g
+; called when a print from SD card is paused
+;
+
+if state.currentTool != -1
+  M83				; relative extruder moves
+  G1 E-4 F2500		; retract 4mm
+G91					; relative moves
+G1 Z5 F5000			; raise nozzle 5mm
+G90					; absolute moves
+G1 F10000           ; just set the speed 
+;G1 X0 Y0            ; go to X=0 Y=0 or comment out if using -movehead
+```
+
+**-pause CANNOT be used in conjunction with -detect pause (see above)**
 
 #### -movehead [Xposition,Yposition]
 if omitted the head is not moved - equivalent to -movehead 0,0.  Specifies a position to move the head to before capturing an image.
-Valid positions must be greater then 0.0 and less than the maximum allowed by your printer
+Valid positions must be greater than 0.0 and less than the maximum allowed by your printer
 
 **example**
 ```
 -movehead 10,5    #Will move the head to X=10, Y=5 before capturing an image
 ```
 
+***Note:** The pause.g macro will run first then -movehead will reposition the heads. 
+After the image is captured resume.g is run<br>*
+**If you use -movehead, it is better if pause.g does not reposition the heads as well (see comments above).**<br>
+
+#### -rest [seconds]
+If omitted the default is 1 second. Can be 0 or any positive number.
+Delays image capture after a pause to allow for any latency (e.g. web camera) where the feed is delayed relative to the actual position of the print head. if -rest is too short, the print head may not appear to be stationary in the video.
+
+**example**
+```
+-rest 3  #Images will be captures 3 seconds after a pause
+```
+
 #### -extratime [second]
 If omitted the default is 0.  When creating the video - extends the duration of the last frame by the specified number of seconds.<br>
-To use - requires ffmpeg at version 4.2+
+If this option is not available in your version of ffmpeg it will be ignored.  Version 4.2+ of ffmpeg should support this feature, but it is not guaranteed.
 
 **example**
 ```
 -extratime 10     #Makes the last frame captured 10 seconds long
 ```
 
-*Notes on the use of - extratime*
-Applies to the last frame captured.  So if, for example, your print job moves the Z axis at the end of the print.  The last frame would occur when the Z axis stops moving - not when the last layer is printed.
+***Notes on the use of - extratime**<br>
+Applies to the last frame captured.  So if, for example, your print job moves the Z axis at the end of the print.  The last frame would occur when the Z axis stops moving - not when the last layer is printed.*
 
 #### -camera1 [usb||pi||web||stream||other]
 If omitted the default is usb. Determines how images are captured.
-
+**-camera pi is deprecated (see notes below)**
 
 **example**
 ```
@@ -352,13 +416,29 @@ If omitted the default is usb. Determines how images are captured.
 -camera1 other    #Can only be used in conjunction with -camparam1
                   #(see below)
 ```
-**Note: Pi Bullseye changed the camera libraries so DuetLapse3 will not run.<br>
-The current workaround is to use videostream https://github.com/stuartofmt/videostream <br>
-and instead use -camera other together with -camparam and -weburl  for example:<br>**
+
+***Note:** If you are using a Raspberry Pi camera there can be issues using -camera pi. The defaults for the Pi camera can lead to problems when creating the video.  This is because there may not be enough RAM (depends on your Pi model).<br>*
+
+*The recommended approach is to use videostream with the -size 2 option https://github.com/stuartofmt/videostream <br>
+Then use DuetLapse3 options -camera other together with -camparam and -weburl.  For example:<br>*
+
 ```
 -weburl1 http://192.168.86.230:8081/stream -camera1 other -camparam1="'ffmpeg' +ffmpegquiet + ' -y -i ' +weburl+ ' -vframes 1 ' +fn+debug"
-````
+```
 
+If you just want to use the pi camera directly, then the following is recommended:<br>
+
+For Raspberry pi earlier than the Bullseye release:
+
+```
+-camera1 other  -camparam1 "'raspistill -t 1 -w 1280 -h 720 -ex sports -mm matrix -n -o ' + fn + debug"
+```
+
+For Raspberry pi with Bullseye release (and later):
+
+```
+-camera1 other  -camparam1 "'libcamera-still -t 1 -w 1280 -h 720 -ex sports -mm matrix -n -o ' + fn + debug"
+```
 
 #### -weburl1 [url]
 If omitted it has no value. url specifies the location to capture images for camera1. Only used for -camera1 of types web, stream, or other
@@ -376,18 +456,20 @@ Has the same parameters as -weburl2
 
 #### -camparam1="[command]"
 If omitted has no default. Used in conjunction with -camera1 to define how the images will be captured.<br>
-**Note the use of the = and quoting of the command string.** Single quotes should be used in the command string when needed.<br>
-There are 3 internal variables that can be used weburl (which has the value of weburl1), fn (which is the file for the captured images) , debug (which controls verbose logging)
+
+***Note the use of the = and quoting of the command string.***
+*Single quotes should be used in the command string when needed.<br>
+There are 3 internal variables that can be used weburl (which has the value of weburl1), fn (which is the file for the captured images) , debug (which controls verbose logging)*
 
 **example**
 ```
 -camparam1="'ffmpeg -y -i '+weburl+ ' -vframes 1 ' +fn+debug"
 ```
 
-This example is the same as if -camera1 stream was used. The value of weburl1 would be substituted for weburl and the output goes the the file specification fn. the results are verbose of not is defermined by the internal variable debug.  In general both fn and debug should be used.  The use of weburl would depend on the capture method being used.
+This example is the same as if -camera1 stream was used. The value of weburl1 would be substituted for weburl and the output goes to the file specification fn. The results are verbose of not is determined by the internal variable debug.  In general both fn and debug should be used.  The use of weburl would depend on the capture method being used.
 
-*Notes on the use of -camparam1*<br>
-The following are the standard commands for reference
+***Notes on the use of -camparam1**<br>
+The following are the standard commands for reference.*
 
 -camera usb<br>
 'fswebcam --quiet --no-banner '+fn+debug
@@ -403,8 +485,9 @@ The following are the standard commands for reference
 
 #### -vidparam1="[command]"
 If omitted has no default. Defines an alternate video capture command.  If provided - is used instead of the standard capture command.
-**Note the use of the = and quoting of the command string.**  Single quotes should be used in the command string when needed.<br>
-There are 3 internal variables that can be used basedir (has the same meaning as -basedir), cameraname (is the literal "Camera1"), extratime (is the value of -extratime), fn (which is the output file for -camera1) , debug (which controls verbose logging)
+
+***Note the use of = and quoting of the command string.**  Single quotes should be used in the command string when needed.<br>
+There are 3 internal variables that can be used basedir (has the same meaning as -basedir), cameraname (is the literal "Camera1"), extratime (is the value of -extratime), fn (which is the output file for -camera1) , debug (which controls verbose logging)*
 
 **example**
 
@@ -435,7 +518,35 @@ If **-keepfiles** is used. When DuetLapse3 starts or terminates - no files are d
 
 #### -maxffmpeg
 If omitted the default is 2
-When DuetLapse3 tries to create a video it will limit the number of ffmpeg instances running to the specified number.  This can prevent ffmpeg failing because it cannot get resources (e.g. CPU / Memory)
+When DuetLapse3 tries to create a video it will fail if ffmpeg runs out of system resources (e.g. CPU / Memory).
+This option limits the number of concurrent ffmpeg instances.
+
+**example**
+```
+-maxffmpeg 5       #Allows up to 5 instances off ffmpeg to run concurrently
+
+```
+
+#### -fps
+If omitted the default is 10
+Sets the default frames-per-second when the snapshot button is used.
+
+**example**
+```
+-fps 20       #Causes videos to be created at 20 frames-per-second
+
+```
+
+#### -hidebuttons
+If omitted the default is False
+Hides menu buttons that are currently invalid - otherwise, invalid buttons are greyed out
+
+**example**
+```
+-hidebuttons       #Hides menu buttons that are currently invalid
+
+```
+
 
 ### Directory Structure
 The directory structure is (with repeating units [] as appropriate to your use-case)
@@ -471,15 +582,15 @@ The interpretation is:
 Starting from the basedir
 - [1] For each computer that DuetLapse3 is running on there will be a separate directory(computername).  Technically the computername will be the fully qualified domain name (FQDN).  In any case - each computer needs to (and in any case should) have a unique FQDN
 - [2] Underneath the computername directory  there will be a separate directory for each Duet that computer is connected to (duetip).   All videos for this computer and duet combination go into this directory as well as the respective  logfiles.
-- [3] Underneath the duetip directory will be temporary directories (processid_jobname).If the printjob has not started at that time - there will be no _jobname portion.  This handles the the situation where  multiple instances of DuetLapse3 are running on the same computer against the same Duet. This directory is created when the first image is captured.
+- [3] Underneath the duetip directory will be temporary directories (processid_jobname).If the printjob has not started at that time - there will be no _jobname portion.  This handles the situation where  multiple instances of DuetLapse3 are running on the same computer against the same Duet. This directory is created when the first image is captured.
 
-Note that the Videos and logfiles are prefixed by the processid.
-To provide cross platorm compatibility, colons are replaced by raised colons (more-or-less look the same).  Spaces in filenames are replaced by underscrore.  
+***Note:** that the Videos and logfiles are prefixed by the processid.
+To provide cross-platform compatibility, colons are replaced by raised colons (more-or-less look the same).  Spaces in filenames are replaced by underscrore.*  
  
 ## Usage Examples
 
 Many options can be combined.  For example, the program can trigger on both "seconds" and "detect layer". It will inform you if you select conflicting options.
-Note that these examples are from the command line.  If running from a program (or to avoid issues closing the console) adding a **&** at the end (in linux) will run the program in background.
+***Note:** that these examples are from the command line.  If running from a program (or to avoid issues closing the console) adding a **&** at the end (in linux) will run the program in background.*
 
 Example: Capture an image every 20 seconds, do not respond to layer changes or pauses, use a webcam at the specified url:
 ```

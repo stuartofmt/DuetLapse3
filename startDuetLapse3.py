@@ -7,8 +7,7 @@ Simple HTTP server for starting and stopping DuetLapse3
 #
 # Developed on WSL with Debian Buster. Tested on Raspberry pi, Windows 10 and WSL. SHOULD work on most other linux distributions. 
 """
-##  global startDuetLapse3Version
-startDuetLapse3Version = '3.4.3'
+
 import argparse
 import os
 import sys
@@ -16,20 +15,40 @@ import threading
 import subprocess
 import shlex
 import psutil
-from DuetLapse3 import whitelist, checkInstances
+from DuetLapse3 import whitelist, checkInstances, returncode
 import socket
 import time
 import platform
-## import urllib
-## import html
 import requests
 import shutil
+import signal
+
+#  global startDuetLapse3Version
+startDuetLapse3Version = '3.5.0'
 
 
 class whitelistParser(argparse.ArgumentParser):
     def exit(self, status=0, message=None):
         if status:
             raise ValueError(message)
+
+
+def runsubprocess(cmd):
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True, shell=True)
+        if str(result.stderr) != '':
+            logger.info('Command Failure: ' + str(cmd))
+            logger.debug(str(result.stderr))
+            return False
+        else:
+            logger.info('Command Success : ' + str(cmd))
+            if result.stdout != '':
+                logger.debug(str(result.stdout))
+            return True
+    except (subprocess.CalledProcessError, OSError) as e:
+        logger.info('Exception: ' + str(cmd))
+        logger.info(str(e))
+        return False
 
 
 def init():
@@ -44,38 +63,89 @@ def init():
                         help='Specify the port on which the server listens. Default = 0')
     parser.add_argument('-args', type=str, nargs=argparse.PARSER, default=[''], help='Arguments. Default = ""')
     parser.add_argument('-topdir', type=str, nargs=1, default=[''], help='default = This program directory')
-    parser.add_argument('-maxffmpeg', type=int, nargs=1, default=[2],help='Max instances of ffmpeg during video creation. Default = 2')
+    parser.add_argument('-maxffmpeg', type=int, nargs=1, default=[2], help='Max instances of ffmpeg during video creation. Default = 2')
+    parser.add_argument('-nolog', action='store_true', help='Do not create a log file')
+    parser.add_argument('-verbose', action='store_true', help='Detailed Logging')
+    parser.add_argument('-fps', type=int, nargs=1, default=[10], help='Frames-per-second for video. Default = 10')
     args = vars(parser.parse_args())
 
-    global host, port, defaultargs, topdir, maxffmpeg
+    global host, port, defaultargs, topdir, maxffmpeg, nolog, verbose, debug, ffmpegquiet, fps
 
     host = args['host'][0]
     port = args['port'][0]
     defaultargs = args['args'][0]
     topdir = args['topdir'][0]
     maxffmpeg = args['maxffmpeg'][0]
+    nolog = args['nolog']
+    verbose = args['verbose']
+    fps = str(args['fps'][0])
 
+
+    # How much output
+    if verbose:
+        debug = ''
+        ffmpegquiet = ' -loglevel quiet'
+    else:
+        ffmpegquiet = ' -loglevel quiet'
+        if not win:
+            debug = ' > /dev/null 2>&1'
+        else:
+            debug = ' > nul 2>&1'
+
+    # Create a custom logger
+    import logging
+    global logger, logfilename
+    logger = logging.getLogger(__name__)
+    if verbose:  #  Capture all log messages
+        logger.setLevel(logging.DEBUG)
+    else:        #  Ignore debug messages
+        logger.setLevel(logging.INFO)
+
+    # Create handlers and formats
+    c_handler = logging.StreamHandler()
+    c_format = logging.Formatter(' %(message)s')
+    c_handler.setFormatter(c_format)
+    logger.addHandler(c_handler)
+    logfilename = ''
+    if nolog is False:
+        if topdir == '':
+            logfilename = os.path.realpath(__file__) + '/startDuetLapse3.log'
+        else:
+            logfilename = topdir + '/startDuetLapse3.log'
+
+        if win:
+            logfilename = logfilename.replace('/', '\\')
+
+        f_handler = logging.FileHandler(logfilename, mode='w', encoding='utf-8')
+        f_format = logging.Formatter('%(asctime)s - %(message)s')
+        f_handler.setFormatter(f_format)
+        logger.addHandler(f_handler)
+        logger.info('Log file created at ' + logfilename)
 
 ###########################
 # make Web calls
 ###########################
-def blindUrlCall(url, timelimit):  # Fire and forget - assumed to be successful
-    threading.Thread(target=urlCall, args=(url, timelimit)).start()
-
 
 def urlCall(url, timelimit):
+    logger.debug(str(url))
     loop = 0
     limit = 2  # Started at 2 - seems good enough to catch transients
     while (loop < limit):
         try:
             # headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/56.0.2924.76 Safari/537.36', "Upgrade-Insecure-Requests": "1","DNT": "1","Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8","Accept-Language": "en-US,en;q=0.5","Accept-Encoding": "gzip, deflate"}
             r = requests.get(url, timeout=timelimit)
+            if r.ok:
+                logger.info('Call Successful')
+            else:
+                logger.info('Call Failed')
+
+            logger.info(url)
             break
         except requests.ConnectionError as e:
-            print('There was a network failure: ' + str(e))
+            logger.info('There was a network failure: ' + str(e))
             loop += 1
         except requests.exceptions.Timeout as e:
-            print('There was a timeout failure: ' + str(e))
+            logger.info('There was a timeout failure: ' + str(e))
             loop += 1
         time.sleep(1)
 
@@ -90,7 +160,6 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import urllib
 from urllib.parse import urlparse, parse_qs
 import html
-## import io
 import pathlib
 
 
@@ -99,9 +168,9 @@ class MyHandler(SimpleHTTPRequestHandler):
     global refreshing, selectMessage, lastdir
     lastdir = ''
     txt = []
-    txt.append('<h3><pre>')
+    txt.append('<h3>')
     txt.append('Status will update every 60 seconds')
-    txt.append('</pre></h3>')
+    txt.append('</h3>')
     refreshing = ''.join(txt)
     selectMessage = refreshing
 
@@ -137,14 +206,17 @@ class MyHandler(SimpleHTTPRequestHandler):
         header = ''.join(txt)
 
         txt = []
-        txt.append('startDuetLapse3 Version ' + startDuetLapse3Version + '<br>')
         txt.append('<h3>')
-        txt.append('<br>As of :  ' + localtime + '<br>')
-        txt.append('Running instances of DuetLapse3 are:<br><br>' + runninginstances + '</h3>')
+        txt.append('startDuetLapse3 Version ' + startDuetLapse3Version + '<br>')
+        txt.append('As of :  ' + localtime + '<br>')
+        txt.append('</h3>')
+        txt.append('<h4>')
+        txt.append('Running instances of DuetLapse3 are:<br>' + runninginstances)
+        txt.append('</h4>')
         status = ''.join(txt)
 
         txt = []
-        txt.append('<div class="divider">')
+        txt.append('<div class="inline">')
         txt.append('<form action="http://' + referer + '">')
         txt.append('<input type="hidden" name="command" value="status" />')
         txt.append('<input type="submit" value="Status" style="background-color:green"/>')
@@ -153,7 +225,7 @@ class MyHandler(SimpleHTTPRequestHandler):
         statusbutton = ''.join(txt)
 
         txt = []
-        txt.append('<div class="divider">')
+        txt.append('<div class="inline">')
         txt.append('<form action="http://' + referer + '">')
         txt.append('<input type="hidden" name="command" value="start" />')
         txt.append('<input type="submit" value="Start" style="background-color:orange"/>')
@@ -162,7 +234,7 @@ class MyHandler(SimpleHTTPRequestHandler):
         startbutton = ''.join(txt)
 
         txt = []
-        txt.append('<div class="divider">')
+        txt.append('<div class="inline">')
         txt.append('<form action="http://' + referer + '">')
         txt.append('<input type="hidden" name="command" value="terminate" />')
         txt.append('<input type="submit" value="Terminate" style="background-color:yellow"/>')
@@ -171,16 +243,17 @@ class MyHandler(SimpleHTTPRequestHandler):
         terminatebutton = ''.join(txt)
 
         txt = []
-        txt.append('<div class="divider">')
+        txt.append('<div class="inline">')
         txt.append('<form action="http://' + referer + '">')
         txt.append('<input type="hidden" name="command" value="shutdown" />')
+        txt.append('<input type="hidden" name="shutdownask" value="True"/>')
         txt.append('<input type="submit" value="Shutdown" style="background-color:red"/>')
         txt.append('</form>')
         txt.append('</div>')
         shutdownbutton = ''.join(txt)
 
         txt = []
-        txt.append('<div class="divider">')
+        txt.append('<div class="inline">')
         txt.append('<form action="http://' + referer + '">')
         txt.append('<input type="hidden" name="files" value= ' + topdir + ' />')
         txt.append('<input type="submit" value="Files" style="background-color:green"/>')
@@ -194,29 +267,34 @@ class MyHandler(SimpleHTTPRequestHandler):
         txt.append('position:relative;')
         txt.append('width:200px;')
         txt.append('}')
-        txt.append('.divider{')
-        txt.append('width:200px;')
-        txt.append('height:auto;')
+        txt.append('.inline{')
+        txt.append('margin-left: 5px; margin-bottom:8px;')
         txt.append('display:inline-block;')
-        txt.append('}')
-        txt.append('.divider1{')
-        txt.append('width:10em;')
-        txt.append('height:2em;')
-        txt.append('margin: auto;')
         txt.append('}')
         txt.append('.pad30{')
         txt.append('margin-left: 30px;')
         txt.append('}')
         txt.append('input[type=submit] {')
-        txt.append('width: 10em;  height: 2em;')
+        txt.append('width: 6em;  height: 2em;')
+        txt.append('background:#ccc; border:0 none; cursor:pointer; -webkit-border-radius: 5px;border-radius: 5px;')
         txt.append('}')
-        txt.append('</style>')
-        buttonstyle = ''.join(txt)
+        txt.append('.process-disp{')
+        txt.append('width:550px; height:25px; overflow:auto; resize:both; border:1px solid; font-size:12px; line-height:12px;')
+        txt.append('}')
+        txt.append('.info-disp{')
+        txt.append('width:550px; height:auto; overflow:auto; resize:both; border:1px solid; font-size:16px; line-height:16px;')
+        txt.append('}')
+        txt.append('} </style>')
+        txt.append('<style> textarea {')
+        txt.append('width:550px; height:100px; wrap:soft;')
+        txt.append('box-sizing: border-box; border: 2px solid #ccc; border-radius: 4px; background-color: #f8f8f8;')
+        txt.append('font-size: 16px;')
+        txt.append('} </style>')
+        cssstyle = ''.join(txt)
 
-        buttons = statusbutton + startbutton + terminatebutton + filesbutton + shutdownbutton + buttonstyle
+        buttons = statusbutton + startbutton + terminatebutton + filesbutton + shutdownbutton + cssstyle
 
         return header, status, buttons
-
 
     def do_GET(self):
         options = 'status, start, terminate'
@@ -236,8 +314,13 @@ class MyHandler(SimpleHTTPRequestHandler):
 
         query_components = parse_qs(urlparse(self.path).query)
 
+        if not query_components and self.path != '/':
+            logger.debug(str(self.path))
+        else:
+            logger.debug(str(query_components))
+
         if ((query_components and query_components.get('files')) or (not query_components and self.path != '/')):
-            #We use the linuz path convention here - corrected for win later
+            #We use the linux path convention here - corrected for win later
             if query_components.get('files'):  # called from the file button
                 if lastdir == '':
                     thisdir = '/'
@@ -251,11 +334,12 @@ class MyHandler(SimpleHTTPRequestHandler):
                 lastdir = lastdir +'/'
             selectMessage = self.display_dir(thisdir)
 
-
         if (query_components.get('delete')):
             file = query_components['delete'][0]
             filepath, _ = os.path.split(file)
             filepath = filepath + '/'
+            logger.info(file)
+            logger.info(filepath)
             file = topdir + file
 
             if win:
@@ -267,11 +351,8 @@ class MyHandler(SimpleHTTPRequestHandler):
             else:
                 cmd = 'rm -rf "' + file + '"'
 
-            try:
-                subprocess.call(cmd, shell=True)
-                print('!!!!! http delete processed for ' + file + ' !!!!!')
-            except:
-                print('!!!!! An error occured trying to delete ' + file + ' !!!!!')
+            if runsubprocess(cmd) is False:
+                logger.info('Could not delete ' + str(file))
 
             selectMessage = self.display_dir(filepath)
 
@@ -286,12 +367,21 @@ class MyHandler(SimpleHTTPRequestHandler):
                 file = file.replace('/', '\\')
                 zipedfile = zipedfile.replace('/', '\\')
 
-            #threading.Thread(target=make_archive, args=(file, zipedfile,)).start()
             result = make_archive(file, zipedfile)
             selectMessage = '<h3>' + result + '<br></h3>' + self.display_dir(filepath)
-            #selectMessage = self.display_dir(filepath)
 
         if (query_components.get('video')):
+            global fps
+            if (query_components.get('fps')):
+                thisfps = query_components['fps'][0]
+                try:
+                    thisfps = int(thisfps)
+                    if thisfps > 0:
+                        fps = thisfps
+                        logger.info('fps changed to ' + str(fps))
+                except ValueError:
+                    pass
+            fps = str(fps)
             file = query_components['video'][0]
             filepath, _ = os.path.split(file)
             filepath = filepath + '/'
@@ -300,7 +390,6 @@ class MyHandler(SimpleHTTPRequestHandler):
             if win:
                 file = file.replace('/', '\\')
 
-            #threading.Thread(target=createVideo, args=(file,)).start()
             result = createVideo(file)
 
             selectMessage = '<h3>'+result+'<br></h3>'+self.display_dir(filepath)
@@ -312,9 +401,9 @@ class MyHandler(SimpleHTTPRequestHandler):
             command = query_components['command'][0]
 
             if (command == 'status'):
-                self._set_headers()
                 if selectMessage == None:
                     selectMessage = refreshing
+                self._set_headers()
                 self.wfile.write(self._refresh(status + buttons + selectMessage))
                 selectMessage = refreshing
                 return
@@ -330,16 +419,19 @@ class MyHandler(SimpleHTTPRequestHandler):
 
             else:
                 txt = []
-                txt.append('<h3><pre>')
-                txt.append('Illegal value for command=<br>')
-                txt.append('Valid options are:   ' + options + '</pre></h3>')
+                txt.append('<h3>')
+                txt.append('Illegal: command=' + command + '<br><br>')
+                txt.append('</h3>')
+                txt.append('<div class="info-disp">')
+                txt.append('Valid options are: command= ' + options + '</h3>')
+                txt.append('</div>')
                 selectMessage = ''.join(txt)  # redirect to status page
         new_url = 'http://' + referer + '/?command=status'
         self.redirect_url(new_url)
         return
-        ##
-        ##  End of do_Get
-        ##
+        #  --------------
+        #  End of do_Get
+        #  --------------
 
     def log_request(self, code=None, size=None):
         pass
@@ -350,32 +442,26 @@ class MyHandler(SimpleHTTPRequestHandler):
     # http listener custom functions
 
     def start_process(self, query_components):
-        if query_components.get('nohup'):
-            nohup = query_components['nohup'][0]
-        else:
-            nohup = ''
-
-        if (nohup != 'yes'):  # normalize
-            nohup = ''
-
-        whitelisterror = ''
+        global defaultargs
         if (query_components.get('args')):
             args = query_components['args'][0]
-            global defaultargs
+            args = args.replace('\n', '')  # remove any newline
             # need to put back encoded punctuation
             defaultargs = html.escape(args)
             # Test to see if the options are valid
             checkarguments = whitelistParser(description='Checking for valid inputs to DuetLapse3', allow_abbrev=False)
             checkarguments = whitelist(checkarguments)
             try:
-                checkedargs = vars(checkarguments.parse_args(shlex.split(args)))
-                duetport = checkedargs['port'][0]
+                checkarguments.parse_args(shlex.split(args))
             except ValueError as message:
+                logger.debug(str(message))
                 txt = []
                 txt.append('<h3>')
                 txt.append('The following errors were detected:<br>')
-                txt.append('<pre>' + str(message) + '</pre>')
                 txt.append('</h3>')
+                txt.append('<div class="info-disp">')
+                txt.append(str(message))
+                txt.append('</div>')
                 selectMessage = ''.join(txt)
                 args = ''
                 return selectMessage
@@ -384,34 +470,53 @@ class MyHandler(SimpleHTTPRequestHandler):
 
         if (args != ''):
             if win:
-                if nohup == 'yes':
-                    cmd = 'pythonw DuetLapse3.py ' + args
-                else:
-                    cmd = 'python3 DuetLapse3.py ' + args
+                cmd = 'python3 DuetLapse3.py ' + args
             else:  # Linux
-                if nohup == 'yes':
-                    cmd = 'nohup python3 ./DuetLapse3.py ' + args + ' &'
-                else:
-                    cmd = 'python3 ./DuetLapse3.py ' + args + ' &'
+                cmd = 'python3 ./DuetLapse3.py ' + args
 
-            subprocess.Popen(cmd, shell=True, start_new_session=True)  # run the program
-            txt = []
-            txt.append('<h3>')
-            txt.append('Attempting to start DuetLapse3 with following options:<br>')
-            txt.append('<pre>' + cmd + '<br><br>')
-            txt.append('</pre>')
-            txt.append('</h3>')
-            selectMessage = ''.join(txt)
+            newproc = subprocess.Popen(cmd, shell=True, start_new_session=True)  # run the program
+
+            #  Wait to see if DuetLapse3 starts cleanly
+            looptime = 30 #  sec
+            interval  = 0.5 # sec
+            loop = 0
+            Running = True
+            while loop < (looptime/interval):
+                if newproc.poll() != None:
+                    Running = False
+                    break
+                time.sleep(interval)
+                loop += 1
+
+            if Running:
+                txt = []
+                txt.append('<h3>')
+                txt.append('DuetLapse3 started.')
+                txt.append('</h3>')
+                selectMessage = ''.join(txt)
+            else:  #  process terminated
+
+                logger.info('Failed to start after ' +str(loop*interval) + ' s with error: ' + returncode(newproc.poll()))
+
+                txt = []
+                txt.append('<h3>')
+                txt.append('DuetLapse3 failed to start after ' +str(loop*interval) + 's because:   ' + returncode(newproc.poll()) + '<br><br>')
+                txt.append('</h3>')
+                txt.append('<textarea>')
+                txt.append(cmd)
+                txt.append('</textarea>')
+                selectMessage = ''.join(txt)
         else:
             txt = []
-            txt.append('<div>')
             txt.append('<form action="http://' + referer + '">')
             txt.append('<input type="hidden" name="command" value="start" />')
-            txt.append('<input type="text" id="args" name="args" value="' + defaultargs + '" size="200"/>')
+            txt.append('<br>')
+            txt.append('<textarea id="args" name="args">')
+            txt.append(defaultargs)
+            txt.append('</textarea>')
             txt.append('<br><br>')
             txt.append('<input type="submit" value="Start" style="background-color:orange"/>')
             txt.append('</form>')
-            txt.append('</div>')
             selectMessage = ''.join(txt)
         return selectMessage
 
@@ -424,7 +529,7 @@ class MyHandler(SimpleHTTPRequestHandler):
         if (pids != ''):
 
             if (pids == 'all'):
-                pidmsg = 'All running instances'
+                pidmsg = 'All running instances.'
             else:
                 pidmsg = 'For instances with process id: ' + str(pids)
 
@@ -439,33 +544,31 @@ class MyHandler(SimpleHTTPRequestHandler):
                             pass
                     else:
                         URL = 'http://' + refererip + ':' + str(thisport) + '/?command=terminate'
-                        # blindUrlCall(URL, 5)
                         urlCall(URL, 5)
             txt = []
             txt.append('<h3>')
             txt.append('Terminating the following DuetLapse3 Instances.<br>')
-            txt.append('<pre>' + pidmsg + '<br>')
-            txt.append('Note that some instances may take several minutes to shut down<br><br>')
-            txt.append('</pre>')
             txt.append('</h3>')
+            txt.append('<div class="info-disp">')
+            txt.append(pidmsg)
+            txt.append('<br><br>Note that some instances may take several minutes to shut down.')
+            txt.append('</div')
             selectMessage = ''.join(txt)
         else:
             if win:
                 txt = []
-                txt.append('<h3><pre>')
-                txt.append('NOTE: Only instances with http ports will terminate gracefully<br>')
-                txt.append('All others will just shutdown (no video created)<br>')
-                txt.append('This is a windows limitation')
-                txt.append('</pre></h3>')
-                winnote = ''.join(txt)
+                txt.append('NOTE: Only instances with http ports will terminate gracefully.<br><br>')
+                txt.append('All others will just shutdown (no video created)<br><br>')
+                txt.append('This is a windows limitation.<br>')
+                osnote = ''.join(txt)
             else:
-                winnote = ''
+                osnote = ''
 
             txt = []
-            txt.append('<div>')
-            txt.append('<form action="http://' + referer + '">' + winnote + '<br>')
+            txt.append('<div class="info-disp">')
+            txt.append('<form action="http://' + referer + '">' + osnote + '<br>')
             txt.append('<input type="hidden" name="command" value="terminate" />')
-            txt.append('<input type="text" id="pid" name="pids" value="all" size="6"/>')
+            txt.append('<input type="text" id="pid" name="pids" value="all"/>')
             txt.append('<input class = "pad30" type="submit" value="Terminate" style="background-color:yellow"/>')
             txt.append('</form>')
             txt.append('</div>')
@@ -473,18 +576,45 @@ class MyHandler(SimpleHTTPRequestHandler):
         return selectMessage
 
     def shutdown_process(self, query_components):
-        txt = []
-        txt.append('<h1><pre>')
-        txt.append('Shutting Down startDuetLapse3.<br>')
-        txt.append('Any instances of DuetLapse3 will continue to run<br><br>')
-        txt.append('If you use systemctl to shutdown startDuetLapse3<br>')
-        txt.append('DuetLapse3 instances will be terminated as well')
-        txt.append('</pre></h1>')
+        if query_components.get('shutdownask'):
+            shutdown = False
+        else:
+            shutdown = True
+
+        if shutdown is True:
+            txt = []
+            txt.append('<h3>')
+            txt.append('Shutting Down startDuetLapse3.<br>')
+            txt.append('</h3>')
+
+            logger.info('!!!!!! Shutdown by http request !!!!!!')
+
+            threading.Thread(target=shut_down, args=()).start()
+        else:
+            if win:
+                txt = []
+                txt.append('DuetLapse3 instances will NOT be shutdown<br><br>')
+                txt.append('This is a windows limitation<br><br>')
+                txt.append('Use Terminate to shutdown running instances<br>')
+                osnote = ''.join(txt)
+            else:
+                txt = []
+                txt.append('If startDuetLapse3 is running as a service (e.g. under systemctl)<br>')
+                txt.append('DuetLapse3 instances WILL be shutdown<br><br>')
+                txt.append('If startDuetLapse3 is running from a console<br>')
+                txt.append('DuetLapse3 instances will NOT be shutdown<br><br>')
+                txt.append('This is a linux limitation<br>')
+                osnote = ''.join(txt)
+
+            txt = []
+            txt.append('<div class="info-disp">')
+            txt.append('<form action="http://' + referer + '">' + osnote + '<br>')
+            txt.append('<input type="hidden" name="command" value="shutdown" />')
+            txt.append('<input class = "pad5" type="submit" value="Shutdown" style="background-color:red"/>')
+            txt.append('</form>')
+            txt.append('</div>')
+
         selectMessage = ''.join(txt)
-
-        print('!!!!!! Shutdown by http request !!!!!!')
-        threading.Thread(target=shut_down, args=()).start()
-
         return selectMessage
 
     def display_dir(self, path):
@@ -509,7 +639,7 @@ class MyHandler(SimpleHTTPRequestHandler):
                 f = open(requested_dir, 'rb')
                 fs = os.fstat(f.fileno())
             except:
-                print('Problem opening file: ' + requested_dir)
+                logger.info('Problem opening file: ' + requested_dir)
 
             try:
                 self.send_response(200)
@@ -519,9 +649,9 @@ class MyHandler(SimpleHTTPRequestHandler):
                 self.copyfile(f, self.wfile)
                 f.close()
             except ConnectionError:
-                print('Connection reset - normal if displaying file')
+                logger.info('Connection reset - normal if displaying file')
             except:
-                print('Error sending file')
+                logger.info('Error sending file')
 
         return
 
@@ -537,10 +667,10 @@ class MyHandler(SimpleHTTPRequestHandler):
                 deletelist.append(os.path.join(thisdir, ''))
                 if thisdir == topdir:
                     txt = []
-                    txt.append('<h3><pre>')
+                    txt.append('<h3>')
                     txt.append('There are no files to display at this time<br>')
                     txt.append('You likely need to start an instance of DuetLapse3 first')
-                    txt.append('</pre></h3>')
+                    txt.append('</h3>')
                     response = ''.join(txt)
                     return response
 
@@ -552,13 +682,6 @@ class MyHandler(SimpleHTTPRequestHandler):
                     jpegfolder.append(os.path.join(thisdir, ''))
                     deletelist.append(os.path.join(thisdir, ''))
                     break  # Assume all files are jpeg
-        """
-        for each in deletelist:
-            print('Delete = '+each)
-      
-        for folder in jpegfolder:
-            print('Jpeg = '+folder)
-        """
 
         try:
             displaypath = urllib.parse.unquote(path, errors='surrogatepass')
@@ -571,10 +694,10 @@ class MyHandler(SimpleHTTPRequestHandler):
             list = os.listdir(path)
         except OSError:
             txt = []
-            txt.append('<h3><pre>')
+            txt.append('<h3>')
             txt.append('There are no files or directories named '+displaypath+'<br>')
             txt.append('or you do not have permission to access')
-            txt.append('</pre></h3>')
+            txt.append('</h3>')
             response = ''.join(txt)
             return response
 
@@ -586,10 +709,12 @@ class MyHandler(SimpleHTTPRequestHandler):
 
         r = []
         r.append('<style>table {font-family: arial, sans-serif;border-collapse: collapse;}')
-        r.append('td {border: 1px solid #dddddd;text-align: left;padding: 0px;}')
+        #r.append('td {border: 1px solid #dddddd;text-align: left;padding: 0px;}')
+        r.append('td {border: none; text-align: left;padding: 0px;}')
         r.append('tr:nth-child(even) {background-color: #dddddd;}</style>')
         r.append('<table>')
-        r.append('<tr><th style="width:400px"></th><th style="width:100px"></th></tr>')
+        r.append('<tr><th style="width:400px;"></th><th style="width:100px;"></th></tr>')
+
 
         if parentdir == subdir:  # we are at the top level
             child_dir = False
@@ -642,32 +767,40 @@ class MyHandler(SimpleHTTPRequestHandler):
                     actionable = False
 
             deletebutton = zipbutton = vidbutton = ''
-            if fullname in deletelist and actionable:
+            if fullname in deletelist and actionable and fullname != logfilename:
                 txt = []
                 txt.append('<td>')
+                txt.append('<div class="inline">')
                 txt.append('<form action="http://' + referer + '">')
                 txt.append('<input type="hidden" name="delete" value="' + action_name + '" />')
                 txt.append('<input type="submit" value="Delete" style="background-color:red"/>')
                 txt.append('</form>')
+                txt.append('</div>')
                 txt.append('</td>')
                 deletebutton = ''.join(txt)
 
             if fullname in jpegfolder and actionable:
                 txt = []
                 txt.append('<td>')
+                txt.append('<div class="inline">')
                 txt.append('<form action="http://' + referer + '">')
                 txt.append('<input type="hidden" name="zip" value="' + action_name + '" />')
                 txt.append('<input type="submit" value="Zip" style="background-color:yellow"/>')
                 txt.append('</form>')
                 txt.append('</td>')
+                txt.append('</div>')
                 zipbutton = ''.join(txt)
 
                 txt = []
                 txt.append('<td>')
+                txt.append('<div class="inline">')
                 txt.append('<form action="http://' + referer + '">')
                 txt.append('<input type="hidden" name="video" value="' + action_name + '" />')
                 txt.append('<input type="submit" value="Video" style="background-color:green"/>')
+                txt.append('<input type="text" id="fps" name="fps" value=' + fps +  ' style="background-color:lime; width:30px; border:none"/>')
+                txt.append('fps<br>')
                 txt.append('</form>')
+                txt.append('</div>')
                 txt.append('</td>')
                 vidbutton = ''.join(txt)
 
@@ -675,17 +808,15 @@ class MyHandler(SimpleHTTPRequestHandler):
             r.append(action)
             r.append('</tr>')
 
-            # else:  # r.append('</tr>') #end the row
-
         r.append('</table>')
 
         response = ''.join(r)
         return response
 
 
-"""
-end of requesthandler
-"""
+#  ---------------------
+#  End of requesthandler
+#  ---------------------
 
 
 def make_archive(source, destination):
@@ -704,20 +835,15 @@ def make_archive(source, destination):
         msg = msg + str(msg1)
     return msg
 
-
 def createVideo(directory):
     # loop through directory count # files and detect if Camera1 / Camera2
-    msg = ''
-    ffmpegquiet = ' -loglevel quiet'
-    if not win:
-        debug = ' > /dev/null 2>&1'
-    else:
-        debug = ' > nul 2>&1'
-
-    try:
+    msg = 'Create Video'
+    logger.info(msg)
+    try:  #  Check to make sure we can create the video at the required destination
         list = os.listdir(directory)
     except OSError:
         msg = 'Error: No permission or directory not found'
+        logger.info(msg)
         return msg
 
     cam1 = False
@@ -736,48 +862,59 @@ def createVideo(directory):
         frame += 1
 
     for cameraname in Cameras:
-        if frame < 10:
-            msg = 'Error: ' + cameraname + ': Cannot create video with only ' + str(frame) + ' frames.  Minimum required is 10'
+        if frame < int(fps):
+            msg = 'Error: ' + cameraname + ': Cannot create video of less than 1 second: ' + fps + ' frames are required.'
+            logger.info(msg)
             return msg
 
-        print(cameraname + ': now making ' + str(frame) + ' frames into a video')
+        logger.info(cameraname + ': now making ' + str(frame) + ' frames into a video')
         if 250 < frame:
-            print("This can take a while...")
+            logger.info("This can take a while...")
 
         timestamp = time.strftime('%a-%H-%M', time.localtime())
 
         fn = ' "' + directory + '_' + cameraname + '_' + timestamp + '.mp4"'
 
         if win:
-            cmd = 'ffmpeg' + ffmpegquiet + ' -r 10 -i "' + directory + '\\' + cameraname + '_%08d.jpeg" -vcodec libx264 -y ' + fn + debug
+            cmd = 'ffmpeg' + ffmpegquiet + ' -r ' + fps + ' -i "' + directory + '\\' + cameraname + '_%08d.jpeg" -vcodec libx264 -y ' + fn + debug
         else:
-            cmd = 'ffmpeg' + ffmpegquiet + ' -r 10 -i "' + directory + '/' + cameraname + '_%08d.jpeg" -vcodec libx264 -y ' + fn + debug
+            cmd = 'ffmpeg' + ffmpegquiet + ' -r ' + fps + ' -i "' + directory + '/' + cameraname + '_%08d.jpeg" -vcodec libx264 -y ' + fn + debug
 
-        while True:
+        #  Wait for up to minutes for ffmpeg capacity to  become available
+        #  If still not available - try anyway
+        minutes = 5
+        increment = 15  #  seconds
+        loop = 0
+        while loop < minutes*60:
             if ffmpeg_available():
-                try:
-                    subprocess.call(cmd, shell=True)
-                except:
-                    msg = ('!!!!!!!!!!!  There was a problem creating the video for '+cameraname+' !!!!!!!!!!!!!!!')
                 break
-            time.sleep(10)  # wait a while before trying again
+            else:
+                time.sleep(increment)  # wait a while before trying again
+                loop += increment
+                logger.debug('Have waited ' + str(loop) + ' seconds for ffmpeg capacity')
 
-        print('Video processing complete for ' + cameraname)
-        print('Video is in file ' + fn)
-        msg = 'Video(s) successfully created'
+
+        if runsubprocess(cmd) is False:
+            msg = ('!!!!!!!!!!!  There was a problem creating the video for '+cameraname+' !!!!!!!!!!!!!!!')
+            logger.info(msg)
+        else:
+            logger.info('Video processing completed for ' + cameraname)
+            logger.info('Video is in file ' + fn)
+            msg = 'Video(s) successfully created'
+
     return msg
 
 
 def ffmpeg_available():
     count = 0
-    max_count = maxffmpeg
+    max_count = maxffmpeg  # Default is 2
     for p in psutil.process_iter():
         if 'ffmpeg' in p.name():  # Check to see if it's running
             count += 1
         if count >= max_count:
-            print('Waiting on ffmpeg to become available')
+            logger.info('Waiting for ffmpeg to become available')
             return False
-
+    logger.info('There are ' + str(count) + ' instances of ffmpeg running')
     return True
 
 
@@ -790,11 +927,10 @@ def createHttpListener():
 
 def closeHttpListener():
     global listener
-    print('!!!!! Stop requested by http listener !!!!!')
+    logger.info('!!!!! Stop requested by http listener !!!!!')
     listener.shutdown()
     listener.server_close()
-    print('Shutdown')
-    sys.exit(0)
+    logger.info('Shutdown')
 
 
 def getOperatingSystem():
@@ -808,9 +944,9 @@ def getOperatingSystem():
 
 
 def getThisInstance(thisinstancepid):
-    thisrunning = 'Could not find a process running with pid = ' + str(thisinstancepid)
+    thisrunning = ''
     for p in psutil.process_iter():
-        if (('python3' in p.name() or 'pythonw' in p.name()) and thisinstancepid == p.pid):
+        if ('python3' in p.name() or 'pythonw' in p.name()) and thisinstancepid == p.pid:
             cmdlinestr = str(p.cmdline())
             # clean up the appearance
             cmdlinestr = cmdlinestr.replace('[', '')
@@ -832,7 +968,7 @@ def getRunningInstances(thisinstance, refererip):
 
         #if (('python3' in p.name() or 'pythonw' in p.name()) and not thisinstance in p.cmdline() and '-duet' in p.cmdline()):  # Check all other python3 instances
         if 'python' in p.name():
-            #print(thisinstance)
+            #logger.info(thisinstance)
             cmdstring = ''.join(p.cmdline())
             if not 'DuetLapse3.py' in cmdstring or 'startDuetLapse3.py' in cmdstring:
                 continue      # Only want DuetLapse3.py instances
@@ -854,39 +990,54 @@ def getRunningInstances(thisinstance, refererip):
             cmdlinestr = cmdlinestr.replace('  ', '')
             pidlist.append((p.pid, port))
             pid = str(p.pid)
-            if (port == 0):
-                running = running + ('Process id:  ' + pid + '<br>' + cmdlinestr + '<br>')
-            else:  # Formal for html link
-                running = running + ('Process id:  ' + pid + '<br>'
-                                                             '<a href=\"http://' + refererip + ':' + str(
-                        port) + '\?command=status" target="_blank">' + cmdlinestr + '</a>'
-                                                                                    '<br>')
 
-    if (running != ''):
-        running = ('<pre>' + running + '<br>'
-                                       '</pre>')
-    else:
+            if (port == 0):
+                txt = []
+                txt.append('Process id:  ' + pid + '<br>')
+                txt.append('<div class="process-disp">')
+                txt.append(cmdlinestr)
+                txt.append('</a>')
+                txt.append('<br>')
+                txt.append('</div>')
+                running = running + ('Process id:  ' + pid + '<br>' + cmdlinestr + '<br>')
+            else:  # Format for html link
+                txt = []
+                txt.append('Process id:  ' + pid + ' -- Port:  ' + str(port) + '<br>')
+                txt.append('<div class="process-disp">')
+                txt.append('<a href=\"http://' + refererip +
+                           ':' + str(port))
+                txt.append('\?command=status" target="_blank">' + cmdlinestr)
+                txt.append('</a>')
+                txt.append('<br>')
+                txt.append('</div>')
+                running = running + ''.join(txt)
+
+    if running == '':
         running = 'None'
+
     return running, pidlist
 
 
 def shut_down():
-    time.sleep(1)  # give pending actions a chance to finish
-    try:  # this should close this thread
-        httpthread.join(10)
-    except:
-        pass
-    sys.exit(0)
-    #os.kill(thisinstancepid, 9)
+    time.sleep(5)  # give pending actions a chance to finish
+    closeHttpListener()
+    # sys.exit(0)  # Do not use as it will close child processes
 
 
 # Allows process running in background or foreground to be gracefully
-# shutdown with SIGINT (kill -2 <pid> also handles KeyboardInterupt
-import signal
-
+# shutdown with SIGINT (kill -2 <pid> also handles KeyboardInterrupt
 
 def quit_gracefully(*args):
-    print('!!!!!! Stopped by SIGINT or CTL+C  !!!!!!')
+    logger.info('!!!!!! Stopped by SIGINT or CTL+C  !!!!!!')
+    logger.info('Terminating DuetLapse3 instances')
+    logger.info(str(pidlist))
+    for pid in pidlist:
+        thispid = pid[0]
+        try:
+            logger.info(str(thispid))
+            os.kill(thispid, 2)
+        except OSError:
+            pass
     shut_down()
 
 
@@ -899,6 +1050,8 @@ Main Program
 if __name__ == "__main__":
 
     global thisinstance, thisinstancepid, topdir
+    global refreshing, selectMessage, lastdir
+
     getOperatingSystem()  # some commands are os specific
     thisinstance = os.path.basename(__file__)
 
@@ -908,33 +1061,31 @@ if __name__ == "__main__":
     thisinstancepid = os.getpid()
     init()
 
-    if (topdir == ''):
+    if topdir == '':
         topdir = os.path.dirname(os.path.realpath(__file__))
-    #get the slashes going the right way
+    # Get the slashes going the right way
     if win:
-        topdir = topdir.replace('/','\\')
+        topdir = topdir.replace('/', '\\')
     else:
-        topdir = topdir.replace('\\','/')
-    topdir = os.path.normpath(topdir) # Normalise the dir - no trailing slash
+        topdir = topdir.replace('\\', '/')
+    topdir = os.path.normpath(topdir)  # Normalise the dir - no trailing slash
 
-
-
-    if (port != 0):
+    if port != 0:
         try:
             sock = socket.socket()
             if sock.connect_ex((host, port)) == 0:
-                print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                print('Sorry, port ' + str(port) + ' is already in use.')
-                print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                logger.info('Sorry, port ' + str(port) + ' is already in use.')
+                logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                 sys.exit(2)
             # Does this need to be threaded with ThreadingHTTPServer ?
             # or just call createHttpListener()
             httpthread = threading.Thread(target=createHttpListener, args=()).start()
             # httpthread.start()
-            print('***** Started http listener *****')
+            logger.info('***** Started http listener *****')
 
         except KeyboardInterrupt:
             pass  # This is handled as SIGINT
     else:
-        print('No port number was provided or port is already in use')
+        logger.info('No port number was provided or port is already in use')
         sys.exit(2)
