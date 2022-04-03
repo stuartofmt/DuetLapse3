@@ -436,10 +436,15 @@ For Raspberry pi earlier than the Bullseye release:
 ```
 
 For Raspberry pi with Bullseye release (and later):
-
+If NOT using -verbose
 ```
--camera1 other  -camparam1 "'libcamera-still -t 1 -w 1280 -h 720 -ex sports -mm matrix -n -o ' + fn + debug"
+-camera1 other  -camparam1 "'libcamera-still -t 1 --nopreview --width 1640 --height 1232 -o ' + fn + debug"
 ```
+If using -verbose
+```
+-camera1 other  -camparam1 "'libcamera-still -t 1 --nopreview --width 1640 --height 1232 -o ' + fn + debug + ' 2>/dev/null'"
+```
+This is because of the way libcamera is coded.
 
 #### -weburl1 [url]
 If omitted it has no value. url specifies the location to capture images for camera1. Only used for -camera1 of types web, stream, or other
