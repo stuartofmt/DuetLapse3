@@ -22,10 +22,10 @@ import platform
 import requests
 import shutil
 import signal
+import logging
 
-#  global startDuetLapse3Version
-startDuetLapse3Version = '3.5.0'
-
+startDuetLapse3Version = '4.0.0'
+#  Efficiency improvements and minor bug fixes
 
 class whitelistParser(argparse.ArgumentParser):
     def exit(self, status=0, message=None):
@@ -94,8 +94,7 @@ def init():
             debug = ' > nul 2>&1'
 
     # Create a custom logger
-    import logging
-    global logger, logfilename
+    global logfilename, logger
     logger = logging.getLogger(__name__)
     if verbose:  #  Capture all log messages
         logger.setLevel(logging.DEBUG)
@@ -110,12 +109,18 @@ def init():
     logfilename = ''
     if nolog is False:
         if topdir == '':
-            logfilename = os.path.realpath(__file__) + '/startDuetLapse3.log'
+            dir = os.path.dirname(os.path.abspath(__file__))
         else:
-            logfilename = topdir + '/startDuetLapse3.log'
+            dir = topdir
+        logfilename = dir + '/startDuetLapse3.log'
 
-        if win:
-            logfilename = logfilename.replace('/', '\\')
+
+        dir = os.path.normpath(dir)
+        logfilename = os.path.normpath(logfilename)
+        try:
+            os.makedirs(dir)
+        except OSError as e:
+            logger.info('Could not create dir ' + str(e))            
 
         f_handler = logging.FileHandler(logfilename, mode='w', encoding='utf-8')
         f_format = logging.Formatter('%(asctime)s - %(message)s')
@@ -298,138 +303,136 @@ class MyHandler(SimpleHTTPRequestHandler):
         return header, status, buttons
 
     def do_GET(self):
-        options = 'status, start, terminate'
-        global referer, refererip, selectMessage, refreshing, lastdir
-        referer = self.headers['Host']  # Should always be there for HTTP/1.1
-        if not referer:  # Lets try authority
-            referer = self.headers['authority']
-            if not referer:
-                referer = 'localhost'  # Best guess if all else fails
-        split_referer = referer.split(":", 1)
-        refererip = split_referer[0]  # just interested in the calling address as we know our port number
-        # Update main content
-        header, status, buttons = self.update_content()
-
-        if ('favicon.ico' in self.path):
-            return
-
-        query_components = parse_qs(urlparse(self.path).query)
-
-        if not query_components and self.path != '/':
-            logger.debug(str(self.path))
-        else:
-            logger.debug(str(query_components))
-
-        if ((query_components and query_components.get('files')) or (not query_components and self.path != '/')):
-            #We use the linux path convention here - corrected for win later
-            if query_components.get('files'):  # called from the file button
-                if lastdir == '':
-                    thisdir = '/'
-                else:
-                    thisdir = lastdir
-            else:
-                thisdir = self.path
-
-            lastdir, _ = os.path.split(thisdir)  # only interested in the path portion cuz could be file display request
-            if not lastdir.endswith('/'): #force it to be recognized as a dir
-                lastdir = lastdir +'/'
-            selectMessage = self.display_dir(thisdir)
-
-        if (query_components.get('delete')):
-            file = query_components['delete'][0]
-            filepath, _ = os.path.split(file)
-            filepath = filepath + '/'
-            logger.info(file)
-            logger.info(filepath)
-            file = topdir + file
-
-            if win:
-                file = file.replace('/', '\\')
-                if os.path.isdir(file):
-                    cmd = 'rmdir /s /q "' + file + '"'
-                else:
-                    cmd = 'del /q "' + file + '"'
-            else:
-                cmd = 'rm -rf "' + file + '"'
-
-            if runsubprocess(cmd) is False:
-                logger.info('Could not delete ' + str(file))
-
-            selectMessage = self.display_dir(filepath)
-
-        if (query_components.get('zip')):
-            file = query_components['zip'][0]
-            filepath, _ = os.path.split(file)
-            filepath = filepath + '/'
-            file = topdir + file
-            zipedfile = file + '.zip'
-
-            if win:
-                file = file.replace('/', '\\')
-                zipedfile = zipedfile.replace('/', '\\')
-
-            result = make_archive(file, zipedfile)
-            selectMessage = '<h3>' + result + '<br></h3>' + self.display_dir(filepath)
-
-        if (query_components.get('video')):
-            global fps
-            if (query_components.get('fps')):
-                thisfps = query_components['fps'][0]
-                try:
-                    thisfps = int(thisfps)
-                    if thisfps > 0:
-                        fps = thisfps
-                        logger.info('fps changed to ' + str(fps))
-                except ValueError:
-                    pass
-            fps = str(fps)
-            file = query_components['video'][0]
-            filepath, _ = os.path.split(file)
-            filepath = filepath + '/'
-            file = topdir + file
-
-            if win:
-                file = file.replace('/', '\\')
-
-            result = createVideo(file)
-
-            selectMessage = '<h3>'+result+'<br></h3>'+self.display_dir(filepath)
-
-        if (query_components.get('command')):
+        try:
+            options = 'status, start, terminate'
+            global referer, refererip, selectMessage, refreshing, lastdir
+            referer = self.headers['Host']  # Should always be there for HTTP/1.1
+            if not referer:  # Lets try authority
+                referer = self.headers['authority']
+                if not referer:
+                    referer = 'localhost'  # Best guess if all else fails
+            split_referer = referer.split(":", 1)
+            refererip = split_referer[0]  # just interested in the calling address as we know our port number
             # Update main content
             header, status, buttons = self.update_content()
 
-            command = query_components['command'][0]
-
-            if (command == 'status'):
-                if selectMessage == None:
-                    selectMessage = refreshing
-                self._set_headers()
-                self.wfile.write(self._refresh(status + buttons + selectMessage))
-                selectMessage = refreshing
+            if ('favicon.ico' in self.path):
                 return
 
-            elif (command == 'start'):
-                selectMessage = self.start_process(query_components)
+            query_components = parse_qs(urlparse(self.path).query)
 
-            elif (command == 'terminate'):
-                selectMessage = self.terminate_process(query_components)
-
-            elif (command == 'shutdown'):
-                selectMessage = self.shutdown_process(query_components)
-
+            if not query_components and self.path != '/':
+                logger.debug(str(self.path))
             else:
-                txt = []
-                txt.append('<h3>')
-                txt.append('Illegal: command=' + command + '<br><br>')
-                txt.append('</h3>')
-                txt.append('<div class="info-disp">')
-                txt.append('Valid options are: command= ' + options + '</h3>')
-                txt.append('</div>')
-                selectMessage = ''.join(txt)  # redirect to status page
-        new_url = 'http://' + referer + '/?command=status'
-        self.redirect_url(new_url)
-        return
+                logger.debug(str(query_components))
+
+            if ((query_components and query_components.get('files')) or (not query_components and self.path != '/')):
+                #We use the linux path convention here - corrected for win later
+                if query_components.get('files'):  # called from the file button
+                    if lastdir == '':
+                        thisdir = '/'
+                    else:
+                        thisdir = lastdir
+                else:
+                    thisdir = self.path
+
+                lastdir, _ = os.path.split(thisdir)  # only interested in the path portion cuz could be file display request
+                if not lastdir.endswith('/'): #force it to be recognized as a dir
+                    lastdir = lastdir +'/'
+                selectMessage = self.display_dir(thisdir)
+
+            if (query_components.get('delete')):
+                file = query_components['delete'][0]
+                filepath, _ = os.path.split(file)
+                filepath = filepath + '/'
+                file = topdir + file
+                file = os.path.normpath(file)
+                if os.path.isdir(file):
+                    try:
+                        shutil.rmtree(file)
+                    except shutil.Error as e:
+                        logger.info('Error deleting dir ' + str(e))
+                elif os.path.isfile(file): 
+                    try:
+                        os.remove(file)
+                    except OSError as e:
+                        logger.info('Error deleting file ' + str(e))
+
+
+                selectMessage = self.display_dir(filepath)
+
+            if (query_components.get('zip')):
+                file = query_components['zip'][0]
+                filepath, _ = os.path.split(file)
+                filepath = filepath + '/'
+                file = topdir + file
+                zipedfile = file + '.zip'
+
+                file = os.path.normpath(file)
+                zipedfile = os.path.normpath(zipedfile)
+                result = make_archive(file, zipedfile)
+                selectMessage = '<h3>' + result + '<br></h3>' + self.display_dir(filepath)
+
+            if (query_components.get('video')):
+                global fps
+                if (query_components.get('fps')):
+                    thisfps = query_components['fps'][0]
+                    try:
+                        thisfps = int(thisfps)
+                        if thisfps > 0:
+                            fps = thisfps
+                            logger.info('fps changed to ' + str(fps))
+                    except ValueError:
+                        pass
+                fps = str(fps)
+                file = query_components['video'][0]
+                filepath, _ = os.path.split(file)
+                filepath = filepath + '/'
+                file = topdir + file
+
+                file = os.path.normpath(file)
+
+                result = createVideo(file)
+
+                selectMessage = '<h3>'+result+'<br></h3>'+self.display_dir(filepath)
+
+            if (query_components.get('command')):
+                # Update main content
+                header, status, buttons = self.update_content()
+
+                command = query_components['command'][0]
+
+                if (command == 'status'):
+                    if selectMessage == None:
+                        selectMessage = refreshing
+                    self._set_headers()
+                    self.wfile.write(self._refresh(status + buttons + selectMessage))
+                    selectMessage = refreshing
+                    return
+
+                elif (command == 'start'):
+                    selectMessage = self.start_process(query_components)
+
+                elif (command == 'terminate'):
+                    selectMessage = self.terminate_process(query_components)
+
+                elif (command == 'shutdown'):
+                    selectMessage = self.shutdown_process(query_components)
+
+                else:
+                    txt = []
+                    txt.append('<h3>')
+                    txt.append('Illegal: command=' + command + '<br><br>')
+                    txt.append('</h3>')
+                    txt.append('<div class="info-disp">')
+                    txt.append('Valid options are: command= ' + options + '</h3>')
+                    txt.append('</div>')
+                    selectMessage = ''.join(txt)  # redirect to status page
+            new_url = 'http://' + referer + '/?command=status'
+            self.redirect_url(new_url)
+            return
+        except: #supress disconnect messages
+            return
         #  --------------
         #  End of do_Get
         #  --------------
@@ -588,9 +591,9 @@ class MyHandler(SimpleHTTPRequestHandler):
             txt.append('Shutting Down startDuetLapse3.<br>')
             txt.append('</h3>')
 
-            logger.info('!!!!!! Shutdown by http request !!!!!!')
+            logger.info('!!!!!! DuetLapse3 was shutdown by http request !!!!!!')
 
-            threading.Thread(target=shut_down, args=()).start()
+            threading.Thread(name='shut_down', target=shut_down, args=(), daemon=False).start()
         else:
             if win:
                 txt = []
@@ -601,10 +604,10 @@ class MyHandler(SimpleHTTPRequestHandler):
             else:
                 txt = []
                 txt.append('If startDuetLapse3 is running as a service (e.g. under systemctl)<br>')
-                txt.append('DuetLapse3 instances WILL be shutdown<br><br>')
+                txt.append('DuetLapse3 instances that were started by this program WILL be shutdown<br><br>')
                 txt.append('If startDuetLapse3 is running from a console<br>')
-                txt.append('DuetLapse3 instances will NOT be shutdown<br><br>')
-                txt.append('This is a linux limitation<br>')
+                txt.append('DuetLapse3 instances started by this program will NOT be shutdown<br><br>')
+                txt.append('This is a linux behavior<br>')
                 osnote = ''.join(txt)
 
             txt = []
@@ -624,8 +627,6 @@ class MyHandler(SimpleHTTPRequestHandler):
         # Don't forget explicit trailing slash when normalizing. Issue17324
         trailing_slash = path.rstrip().endswith('/') #get rid of whitespace and verify trailing slash
         requested_dir = topdir + path
-        if win:
-            requested_dir = requested_dir.replace('/','\\') #since linux path format being passed
 
         if trailing_slash:  # this is a dir request
             response = self.list_dir(requested_dir)
@@ -694,15 +695,21 @@ class MyHandler(SimpleHTTPRequestHandler):
         try:
             list = os.listdir(path)
         except OSError:
-            txt = []
-            txt.append('<h3>')
-            txt.append('There are no files or directories named '+displaypath+'<br>')
-            txt.append('or you do not have permission to access')
-            txt.append('</h3>')
-            response = ''.join(txt)
-            return response
+            try:
+                path = pathlib.Path(path)
+                path = path.parent
+                list = os.listdir(path)
+            except OSError:
+                txt = []
+                txt.append('<h3>')
+                txt.append('There are no files or directories named '+displaypath+'<br>')
+                txt.append('or you do not have permission to access')
+                txt.append('</h3>')
+                response = ''.join(txt)
+                return response
 
-        list.sort(key=lambda a: a.lower())
+        # list.sort(key=lambda a: a.lower())
+        list.sort(key=lambda fn: os.path.getmtime(os.path.join(path, fn))) # Have to use full path to stat file
 
         subdir = path.replace(topdir, '') #path relative to topdir
         parentdir, _ = os.path.split(subdir) # Get rid of trailing information
@@ -874,14 +881,12 @@ def createVideo(directory):
 
         timestamp = time.strftime('%a-%H-%M', time.localtime())
 
-        fn = ' "' + directory + '_' + cameraname + '_' + timestamp + '.mp4"'
+        fn = os.path.normpath(directory + '_' + cameraname + '_' + timestamp + '.mp4')
+        location = os.path.normpath(directory + '/' + cameraname + '_%08d.jpeg')
+        cmd = 'ffmpeg -threads 1 ' + ffmpegquiet + ' -r ' + fps + ' -i ' + location + ' -vcodec libx264 -y -threads 2 ' + fn + debug
+ 
 
-        if win:
-            cmd = 'ffmpeg' + ffmpegquiet + ' -r ' + fps + ' -i "' + directory + '\\' + cameraname + '_%08d.jpeg" -vcodec libx264 -y ' + fn + debug
-        else:
-            cmd = 'ffmpeg' + ffmpegquiet + ' -r ' + fps + ' -i "' + directory + '/' + cameraname + '_%08d.jpeg" -vcodec libx264 -y ' + fn + debug
-
-        #  Wait for up to minutes for ffmpeg capacity to  become available
+#  Wait for up to minutes for ffmpeg capacity to  become available
         #  If still not available - try anyway
         minutes = 5
         increment = 15  #  seconds
@@ -921,17 +926,23 @@ def ffmpeg_available():
 
 def createHttpListener():
     global listener
-    listener = ThreadingHTTPServer((host, port), MyHandler)
-    daemon_threads = True
-    listener.serve_forever()
+    try:
+        listener = ThreadingHTTPServer((host, port), MyHandler)
+        threading.Thread(name='httpServer', target=listener.serve_forever, daemon=False).start()  #Avoids blocking
+        logger.info('Started the http listener')
+    except Exception as e:
+        logger.info('There was a problem starting the http listener')
+        sys.exit(7)
 
 
 def closeHttpListener():
     global listener
-    logger.info('!!!!! Stop requested by http listener !!!!!')
-    listener.shutdown()
-    listener.server_close()
-    logger.info('Shutdown')
+    try:
+        listener.shutdown()
+        logger.info('!!!!! http listener stopped  !!!!!')
+    except Exception as e:
+        logger.debug('Could not terminate http listener')
+        logger.debug(e)
 
 
 def getOperatingSystem():
@@ -1000,13 +1011,12 @@ def getRunningInstances(thisinstance, refererip):
                 txt.append('</a>')
                 txt.append('<br>')
                 txt.append('</div>')
-                running = running + ('Process id:  ' + pid + '<br>' + cmdlinestr + '<br>')
+                running = running + ''.join(txt)
             else:  # Format for html link
                 txt = []
                 txt.append('Process id:  ' + pid + ' -- Port:  ' + str(port) + '<br>')
                 txt.append('<div class="process-disp">')
-                txt.append('<a href=\"http://' + refererip +
-                           ':' + str(port))
+                txt.append('<a href=\"http://' + refererip + ':' + str(port))
                 txt.append('\?command=status" target="_blank">' + cmdlinestr)
                 txt.append('</a>')
                 txt.append('<br>')
@@ -1020,9 +1030,22 @@ def getRunningInstances(thisinstance, refererip):
 
 
 def shut_down():
-    time.sleep(5)  # give pending actions a chance to finish
-    closeHttpListener()
-    # sys.exit(0)  # Do not use as it will close child processes
+
+    # closeHttpListener()
+
+    #Shutdown all the open threads
+    for thread in threading.enumerate():
+        if thread.name == 'MainThread' or thread == threading.current_thread():
+            continue
+        logger.debug('Attempting to shutdown ' + str(thread.name))
+        try:
+            thread.join(10)
+        except Exception as e:
+            logger.info('Could not terminate ' + str(thread.name))
+            logger.debug(e)
+    logger.info('Program Terminated')
+    os.kill(int(thisinstancepid), 9)
+
 
 
 # Allows process running in background or foreground to be gracefully
@@ -1050,26 +1073,24 @@ Main Program
 """
 if __name__ == "__main__":
 
-    global thisinstance, thisinstancepid, topdir
-    global refreshing, selectMessage, lastdir
-
+    #  global thisinstance, thisinstancepid, topdir
+    #  global refreshing, selectMessage, lastdir
+    refreshing = selectMessage = lastdir = ''
     getOperatingSystem()  # some commands are os specific
     thisinstance = os.path.basename(__file__)
 
     if not win:
         thisinstance = './' + thisinstance
+
     _ = checkInstances(thisinstance, 'single')  # There can only be one instance running
     thisinstancepid = os.getpid()
+    
     init()
 
     if topdir == '':
         topdir = os.path.dirname(os.path.realpath(__file__))
     # Get the slashes going the right way
-    if win:
-        topdir = topdir.replace('/', '\\')
-    else:
-        topdir = topdir.replace('\\', '/')
-    topdir = os.path.normpath(topdir)  # Normalise the dir - no trailing slash
+    topdir = os.path.normpath(topdir)
 
     if port != 0:
         try:
@@ -1079,11 +1100,8 @@ if __name__ == "__main__":
                 logger.info('Sorry, port ' + str(port) + ' is already in use.')
                 logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                 sys.exit(2)
-            # Does this need to be threaded with ThreadingHTTPServer ?
-            # or just call createHttpListener()
-            httpthread = threading.Thread(target=createHttpListener, args=()).start()
-            # httpthread.start()
-            logger.info('***** Started http listener *****')
+
+            createHttpListener()
 
         except KeyboardInterrupt:
             pass  # This is handled as SIGINT

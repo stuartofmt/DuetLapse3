@@ -4,36 +4,36 @@ This is am optional helper program for use with DuetLapse3.
 It provides a simple http interface for starting and terminating DuetLapse3 instances.
 
 
-###Version 3.2.0###
+### Version 3.2.0
 - [1]  Initial version.  Requires DuetLapse3 at version 3.2.0 or higher
 
-###Version 3.2.1###
+### Version 3.2.1
 - [1]  A minor change to prevent system messages when stopped with CTRL+C
 
-###Version 3.2.2###
+### Version 3.2.2
 - [1]  Made some cosmetic changes to the http responses.  Most now include the local time as part of the response.
 - [2]  The status page will automatically refresh every 60 seconds.  Other pages will show the last time they were invoked.
 
-###Version 3.2.3###
+### Version 3.2.3
 - [1]  Fixed some inconsistencies when running on Windows due to slightly different behavior of python3.
 
-###Version 3.3.0###
+### Version 3.3.0
 - [1]  Completely revised the UI with the addition of buttons to make navigation easier.
 - [2]  Added the ability to directly enter the start options for DuetLapse3.
 - [3]  Added an optional argument (-args) to set default options for starting DuetLapse3
 
-###Version 3.4.0###
+### Version 3.4.0
 - [1] Changed how http terminate requests were handled for better cross-platform compatibility.
 - [2] Added the ability to navigate the directory structure from a browser (new button)
 - [3] Made some cosmetic changes to the html pages.
 
-###Version 3.4.1###
+### Version 3.4.1
 - [1] Changed the browser UI to a single page layout.
 - [2] Added an optional argument (-topdir) to set the top level directory for file functions.
       If used - this would normally be set the same as DuetLapse or at the "duet ip" level
 - [3] File functions expanded to allow "delete" and "zip".  This is "conservative" - will not allow deletion of files / directories of running instances.  Can only zip directories. 
 
-###Version 3.4.2###
+### Version 3.4.2
 - [1] Can now delete empty directories (provided they are not in use). This allows a complete cleanup of the directory tree.
 - [2] Added file function to create a Video on directories containing jpeg files (provided they are not in use).
 - [3] Added an optional argument (-maxffmpeg) that limits the number of concurrent ffmpeg instances.  Ffmpgeg can fail due to lack of resources - the default is 2 instances.
@@ -51,6 +51,17 @@ It provides a simple http interface for starting and terminating DuetLapse3 inst
 - [9]   Added new argument -fps.  Sets the default frames-per-seconds
 - [10]  Added the ability to change the default frames-per-second (fps) when creating a video from the files menu.
 - [11]  General UI improvements.
+
+### Version 3.5.1
+- [1]  Some minor improvements / bug fixes.
+- [2]  Fixed an issue if logfile directory is missing.
+- [3]  Restricted CPU utilization on video creation.
+
+
+### Version 4.0.0
+- [1]  ????.
+- [2]  ????.
+
 ## General Description
 
 startDuetLapse 3 is designed to run continuously and accept http commands either from a browser, curl or other means of sending http get commands.<br>
@@ -144,8 +155,9 @@ http://<ipaddress>:<port>/?{instructions}
 
 ```
 
-<pre>
 Valid {instructions} are:
+
+
 command=status                     - Returns brief information about the running state of DuetLapse3 instances
                                      For each instance it proved the process id together with the options used to start the instance
                       
@@ -161,7 +173,10 @@ Example
 http://localhost:8082/?command=start&args=-duet 192.168.86.235 -detect none -seconds 15 -standby -port 8083 -camera1 stream -weburl1 http://192.168.86.230:8081/stream
 
 ```
+
 **THE USE OF NOHUP IS DEPRECATED**
+
+```
 nohup=yes               - Will run DuetLapse3 with nohup (on Linux).  If on Windows the program will substitute pythonw.
                           Note that it is not part of the command=start&args= but a separate command
                           In most situations (startDuetLapse3 running in background) you will NOT need to use this option
@@ -174,6 +189,7 @@ http://localhost:8082/?nohup=yes&command=start&args=-duet 192.168.86.235 -detect
 ```
 
 ----
+
 command=terminate&pids=  - causes DuetLapse3 to terminate depending on the option specified in pids
 
 ```
@@ -184,7 +200,9 @@ http://localhost:8082/?command=terminate&pids=all     #Will cause ALL instances 
 http://localhost:8082/?command=terminate&pids=12345   #Will cause DuetLapse3 with process id 12345 to terminate 
 
 ```
+
 ----
+
 command=shutdown   - causes startDuetLapse3 to shutdown.
 
 ----
@@ -199,7 +217,9 @@ http://localhost:8082/?delete=/123454/     #Will delete the directory /home/pi/m
 Assuming -topdir is set to /home/pi/me.local
 http://localhost:8082/?delete=/192-168-1-230/Camera1.mp4/     #Will delete the file /home/pi/me.local/192-168-1-230/Camera1.mp4
 ```
+
 ----
+
 zip={dir}                          - {dir} is a directory name RELATIVE to the -topdir setting  
 
 ```
@@ -208,17 +228,18 @@ Assuming -topdir is set to /home/pi/me.local/192-168-1-230
 http://localhost:8082/?zip=/123454/     #Will create the file /home/pi/me.local/192-168-1-230/123456.zip
 Note that zip ONLY works on directories
 ```
-----
 
-</pre>
+----
 
 
 ### Options
 
 Options can be viewed with
+
 ```
 python3 startDuetLapse3.py -h
 ```
+
 The response will give the version number at the top.
 
 The options are described here.  Each option is preceded by a dash -. Some options have parameters described in the square brackets.  Note the square brackets are NOT used in entering the options. If an option is not specified the default used.
@@ -227,40 +248,49 @@ The options are described here.  Each option is preceded by a dash -. Some optio
 #### -host [ip address]
 If omitted the default is 0.0.0.0<br>
 Generally this can be left out (default) as it will allow connection to the http listener from localhost:<port> (locally) or from another machine with network access using <actual-ip-address-of-server-running-DuetLapse3><port>.
-<pre>
+
+```
 **example**
 
 -host 192.168.86.10      #Causes internal http listener (if active) to listen at ip address 192.168.86.10<br>
-</pre>
+
+```
 
 #### -port [port number]
 This option is mandatory.<br>
 If the selected port is already in use the program will not start
-<pre>
+
+```
 **example**
 
 -port 8082      #Causes internal http listener to start and listen on port 8082<br>
-</pre>
+
+```
 
 #### -topdir [full path name]
 If omitted - the default dir is the location of startDuetLapse3.py. 
-<pre>
+
+```
 **example**
 
 -topdir /home/pi/mydir  #output files start at /home/pi/mydir
-</pre>
+
+```
 
 #### -maxffmpeg [number]
 If omitted the default is 3
 When DuetLapse3 tries to create a video it will limit the number of ffmpeg instances running to the specified number.  This can prevent ffmpeg failing because it cannot get resources (e.g. CPU / Memory)
 
+
 #### -nolog
 If omitted - the default is False
 Logging will always use the console.  A logfile will be created unless -nolog is used.
 
-**example**
 ```
+**example**
+
 -nolog console   #Only send messages to the console
+
 ```
 
 #### -verbose
@@ -268,17 +298,20 @@ If omitted the default is False
 Causes the output of system calls and more detailed messages to be logged.
 Should usually only be used for debugging.
 
-**example**
 ```
+**example**
+
 -verbose       #Causes addidtional logging information 
 
 ```
+
 #### -fps
 If omitted the default is 10
 Sets the default frames-per-second when the video button is used.
 
-**example**
 ```
+**example**
+
 -fps 20       #Causes videos to be created at 20 frames-per-second
 
 ```

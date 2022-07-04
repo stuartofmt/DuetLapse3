@@ -1,4 +1,4 @@
-; Test Job1
+; Test gcode file for demonstrating DuetLapse3. style messages
 ;
 M98 P"/macros/test_job_settings.g"
 ;

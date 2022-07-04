@@ -1,3 +1,5 @@
+;  Example macro using DuetLapse3. style messages
+;
 M117 Running jobopen macro
 G4 S10
 ;

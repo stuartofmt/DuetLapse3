@@ -8,12 +8,12 @@
 # Copyright (C) 2020 Danal Estes all rights reserved.
 # Released under The MIT License. Full text available via https://opensource.org/licenses/MIT
 #
-#Extended by Stuart Strolin
+# Rewritten and extended by Stuart Strolin
 # Copyright (C) 2020 Stuart Strolin all rights reserved.
 # Released under The MIT License. Full text available via https://opensource.org/licenses/MIT
 #
 #
-# Developed on Raspberry Pi and WSL with Debian Buster and on Windows 10. SHOULD work on most other linux distributions.
+# Developed on Raspberry Pi and WSL with Debian Buster and on Windows 10/11. SHOULD work on most other linux distributions.
 # For USB or Pi camera, The Camera MUST be physically attached to the Pi computer.
 # For Webcam, the camera must be network reachable and via a defined URL for a still image.
 # For Stream   the camera must be network reachable and via a defined URL
@@ -22,6 +22,7 @@
 #
 """
 
+from operator import truediv  #  To support proper division
 import subprocess
 import sys
 import platform
@@ -30,34 +31,50 @@ import time
 import requests
 import json
 import os
+import glob
 import socket
 import threading
 import psutil
 import shutil
 import pathlib
+import signal
+import logging
 
-duetLapse3Version = '3.5.0'
+duetLapse3Version = '4.0.0'
+#  Added support for M117 control using DuetLapse3. prefix
+#  Added -restart to cause a restart at end of print
+#  Changed - extratime so as not to require tpad support in ffmpeg
+#  Added the ability to execute an arbitrary program by sending M117 gcode with execkey prefix 
+#  Goes into a retry loop if no printer connection at start or during execution
+#  Can now run continuously.
+#  Efficiency improvements.
+#  Added -minvideo to set minimum video length (seconds default 5)
+#  Changed default -poll to minimum of 12 seconds.
+#  Changed default -seconds to minimum of 12 seconds.
+#  Supressed a lot of output unless -verbose is used
+#  Changed logfile naming convention.  Initially the logfile is created with a timestamp. When the print starts the logfile is renamed to reflect the name of the print job
+
 
 
 def setstartvalues():
-    global zo1, zo2, printState, capturing, duetStatus, timePriorPhoto1, timePriorPhoto2, frame1, frame2
-    zo1 = -1  # Starting layer for Camera1
-    zo2 = -1  # Starting layer for Camera2
+    global zo1, zo2, printState, captureLoopState, gcodeLoopState,  duetStatus, timePriorPhoto1, timePriorPhoto2, frame1, frame2
+
     printState = 'Not Capturing'
-    capturing = False
+    stopCaptureLoop()
     duetStatus = 'Not yet determined'
 
     # initialize timers
     timePriorPhoto1 = time.time()
     timePriorPhoto2 = time.time()
 
-    # reset the frame counters
-    frame1 = 0
-    frame2 = 0
-
+    # reset the frame counters and layer (zo) state
+    frame1 = 0 # Camera1
+    zo1 = -1  
+    frame2 = 0 # Camera2
+    zo2 = -1  
 
 ###########################
-# Methods begin here
+# General purpose methods begin here
 ###########################
 
 def returncode(code):  # Defined here - used by calling programs
@@ -82,7 +99,7 @@ def whitelist(parser):
     # Environment
     parser.add_argument('-duet', type=str, nargs=1, default=['localhost'],
                         help='Name of duet or ip address. Default = localhost')
-    parser.add_argument('-poll', type=float, nargs=1, default=[5])
+    parser.add_argument('-poll', type=float, nargs=1, default=[12])
     parser.add_argument('-basedir', type=str, nargs=1, default=[''], help='default = This program directory')
     parser.add_argument('-instances', type=str, nargs=1, choices=['single', 'oneip', 'many'], default=['single'],
                         help='Default = single')
@@ -111,7 +128,8 @@ def whitelist(parser):
                         help='Where to park head on pause, Default = 0,0')
     parser.add_argument('-rest', type=float, nargs=1, default=[1],
                         help='Delay before image capture after a pause.  Default = 1')
-    parser.add_argument('-standby', action='store_true', help='Wait for command from http listener')
+    parser.add_argument('-standby', action='store_true', help='Wait for command to start.')
+    parser.add_argument('-restart', action='store_true', help='Will restart when print finishes')
     # Camera
     parser.add_argument('-camera1', type=str, nargs=1, choices=['usb', 'pi', 'web', 'stream', 'other'], default=['usb'],
                         help='Mandatory Camera. Default = usb')
@@ -121,6 +139,7 @@ def whitelist(parser):
     parser.add_argument('-weburl2', type=str, nargs=1, default=[''], help='Url for Camera2 if web or stream')
     # Video
     parser.add_argument('-extratime', type=float, nargs=1, default=[0], help='Time to repeat last image, Default = 0')
+    parser.add_argument('-minvideo', type=float, nargs=1, default=[5], help='Minimum video length, Default = 5')
     # Overrides
     parser.add_argument('-camparam1', type=str, nargs=1, default=[''],
                         help='Camera1 Capture overrides. Use -camparam1="parameters"')
@@ -132,6 +151,9 @@ def whitelist(parser):
                         help='Camera2 Video overrides. Use -vidparam2="parameters"')
     parser.add_argument('-fps', type=int, nargs=1, default=[10], help='Frames-per-second for video. Default = 10')
     parser.add_argument('-hidebuttons', action='store_true', help='Hides buttons not logically available.')
+    #Special Functions
+    parser.add_argument('-execkey', type=str, nargs=1, default=[''],
+                        help='string to identify executable command')
     return parser
 
 ###  Main routines for calling subprocesses
@@ -139,7 +161,6 @@ def whitelist(parser):
 
 def runsubprocess(cmd):
     try:
-        # r = subprocess.check_output(cmd, shell=True)
         result = subprocess.run(cmd, capture_output=True, text=True, check=True, shell=True)
 
         if str(result.stderr) != '':
@@ -147,7 +168,7 @@ def runsubprocess(cmd):
             logger.debug(str(result.stderr))
             return False
         else:
-            logger.info('Command Success : ' + str(cmd))
+            logger.debug('Command Success : ' + str(cmd))
             if result.stdout != '':
                 logger.debug(str(result.stdout))
             return True
@@ -157,91 +178,181 @@ def runsubprocess(cmd):
         return False
 
 
+
+
 def init():
+    global inputs
     parser = argparse.ArgumentParser(
             description='Create time lapse video for Duet3D based printer. V' + duetLapse3Version, allow_abbrev=False)
     parser = whitelist(parser)
     args = vars(parser.parse_args())
+    inputs = {}
 
-    # Environment
-    global duet, basedir, poll, instances, logtype, nolog, verbose, host, port
+    global duet, basedir, poll, pollcheck, instances, logtype, nolog, verbose, host, port
     global keeplogs, novideo, deletepics, maxffmpeg, keepfiles
     # Derived  globals
     global duetname, debug, ffmpegquiet, httpListener
+    
+    # Environment
+    inputs.update({'# Environment':''})
+    
     duet = args['duet'][0]
+    inputs.update({'duet': str(duet)})
+
     basedir = args['basedir'][0]
+    inputs.update({'basedir': str(basedir)})
+    
     poll = args['poll'][0]
+    if poll < 12:
+        poll = 12
+    inputs.update({'poll': str(poll)})
+    pollcheck = int(poll/4) #  Check quicker than poll interval
+    
     instances = args['instances'][0]
+    inputs.update({'instances': str(instances)})
+    
     logtype = args['logtype'][0]
+    inputs.update({'logtype': str(logtype)})
+    
     nolog = args['nolog']
+    # Deprecated logtype
+    if ('console' in logtype):
+            nolog = True
+    inputs.update({'nolog': str(nolog)})
+    
     verbose = args['verbose']
+    inputs.update({'verbose': str(verbose)})
+
     host = args['host'][0]
+    inputs.update({'host': str(host)})
+
     port = args['port'][0]
+    inputs.update({'port': str(port)})
+
     keeplogs = args['keeplogs']
+    inputs.update({'keeplogs': str(keeplogs)})
+
     novideo = args['novideo']
+    inputs.update({'novideo': str(novideo)})
+
     deletepics = args['deletepics']
+    inputs.update({'deletepics': str(deletepics)})
+
     maxffmpeg = args['maxffmpeg'][0]
+    inputs.update({'maxffmpeg': str(maxffmpeg)})
+
     keepfiles = args['keepfiles']
+    inputs.update({'keepfiles': str(keepfiles)})
 
     # Execution
-    global dontwait, seconds, detect, pause, movehead, rest, standby
+    global dontwait, seconds, detect, pause, movehead, rest, standby, restart
+    inputs.update({'# Execution' : ''})
+
     dontwait = args['dontwait']
+    inputs.update({'dontwait': str(dontwait)})
+
     seconds = args['seconds'][0]
+    inputs.update({'seconds': str(seconds)})
+    if seconds != 0 and seconds < 12: # If used set to minimum of 12 seconds
+        seconds = 12
+
     detect = args['detect'][0]
+    inputs.update({'detect': str(detect)})
+
     pause = args['pause'][0]
+    inputs.update({'pause': str(pause)})
+
     movehead = args['movehead']
+    inputs.update({'movehead': str(movehead)})
+
     rest = args['rest'][0]
     if rest < 0:
         rest = 0
+    inputs.update({'rest': str(rest)})
+
     standby = args['standby']
+    inputs.update({'standby': str(standby)})
+
+    restart = args['restart']
+    inputs.update({'restart': str(restart)})
+
     # Camera
     global camera1, camera2, weburl1, weburl2
+    inputs.update({'# Camera': ''})
+
     camera1 = args['camera1'][0]
+    inputs.update({' camera1': str( camera1)})
+
     camera2 = args['camera2'][0]
+    inputs.update({'camera2': str(camera2)})
+
     weburl1 = args['weburl1'][0]
+    inputs.update({'weburl1': str(weburl1)})
+
     weburl2 = args['weburl2'][0]
+    inputs.update({'weburl2': str(weburl2)})
 
     # Video
-    global extratime, fps
-    extratime = str(args['extratime'][0])
+    global extratime, fps, minvideo
+    inputs.update({'# Video': ''})
+
+    extratime = args['extratime'][0]
+    inputs.update({'extratime': str(extratime)})
+
     fps = str(args['fps'][0])
+    inputs.update({'fps': str(fps)})
+
+    minvideo = args['minvideo'][0]
+    inputs.update({'minvideo': str(minvideo)})
 
     # Overrides
     global camparam1, camparam2, vidparam1, vidparam2
+    inputs.update({'# Overrides': ''})
+
     camparam1 = args['camparam1'][0]
+    inputs.update({'camparam1': str(camparam1)})
+
     camparam2 = args['camparam2'][0]
+    inputs.update({'camparam2': str(camparam2)})
+
     vidparam1 = args['vidparam1'][0]
+    inputs.update({'vidparam1': str(vidparam1)})
+
     vidparam2 = args['vidparam2'][0]
+    inputs.update({'vidparam2': str(vidparam2)})
 
     # UI
     global hidebuttons
-    hidebuttons = args['hidebuttons']
+    inputs.update({'# UI': ''})
 
-    # Deprecated logtype
-    if ('console' in logtype):  #
-            nolog = True
+    hidebuttons = args['hidebuttons']
+    inputs.update({'hidebuttons': str(hidebuttons)})
+
+    #  Special Functions
+    global execkey
+
+    inputs.update({'# Special Functions': ''})
+    execkey = args['execkey'][0]
+    inputs.update({'execkey': str(execkey)})
+
 
     ##### Create a custom logger #####
-    import logging
     global logger
     logger = logging.getLogger(__name__)
 
-    if verbose:  #  Capture all log messages
-        logger.setLevel(logging.DEBUG)
-    else:        #  Ignore debug messages
-        logger.setLevel(logging.INFO)
+    setdebug(verbose)
 
     # Create handler for console output - file output handler is created later if needed
     if nolog is False:  # Create log file as the default
         c_handler = logging.StreamHandler()
-        c_format = logging.Formatter(duet + ' %(message)s')
+        c_format = logging.Formatter(duet + ' %(threadName)s - %(message)s')
         c_handler.setFormatter(c_format)
         logger.addHandler(c_handler)
 
-    ############################################################
-    # Check to see if this instance is allowed to run
-    ############################################################
 
+    ########################################################################
+    # Check to see if this instance is allowed to run
+    #########################################################################
     #  What OS are we using?
     global win
     operatingsystem = platform.system()
@@ -263,16 +374,8 @@ def init():
     global pid
     pid = str(os.getpid())
 
-    # How much output
-    if verbose:
-        debug = ''
-        ffmpegquiet = ' -loglevel quiet'
-    else:
-        ffmpegquiet = ' -loglevel quiet'
-        if not win:
-            debug = ' > /dev/null 2>&1'
-        else:
-            debug = ' > nul 2>&1'
+    # set debug value
+    setdebug(verbose)
 
     # duetname used for filenames and directories
     duetname = duet.replace('.', '-')
@@ -282,110 +385,34 @@ def init():
     loggingset = False
     if basedir == '':
         basedir = os.path.dirname(os.path.realpath(__file__))
-    #get the slashes going the right way
-    if win:
-        basedir = basedir.replace('/','\\')
-    else:
-        basedir = basedir.replace('\\','/')
-    basedir = os.path.normpath(basedir) # Normalise the dir - no trailing slash
-
-    if win:
-        topdir = basedir + '\\' + socket.getfqdn() + '\\' + duetname
-        baseworkingdir = topdir + '\\' + pid  # may be changed later
-        logname = pid + '_' + time.strftime('%y-%m-%dT%H:%M:%S', time.localtime()) + '.log'
-        logfilename = logname.replace(':', u'\u02f8')  # cannot use regular colon in windows file names
-        logname = topdir + '\\' + logname  # This format used for HTML
-        logfilename = topdir + '\\' + logfilename
-        cmd = 'mkdir "' + topdir + '"' + debug
-    else:
-        topdir = basedir + '/' + socket.getfqdn() + '/' + duetname
-        baseworkingdir = topdir + '/' + pid  # may be changed later
-        logname = pid + '_' + time.strftime('%y-%m-%dT%H:%M:%S', time.localtime()) + '.log'
-        logfilename = logname.replace(':', u'\u02f8')  # cannot use regular colon in windows file names
-        logname = topdir + '/' + logname  #  This format used for html
-        logfilename = topdir + '/' + logfilename
-        cmd = 'mkdir -p "' + topdir + '"' + debug
     
-    if runsubprocess(cmd) is False:
-        logger.debug('Could not create ' + topdir)
+    basedir = basedir.replace('\\','/') # Could be user error
+    basedir = os.path.normpath(basedir) # Normalise the dir - no trailing slash
+ 
+    topdir = os.path.normpath(basedir + '/' + socket.getfqdn() + '/' + duetname)
+    baseworkingdir = os.path.normpath(topdir + '/' + pid)  # may be changed later
+    if not os.path.isdir(topdir): # If not already exists - create
+        try:
+            os.makedirs(topdir)  # Use recursive form to create intermediate directories
+        except OSError as e:
+            logger.info('Could not create dir ' + str(e))
 
-    #  Clean up files
+    #  Clean up older files
     cleanupFiles('startup')
 
-##  Set up log file now that we have a name for it
-    if nolog is False:
-        f_handler = logging.FileHandler(logfilename, mode='w', encoding='utf-8')
-        f_format = logging.Formatter('%(asctime)s - %(message)s')
-        f_handler.setFormatter(f_format)
-        logger.addHandler(f_handler)
-
-    loggingset = True
+    setuplogfile()
 
     ####################################################
-    # Display options selected.
+    # Display the options being used
     ####################################################
-    logger.info('')
-    logger.info("################### Options selected for this run #####################")
-    logger.info("#Environment Settings:")
-    logger.info("# printer         = {0:50s}".format(duet))
-    logger.info("# basedir         = {0:50s}".format(basedir))
-    logger.info("# poll            = {0:50s}".format(str(poll)))
-    logger.info("# logtype         = {0:50s}".format(logtype))
-    logger.info("# nolog           = {0:50s}".format(str(nolog)))
-    logger.info("# verbose         = {0:50s}".format(str(verbose)))
-    logger.info("# os              = {0:50s}".format(operatingsystem))
-    logger.info("# host            = {0:50s}".format(str(host)))
-    logger.info("# port            = {0:50s}".format(str(port)))
-    logger.info("# pid             = {0:50s}".format(pid))
-    logger.info("# keeplogs        = {0:50s}".format(str(keeplogs)))
-    logger.info("# nolog           = {0:50s}".format(str(nolog)))
-    logger.info("# novideo         = {0:50s}".format(str(novideo)))
-    logger.info("# deletepics      = {0:50s}".format(str(deletepics)))
-    logger.info("# maxffmpeg       = {0:50s}".format(str(maxffmpeg)))
-    logger.info("# keepfiles       = {0:50s}".format(str(keepfiles)))
-    logger.info("#Execution Setings:")
-    logger.info("# dontwait        = {0:50s}".format(str(dontwait)))
-    logger.info("# seconds         = {0:50s}".format(str(seconds)))
-    logger.info("# detect          = {0:50s}".format(detect))
-    logger.info("# pause           = {0:50s}".format(pause))
-    if (movehead[0] != 0) and (movehead[1] != 0):
-        logger.info("# movehead    = {0:6.2f} {1:6.2f} ".format(movehead[0], movehead[1]))
-    logger.info("# standby         = {0:50s}".format(str(standby)))
-    logger.info("#Camera1 Settings:")
-    logger.info("# camera1         = {0:50s}".format(camera1))
-    logger.info("# weburl1         = {0:50s}".format(weburl1))
-    if camparam1 != '':
-        logger.info("# Camera1 Override:")
-        logger.info("# camparam1       = {0:50s}".format(camparam1))
-    if camera2 != '':
-        logger.info("# Camera2 Settings:")
-        logger.info("# camera2         = {0:50s}".format(camera2))
-        logger.info("# weburl2         = {0:50s}".format(weburl2))
-    if camparam2 != '':
-        logger.info("# Camera2 Override:")
-        logger.info("# camparam2       = {0:50s}".format(camparam2))
-    logger.info("# Video Settings:")
-    logger.info("# extratime       = {0:50s}".format(extratime))
-    logger.info("# fps             = {0:50s}".format(str(fps)))
-    if vidparam1 != '':
-        logger.info("# Video1 Override:")
-        logger.info("# vidparam1       = {0:50s}".format(vidparam1))
-    if vidparam2 != '':
-        logger.info("# Video2 Override:")
-        logger.info("# vidparam2       = {0:50s}".format(vidparam2))
-    logger.info("# UI Settings:")
-    logger.info("# hidebuttons     = {0:50s}".format(str(hidebuttons)))
-    logger.info("###################################################################")
-    logger.info('')
 
+    listoptions()
+    
     ###############################################
     # derived parameters
     ##############################################
 
-    # Polling interval should be at least = seconds so as not to miss interval
-    if (poll > seconds) and (seconds != 0):
-        poll = seconds  # Need to poll at least as often as seconds
-    # if ('none' in detect and seconds != 0): poll = seconds  #No point in polling more often
+    poll_seconds()
 
     #  Port number must be given for httpListener to be active
     if port != 0:
@@ -398,86 +425,71 @@ def init():
     # Invalid Combinations that will abort program
 
     if (camera1 != 'other') and (camparam1 != ''):
-        logger.info('')
         logger.info('************************************************************************************')
         logger.info('Invalid Combination: Camera type ' + camera1 + ' cannot be used with camparam1')
-        logger.info('************************************************************************************')
+        logger.info('************************************************************************************\n')
         sys.exit(2)
 
     if (camera2 != 'other') and (camparam2 != ''):
-        logger.info('')
         logger.info('************************************************************************************')
         logger.info('Invalid Combination: Camera type ' + camera2 + ' cannot be used with camparam2')
-        logger.info('************************************************************************************')
+        logger.info('************************************************************************************\n')
         sys.exit(2)
 
     if (camera1 == 'usb' or camera1 == 'pi') and win:  # These do not work on WIN OS
-        logger.info('')
         logger.info('************************************************************************************')
         logger.info('Invalid Combination: Camera type ' + camera1 + ' cannot be on Windows OS')
-        logger.info('************************************************************************************')
+        logger.info('************************************************************************************\n')
         sys.exit(2)
 
     if (camera2 == 'usb' or camera2 == 'pi') and win:
-        logger.info('')
         logger.info('************************************************************************************')
         logger.info('Invalid Combination: Camera type ' + camera2 + ' cannot be on Windows OS')
-        logger.info('************************************************************************************')
+        logger.info('************************************************************************************\n')
         sys.exit(2)
 
-    if (seconds <= 0) and ('none' in detect):
-        logger.info('')
-        logger.info('************************************************************************************')
-        logger.info(
-            'Invalid Combination:: -seconds ' + str(seconds) + ' and -detect ' + detect + ' nothing will be captured.')
-        logger.info('Specify "-detect none" with "-seconds > 0" to trigger on seconds alone.')
-        logger.info('************************************************************************************')
-        sys.exit(2)
 
     if (not movehead == [0.0, 0.0]) and (not 'yes' in pause) and (not 'pause' in detect):
-        logger.info('')
         logger.info('************************************************************************************')
         logger.info(
                 'Invalid Combination: "-movehead {0:1.2f} {1:1.2f}" requires either "-pause yes" or "-detect pause".'.format(
                         movehead[0], movehead[1]))
-        logger.info('************************************************************************************')
+        logger.info('************************************************************************************\n')
         sys.exit(2)
 
     if ('yes' in pause) and ('pause' in detect):
-        logger.info('')
         logger.info('************************************************************************************')
         logger.info('Invalid Combination: "-pause yes" causes this program to pause printer when')
         logger.info('other events are detected, and "-detect pause" requires the gcode on the printer')
         logger.info('contain its own pauses.  These cannot be used together.')
-        logger.info('************************************************************************************')
+        logger.info('************************************************************************************\n')
         sys.exit(2)
 
+    return # init()
+
+def issue_warnings():
     # Information and Warnings
-
-    if standby and (not httpListener):
-        logger.info('')
+    global dontwait
+    if seconds <= 0 and 'none' in detect:
         logger.info('************************************************************************************')
-        logger.info('Warning: -standby ignored.  It has no effect unless http Listener is active.')
-        logger.info('Specify -localhost and -port to activate http Listener')
-        logger.info('************************************************************************************')
+        logger.info('Warning:: -seconds ' + str(seconds) + ' and -detect ' + detect + ' nothing will be captured.')
+        logger.info('Specify "-detect none" with "-seconds > 0" to trigger on seconds alone.')
+        logger.info('************************************************************************************\n')
 
-    if (seconds > 0) and (not 'none' in detect):
-        logger.info('')
+    if seconds > 0 and (not 'none' in detect):
         logger.info('************************************************************************************')
         logger.info('Warning: -seconds ' + str(seconds) + ' and -detect ' + detect + ' will trigger on both.')
         logger.info('Specify "-detect none" with "-seconds > 0" to trigger on seconds alone.')
-        logger.info('************************************************************************************')
+        logger.info('************************************************************************************\n')
 
-    if startNow() and (not dontwait):
-        logger.info('')
+    if seconds > 0  and 'none' in detect:
         logger.info('************************************************************************************')
         logger.info('Warning: -seconds ' + str(seconds) + ' and -detect ' + detect)
         logger.info('This combination implies -dontwait and will be set automatically')
-        logger.info('************************************************************************************')
+        logger.info('************************************************************************************\n')
         dontwait = True
 
     if 'pause' in detect:
-        logger.info('')
         logger.info('************************************************************************************')
         logger.info('* Note "-detect pause" means that the G-Code on the printer already contains pauses,')
         logger.info('* and that this program will detect them, take a photo, and issue a resume.')
@@ -487,10 +499,9 @@ def init():
         logger.info('* If instead, it is desired that this program force the printer to pause with no')
         logger.info('* pauses in the gcode, specify either:')
         logger.info('* "-pause yes -detect layer" or "-pause yes -seconds nnn".')
-        logger.info('************************************************************************************')
+        logger.info('************************************************************************************\n')
 
     if 'yes' in pause:
-        logger.info('')
         logger.info('************************************************************************************')
         logger.info('* Note "-pause yes" means this program will pause the printer when the -detect and / or ')
         logger.info('* -seconds flags trigger.')
@@ -498,13 +509,122 @@ def init():
         logger.info('* If instead, it is desired that this program detect pauses that are already in')
         logger.info('* in the gcode, specify:')
         logger.info('* "-detect pause"')
-        logger.info('************************************************************************************')
+        logger.info('************************************************************************************\n')
 
     if novideo and deletepics:
-        logger.info('')
         logger.info('************************************************************************************')
         logger.info('Warning: The combination of -novideo and -deletepics will not create any output')
-        logger.info('************************************************************************************')
+        logger.info('************************************************************************************\n')
+
+    return # issue_warnings()
+
+
+def listoptions():
+    for var in inputs: # update the values
+        if var in globals():
+            val = globals()[var]
+            newvalue = {var:val}
+            inputs.update(newvalue)
+    # output the options
+    logger.info("################### Options at start of this print job  #####################")
+    col_width = max(len(row) for row in inputs) + 2  # width of first column
+    for label, value in inputs.items():
+       logger.info("".join(label.ljust(col_width) + str(value)))
+    logger.info('-----------------------------------------------------------------------\n\n')
+
+def setuplogfile():
+    global loggingset, logname, logfilename
+    #  Set up log file now that we have a name for it
+    logfilename = topdir + '/' + pid + '_' + time.strftime('%y-%m-%dT%H:%M:%S', time.localtime()) + '.log'
+    logfilename = logfilename.replace(':', u'\u02f8')  # cannot use regular colon in windows file names
+    logfilename = os.path.normpath(logfilename)
+
+    if nolog is False:
+        filehandler = None
+        for handler in logger.handlers:
+            if handler.__class__.__name__ == "FileHandler":
+                filehandler = handler
+                break # There is only ever one
+        
+        if filehandler != None:  #  Get rid of it
+            filehandler.flush()
+            filehandler.close()
+            logger.removeHandler(filehandler)
+            time.sleep(3) # Wait for any messages to propogate
+
+        f_handler = logging.FileHandler(logfilename, mode='w', encoding='utf-8')
+        f_format = logging.Formatter('%(asctime)s - %(threadName)s - %(message)s')
+        f_handler.setFormatter(f_format)
+        logger.addHandler(f_handler)
+        logger.debug('Created logfile at ' + logfilename)
+
+    loggingset = True
+
+
+def renamelogfile(): # called from createworkingdir 
+    global logname, logfilename
+
+    if nolog is False:
+        filehandler = None
+        for handler in logger.handlers:
+            if handler.__class__.__name__ == "FileHandler":
+                filehandler = handler
+                break # There is only ever one
+        
+        if filehandler != None:  #  Get rid of it
+            filehandler.flush()
+            filehandler.close()
+            logger.removeHandler(filehandler)
+        
+        newlogfilename = os.path.normpath(workingdir + '.log')
+        newlogfilename = newlogfilename.replace(':', u'\u02f8')  # cannot use regular colon in windows file names
+
+        #  shutil.move(logfilename, newlogfilename)
+        try:
+            shutil.move(logfilename, newlogfilename)
+        except shutil.Error as e:
+            logger.info('Error on move ' + str(e))
+
+        f_handler = logging.FileHandler(newlogfilename, mode='a', encoding='utf-8')
+        f_format = logging.Formatter('%(asctime)s - %(threadName)s - %(message)s')
+        f_handler.setFormatter(f_format)
+        logger.addHandler(f_handler)
+        logfilename = newlogfilename
+   
+def setdebug(val): # How much output
+    global debug, ffmpegquiet, logger
+    try:
+        if val:
+            logger.setLevel(logging.DEBUG)
+        else:
+            logger.setLevel(logging.INFO)
+    except NameError:
+        pass
+
+    if val:
+        debug = ''
+        ffmpegquiet = ' -loglevel quiet'
+    else:
+        ffmpegquiet = ' -loglevel quiet'
+        if not win:
+            debug = ' > /dev/null 2>&1'
+        else:
+            debug = ' > nul 2>&1'
+
+
+def poll_seconds():
+    global seconds, poll, pollcheck
+        # Polling interval needs to be in integer multiple of seconds
+    if seconds != 0:
+        if seconds <= poll:
+            poll = seconds
+        elif seconds % poll == 0: # poll is an integer divisor - no need to change
+            pass
+        else:
+            poll = seconds / (int(seconds/poll)+1)
+
+    pollcheck = int(poll/4) #  Check quicker than poll interval
+
 
     def checkDependencies(id):
         if id == 1:
@@ -531,15 +651,6 @@ def init():
                     logger.info("Obtain via 'sudo apt install raspistill'")
                 sys.exit(3)
 
-        """  Redundant see ffmpeg test below - leave here if other method used in future
-        if 'stream' in camera or 'ffmpeg' in camparam:
-            if runsubprocess('ffmpeg -version') is False:
-                logger.info("Module 'ffmpeg' is required. ")
-                if not win:
-                    logger.info("Obtain via 'sudo apt install ffmpeg'")
-                sys.exit(3)
-        """
-
         if 'web' in camera or 'wget' in camparam:
             if runsubprocess('wget --version') is False:
                 logger.info("Module 'wget' is required. ")
@@ -557,68 +668,86 @@ def init():
     if camera2 != '':
         checkDependencies(2)
 
-    # Check to see if ffmpeg supports tpad
-    # Done after checking that ffmpeg exist
+    """
+    ########################################################################
+    # Make sure we can connect to the printer
+    #########################################################################
+    """
 
-    if (not tpad_supported()) and (float(extratime) > 0):
-        logger.info('')
-        logger.info('************************************************************************************')
-        logger.info('Warning: This version of ffmpeg does not support -extratime')
-        logger.info('-extratime has been set to 0')
-        logger.info('************************************************************************************')
-        extratime = '0'
+def checkforPrinter():
+    global apiModel, printerVersion, firstConnect, connectionState 
+    # Get the initial connection to the printer.    
+    while apiModel == '' and terminateState != 1: #  Keep trying until connected or terminating
+        Model, printerVersion = getDuetVersion('') # Wait for connection
+        if Model == '': #  Could not connect
+            logger.info('#########################################################')
+            logger.info('The printer at ' + duet + ' is not responding')
+            logger.info('Check the ip address or logical printer name is correct\n')
+            logger.info('Is the printer turned on?')
+            logger.info('Duet software must support rr_model or /machine/status')
+            logger.info('########################################################\n')
+            connectionState = False
+            startcheckforConnection()
+            continue
 
+        try:
+            firstConnect
+        except NameError:
+            firstConnect = False
+            majorVersion = int(printerVersion[0])
 
-    global apiModel
+            if majorVersion >= 3:
+                connectionState = True
+                apiModel = Model # We have a good connection
+                logger.info('###############################################################')
+                logger.info('Connected to printer at ' + duet)
+                logger.info('Using Duet version ' + printerVersion)
+                logger.info('Using  API interface ' + apiModel)
+                logger.info('###############################################################\n')
+                sendDuetGcode(apiModel,'M117 ""') #  Clear the display message
+                return
+            else:
+                logger.info('###############################################################')
+                logger.info('The printer at ' + duet + ' needs to be at version 3 or above')
+                logger.info('The version on this printer is ' + printerVersion)
+                logger.info('###############################################################\n')
+                sys.exit(5)
+    
 
-    # Get connected to the printer.
+def checkforConnection():
+    global apiModel, connectionState, checkforconnectionState
+    checkforconnectionState = 1
+    connectionState = False
+    elapsed = 0
+    shortcheck = 5
+    quickcheck = 20 # check every shortcheck for up to this number of seconds
+    longcheck = 3*60 # longer check interval
+    checking = True
+    logger.info('----------------  Waiting for printer to reconnect -----------------')
+    while checking and terminateState != 1:
+        if elapsed <= quickcheck: # Check every shortcheck
+            model = getDuetVersion(apiModel)[0]
+            if model == '': # Still not connected
+                #terminate()
+                logger.debug('Retrying connection every ' + str(shortcheck) + ' seconds')
+                time.sleep(shortcheck)
+                elapsed = elapsed + shortcheck
+            else:
+                checking = False
+        else:  #  Check every longcheck
+            model = getDuetVersion(apiModel)[0]
+            if model == '': # Still not connected
+                logger.debug('Retrying connection every ' + str(longcheck) + ' seconds')
+                time.sleep(longcheck)
+            else:
+                checking = False
 
-    apiModel, printerVersion = getDuetVersion()
-
-    if apiModel == 'none':
-        logger.info('')
-        logger.info('###############################################################')
-        logger.info('The printer at ' + duet + ' did not respond')
-        logger.info('Check the ip address or logical printer name is correct')
-        logger.info('Duet software must support rr_model or /machine/status')
-        logger.info('###############################################################')
-        logger.info('')
-        sys.exit(4)
-
-    majorVersion = int(printerVersion[0])
-
-    if majorVersion >= 3:
-        logger.info('')
-        logger.info('###############################################################')
-        logger.info(
-                'Connected to printer at ' + duet + ' using Duet version ' + printerVersion + ' and API access using ' + apiModel)
-        logger.info('###############################################################')
-        logger.info('')
-    else:
-        logger.info('')
-        logger.info('###############################################################')
-        logger.info('The printer at ' + duet + ' needs to be at version 3 or above')
-        logger.info('The version on this printer is ' + printerVersion)
-        logger.info('###############################################################')
-        logger.info('')
-        sys.exit(5)
-
-    # Allows process running in background or foreground to be gracefully
-    # shutdown with SIGINT (kill -2 <pid>
-    import signal
-
-    def quit_gracefully(*args):
-        logger.info('!!!!!! Stopped by SIGINT or CTL+C - Post Processing !!!!!!')
-        nextAction('terminate')  # No need to thread as we are quitting
-        # threading.Thread(target=nextAction, args=('terminate',)).start()
-
-    if __name__ == "__main__":
-        signal.signal(signal.SIGINT, quit_gracefully)
-
-
-"""
-End of init()
-"""
+    apiModel = model
+    connectionState = True
+    sendDuetGcode(apiModel,'M117 ""') #  Clear the display message
+    logger.info('-----------------------  Reconnected to printer ----------------------')    
+    startnextAction('reconnected')
+    checkforconnectionState = -1
 
 
 #####################################################
@@ -637,7 +766,7 @@ def make_archive(source, destination):
         shutil.move('%s.%s' % (name, format), destination)
         msg = ('Zip processing completed')
     except Exception as msg1:
-        msg = 'Error: There was a problem creating the zip file --'
+        msg = 'Error: There was a problem creating the zip file'
         msg = msg + str(msg1)
     return msg
 
@@ -650,28 +779,34 @@ def createVideo(directory):
     except OSError:
         msg = 'Error: No permission or directory not found'
         logger.info(msg)
-        return msg
-
-    cam1 = False
-    cam2 = False
+        return
     frame = 0
     Cameras = []
+    C1 = C2 = False
     for name in list:
-        if not cam1:
-            if 'Camera1' in name:
-                cam1 = True
-                Cameras.append('Camera1')
-        elif not cam2:
-            if 'camera2' in name:
-                cam2 = True
-                Cameras.append('Camera2')
-        frame += 1
+        if 'Camera1' in name and C1 is False:
+            Cameras.append('Camera1')
+            C1 = True
+        if 'camera2' in name and C2 is False:
+            Cameras.append('Camera2')
+            C2 = True
+        if C1 is True and C2 is True:
+            break
+    
+    if C1 is False and C2 is False:
+        logger.info('Cannot create video.  Could not determine which camera was used')
+        return
 
     for cameraname in Cameras:
-        if frame < int(fps):
-            msg = 'Error: ' + cameraname + ': Cannot create video of less than 1 second: ' + fps + ' frames are required.'
+        if cameraname == 'Camera1':
+            frame = frame1
+        elif cameraname == 'Camera2':
+            frame = frame2
+
+        if frame/int(fps) < minvideo:
+            msg = 'Error: ' + cameraname + ': Cannot create video of less than ' + str(minvideo) + ' seconds.'
             logger.info(msg)
-            return msg
+            return
 
         logger.info(cameraname + ': now making ' + str(frame) + ' frames into a video')
         if 250 < frame:
@@ -679,12 +814,18 @@ def createVideo(directory):
 
         timestamp = time.strftime('%a-%H-%M', time.localtime())
 
-        fn = ' "' + directory + '_' + cameraname + '_' + timestamp + '.mp4"'
+        fn = directory + '_' + cameraname + '_' + timestamp + '.mp4'
+        fn = os.path.normpath(fn)
 
-        if win:
-            cmd = 'ffmpeg' + ffmpegquiet + ' -r ' + fps + ' -i "' + directory + '\\' + cameraname + '_%08d.jpeg" -vcodec libx264 -y ' + fn + debug
+        if printState == 'Completed':
+            threadsin = ''  #  Dont limit ffmpeg
+            threadsout = ''  #  Dont limit ffmpeg
         else:
-            cmd = 'ffmpeg' + ffmpegquiet + ' -r ' + fps + ' -i "' + directory + '/' + cameraname + '_%08d.jpeg" -vcodec libx264 -y ' + fn + debug
+            threadsin = ' -threads 1 '
+            threadsout = ' -threads 2 '
+
+        location = os.path.normpath(directory + '/' + cameraname + '_%08d.jpeg')
+        cmd = 'ffmpeg' + threadsin + ffmpegquiet + ' -r ' + fps + ' -i ' + location + ' -vcodec libx264 -y ' + threadsout + fn + debug
 
         #  Wait for up to minutes for ffmpeg capacity to  become available
         #  If still not available - try anyway
@@ -706,21 +847,8 @@ def createVideo(directory):
         else:
             logger.info('Video processing completed for ' + cameraname)
             logger.info('Video is in file ' + fn)
-            msg = 'Video(s) successfully created'
+    return
 
-    return msg
-
-def tpad_supported():
-    if win:
-        cmd = 'ffmpeg -filters | findstr "tpad"'
-    else:
-        cmd = 'ffmpeg -filters | grep tpad'
-
-    if runsubprocess(cmd) is False:
-        logger.info('This version of ffmpeg does not support tpad')
-        return False
-
-    return True
 
 def ffmpeg_available():
     count = 0
@@ -729,9 +857,9 @@ def ffmpeg_available():
         if 'ffmpeg' in p.name():  # Check to see if it's running
             count += 1
         if count >= max_count:
-            logger.info('Waiting for ffmpeg to become available')
+            logger.debug('Waiting for ffmpeg to become available')
             return False
-    logger.info('There are ' + str(count) + ' instances of ffmpeg running')
+    logger.debug('There are ' + str(count) + ' instances of ffmpeg running')
     return True
 
 def getRunningInstancePids():
@@ -754,101 +882,110 @@ def getPidDirs():
 
 
 def createWorkingDir(baseworkingdir):
-    global workingdir_exists, workingdir
-    jobname = getDuetJobname(apiModel)
+    global workingdir_exists, workingdir, workingdirs
+    jobname = getDuet('Jobname from createworkingdir', Jobname)
+    if connectionState is False:
+        return
     if jobname != '':
         _, jobname = os.path.split(jobname)  # get the filename less any path
         jobname = jobname.replace(' ', '_')  # prevents quoting of file names
         jobname = jobname.replace('.gcode', '')  # get rid of the extension
-        jobname = jobname.replace(':', u'\u02f8')  # replace any colons
+        jobname = jobname.replace(':', u'\u02f8')  # replace any colons with raised colon
         workingdir = baseworkingdir + '_' + jobname
     else:
         workingdir = baseworkingdir
 
-    if win:
-        cmd = 'mkdir "' + workingdir + '"' + debug
-    else:
-        cmd = 'mkdir -p "' + workingdir + '"' + debug
+    olddir = ''
+    for dir in workingdirs:
+        logger.info(dir)
+        if workingdir in dir: # partial match
+            olddir = dir # get the last.  They are in order in the list
+    if  olddir != '':
+        if '--' in olddir:
+            dirparts = olddir.split('--')
+            increment = int(dirparts[1])
+            increment += 1
+            workingdir = dirparts[0] + '--' + str(increment)
+            logger.info(workingdir)
+        else:
+            workingdir = workingdir + '--1'
+    
+    workingdir = os.path.normpath(workingdir)
 
-    if runsubprocess(cmd) is False:
-        logger.debug('Could not create working directory ' + workingdir)
-    else:
+    try:
+        os.mkdir(workingdir)
+        logger.debug('Created working directory ' + workingdir)
+        workingdirs.append(workingdir)
         workingdir_exists = True
+        renamelogfile()  # change the logfle to match the working dir
+    except OSError as e:
+        logger.info('Could not create working directory ' + str(e))
 
     return workingdir
 
 
 def cleanupFiles(phase):
-    global workingdir_exists, keepfiles
-    logger.info('Cleaning up phase:  ' + phase)
-    #pidlist = []
-    #dirlist = []
+    global workingdir_exists, keepfiles, workingdirs
+    logger.debug('Cleaning up files for phase:  ' + phase)
     pidlist = getRunningInstancePids()
     dirlist = getPidDirs()
 
     # Make and clean up directorys.
-    # Make sure there is a directory for the resulting video
 
     if phase == 'startup':
         if keepfiles: return
-        if win:
-            for dirs in dirlist:
-                split_dirs = dirs.split("-", 1)
-                dirpid = split_dirs[0]
-                if dirpid not in pidlist:
-                    cmd = 'rmdir "' + topdir + '\\' + dirs + '" /s /q' + debug
-                    if runsubprocess(cmd) is False:
-                        logger.debug('Could not clean up ' + dirs)
+        for dirs in dirlist:
+            split_dirs = dirs.split("-", 1)
+            dirpid = split_dirs[0]
+            if dirpid not in pidlist:
+                olddir = topdir + '/' + dirs
+                try:
+                    shutil.rmtree(olddir)
+                except shutil.Error as e:
+                    logger.info('Error on remove dir ' + str(e))
+                
+        if (not keeplogs) and (len(pidlist) == 1):  # only delete logs if no other processes running
+            # Note position of last " so that shell expands *.log portion
+            pattern = r'"' + topdir + '/*.log"'
+            for oldlog in glob.iglob(pattern, recursive=True):
+                try:
+                    os.remove(oldlog)
+                except OSError as e:
+                    logger.info('Error on remove log ' + str(e))
 
-            if (not keeplogs) and (len(pidlist) == 1):  # only delete logs if no other processes running
-                #  Note position of last " so that shell expands *.log portion
-                cmd = 'del /q "' + topdir + '\\"*.log' + debug
-                if runsubprocess(cmd) is False:
-                    logger.debug('Could not clean up log files')
-        else:
-            for dirs in dirlist:
-                split_dirs = dirs.split("-", 1)
-                dirpid = split_dirs[0]
-                if dirpid not in pidlist:
-                    cmd = 'rm -rf "' + topdir + '/' + dirs + '"' + debug
-                    if runsubprocess(cmd) is False:
-                        logger.debug('Could not clean up ' + dirs)
-
-            if (not keeplogs) and (len(pidlist) == 1):  # only delete logs if no other processes running
-                # Note position of last " so that shell expands *.log portion
-                cmd = 'rm -f "' + topdir + '/"*.log' + debug
-                if runsubprocess(cmd) is False:
-                    logger.debug('Could not clean up log files')
-
-    elif (phase == 'standby') or (phase == 'restart'):  # delete images directory will be recreated on first capture
-        if workingdir_exists:
-            if win:
-                cmd = 'rmdir "' + workingdir + '" /s /q' + debug
-            else:
-                cmd = 'rm -rf "' + workingdir + '"' + debug
-            if runsubprocess(cmd) is False:
-                logger.debug('Could not delete ' + workingdir)
-                workingdir_exists = True
-            else:
+    elif (phase == 'standby') or (phase == 'restart'):  # deleted images directory will be recreated on first capture
+        if workingdir_exists:  # Will not be the case after restart
+            olddir = workingdir
+            try:
+                shutil.rmtree(olddir)
+                logger.debug('Deleted workingdir' + workingdir)
+                workingdirs.remove(workingdir)
                 workingdir_exists = False
+            except shutil.Error as e:
+                logger.info('Error on remove dir ' + str(e))
+                workingdir_exists = True
 
     elif phase == 'terminate':
         if keepfiles: return
 
         if deletepics:
-            if win:
-                cmd = 'rmdir "' + workingdir + '" /s /q' + debug
-            else:
-                cmd = 'rm -rf "' + workingdir + '"' + debug
-
-            if runsubprocess(cmd) is False:
-                logger.debug('Could not delete ' + workingdir)
+            for olddir in workingdirs:
+                try:
+                    shutil.rmtree(olddir)
+                    logger.debug('Deleted workingdir' + workingdir)
+                    workingdir_exists = False
+                except shutil.Error as e:
+                    logger.info('Error on remove dir ' + str(e))
+            # Assume sucess even if error from above
+            workingdirs = []
+            workingdir_exists = False
 
     return  # cleanupFiles
 
 def startNow():
+    #  Determine if program should logically start now
     global action
-    if standby and httpListener:
+    if standby:
         action = 'standby'
         return False
     elif (seconds > 0) and (dontwait or 'none' in detect):
@@ -860,6 +997,7 @@ def startNow():
 
 
 def getThisInstance(thisinstancepid):
+    global pid
     thisrunning = 'Could not find a process running with pid = ' + str(thisinstancepid)
     for p in psutil.process_iter():
         if ('python3' in p.name() or 'pythonw' in p.name()) and thisinstancepid == p.pid:
@@ -894,11 +1032,9 @@ def checkInstances(thisinstance, instances):
                     allowed += 1
 
     if allowed > 1:
-        logger.info('')
         logger.info('#############################')
         logger.info('Process is already running... shutting down.')
-        logger.info('#############################')
-        logger.info('')
+        logger.info('#############################\n')
         sys.exit(6)
 
     return proccount
@@ -910,20 +1046,25 @@ def checkForPause(layer):
     # This solves potential issues with the placement of pause commands in the print stream
     # Before or After layer change
     # As well as timed during print start-up
+
     if (layer < 2):  # Do not try to pause
         return
-    duetStatus = getDuetStatus(apiModel)
+    duetStatus, _ = getDuet('Status from Check for Pause', Status)
+    if connectionState is False:
+        return
     loopmax = 10  # sec
     loopinterval = .5  # sec
     loopcount = loopmax / loopinterval
 
     if pause == 'yes':  # DuetLapse is controlling when to pause
-        logger.info('Requesting pause via M25')
+        logger.debug('Requesting pause via M25')
         sendDuetGcode(apiModel, 'M25')  # Ask for a pause
         loop = 0
         while True:
             time.sleep(loopinterval)  # wait and try again
-            duetStatus = getDuetStatus(apiModel)
+            duetStatus, _ = getDuet('Status check for pause pause = yes', Status)
+            if connectionState is False:
+                return
             if duetStatus == 'paused':
                 break
             else:
@@ -936,12 +1077,14 @@ def checkForPause(layer):
 
     if duetStatus == 'paused':
         if not movehead == [0.0, 0.0]:  # optional repositioning of head
-            logger.info('Moving print head to X{0:4.2f} Y{1:4.2f}'.format(movehead[0], movehead[1]))
+            logger.debug('Moving print head to X{0:4.2f} Y{1:4.2f}'.format(movehead[0], movehead[1]))
             sendDuetGcode(apiModel, 'G1 X{0:4.2f} Y{1:4.2f}'.format(movehead[0], movehead[1]))
             loop = 0
             while True:
                 time.sleep(loopinterval)  # wait and try again
-                xpos, ypos, _ = getDuetPosition(apiModel)
+                xpos, ypos, _ = getDuet('Position paused = yes', Position())
+                if connectionState is False:
+                    return
                 if (abs(xpos - movehead[0]) < .05) and (
                         abs(ypos - movehead[1]) < .05):  # close enough for government work
                     break
@@ -959,16 +1102,24 @@ def checkForPause(layer):
 
 
 def unPause():
-    if getDuetStatus(apiModel) == 'paused':
+    if connectionState is False:
+        return
+    duetStatus, _ = getDuet('Status from unPause', Status)
+    if connectionState is False: # Check after each getDuet
+        return
+    if duetStatus == 'paused':
         loopmax = 10 # sec
         loopinterval = .2 # sec  short so as to not miss start of next layer
         loopcount = loopmax / loopinterval
-        logger.info('Requesting un pause via M24')
+        logger.debug('Requesting un pause via M24')
         sendDuetGcode(apiModel, 'M24')  # Ask for an un pause
         loop = 0
         while True:
             time.sleep(loopinterval)  # wait a short time so as to not miss transition on short layer
-            if getDuetStatus(apiModel) in ['idle', 'processing']:
+            duetStatus, _ = getDuet('Status from loop unPause', Status)
+            if connectionState is False:
+                return
+            if duetStatus in ['idle', 'processing']:
                 break
             else:
                 loop += 1
@@ -979,22 +1130,23 @@ def unPause():
 
 
 def onePhoto(cameraname, camera, weburl, camparam):
-    global frame1, frame2, workingdir
+    global frame1, frame2, workingdir, camfile1, camfile2
+
     if not workingdir_exists:
         workingdir = createWorkingDir(baseworkingdir)  # created as late as possible - adds job fileName if available
+        camfile1 = workingdir + '/Camera1_'
+        camfile2 = workingdir + '/Camera2_'
 
     if cameraname == 'Camera1':
-        frame1 += 1
-        frame = frame1
+        frame1 = frame1 + 1
+        s = str(frame1).zfill(8)
+        fn = camfile1 + s + '.jpeg'
     else:
-        frame2 += 1
-        frame = frame2
-
-    s = str(frame).zfill(8)
-    if win:
-        fn = ' "' + workingdir + '\\' + cameraname + '_' + s + '.jpeg"'
-    else:
-        fn = ' "' + workingdir + '/' + cameraname + '_' + s + '.jpeg"'
+        frame2 = frame2 + 1
+        s = str(frame2).zfill(8)
+        fn = camfile2 + s + '.jpeg'
+    
+    fn = os.path.normpath(fn)
 
     if 'usb' in camera:
         cmd = 'fswebcam --quiet --no-banner ' + fn + debug
@@ -1003,7 +1155,7 @@ def onePhoto(cameraname, camera, weburl, camparam):
         cmd = 'raspistill -t 1 -w 1280 -h 720 -ex sports -mm matrix -n -o ' + fn + debug
 
     if 'stream' in camera:
-        cmd = 'ffmpeg' + ffmpegquiet + ' -y -i ' + weburl + ' -vframes 1 ' + fn + debug
+        cmd = 'ffmpeg -threads 1' + ffmpegquiet + ' -y -i ' + weburl + ' -vframes 1 -threads 1' + fn + debug
 
     if 'web' in camera:
         cmd = 'wget --auth-no-challenge -nv -O ' + fn + ' "' + weburl + '" ' + debug
@@ -1020,29 +1172,37 @@ def onePhoto(cameraname, camera, weburl, camparam):
             frame1 -= 1
             if frame1 < 0:
                 frame1 = 0
+            return
         else:
             frame2 -= 1
             if frame2 < 0:
                 frame2 = 0
+            return
     else:   #  Success
         if cameraname == 'Camera1':
             timePriorPhoto1 = time.time()
+            return
         else:
             timePriorPhoto2 = time.time()
-
+            return
 
 def oneInterval(cameraname, camera, weburl, camparam):
+    if connectionState is False:
+        return
     global frame1, frame2
     global timePriorPhoto1, timePriorPhoto2
 
-    # select the prior frame counter
+    # set the logical frame number
+    # frame1 and frame 2 are incremented in onePhoto before image is captured
     if cameraname == 'Camera1':
-        frame = frame1
+        frame = frame1 + 1
     else:
-        frame = frame2
+        frame = frame2 + 1
 
     global zo1, zo2
-    zn = getDuetLayer(apiModel)
+    zn = getDuet('Layer from oneInterval', Layer)
+    if connectionState is False:
+        return
     if zn == -1:
         layer = 'None'
     else:
@@ -1052,12 +1212,12 @@ def oneInterval(cameraname, camera, weburl, camparam):
         if (not zn == zo1 and cameraname == 'Camera1') or (not zn == zo2 and cameraname == 'Camera2'):
             # Layer changed, take a picture.
             checkForPause(zn)
-            logger.info(cameraname + ': capturing frame ' + str(frame) + ' at layer ' + layer + ' after layer change')
+            logger.info('Layer - ' + cameraname + ': capturing frame ' + str(frame) + ' at layer ' + layer + ' after layer change')
             onePhoto(cameraname, camera, weburl, camparam)
 
     elif ('pause' in detect) and (duetStatus == 'paused'):
         checkForPause(zn)
-        logger.info(cameraname + ': capturing frame ' + str(frame) + ' at layer ' + layer + ' at pause in print gcode')
+        logger.info('Pause - ' + cameraname + ': capturing frame ' + str(frame) + ' at layer ' + layer + ' at pause in print gcode')
         onePhoto(cameraname, camera, weburl, camparam)
 
     # update the layer counter
@@ -1072,9 +1232,11 @@ def oneInterval(cameraname, camera, weburl, camparam):
     else:
         elap = (time.time() - timePriorPhoto2)
 
-    if (seconds > 0) and (seconds < elap) and (dontwait or zn >= 1):
+    logger.debug('elapsed: ' + str(elap))
+
+    if (seconds > 0) and (seconds < elap) and (dontwait or 'none' in detect or zn >= 1):
         checkForPause(zn)
-        logger.info(cameraname + ': capturing frame ' + str(frame) + ' at layer ' + layer + ' after ' + str(
+        logger.info('Time - ' + cameraname + ': capturing frame ' + str(frame) + ' at layer ' + layer + ' after ' + str(
                 seconds) + ' seconds')
         onePhoto(cameraname, camera, weburl, camparam)
 
@@ -1082,11 +1244,54 @@ def oneInterval(cameraname, camera, weburl, camparam):
 ##############  Duet API access Functions
 #############################################################################
 
+def getDuet(name, function): #  Helper function to call other specific getDuet(x) calls
+    # Retries if there is a network problem
+    # Relies on called functions to return 'disconnected' if they cannot get the requested info
+    # Only handles functions without arguments
+    # Changes connectionState to False if there is a persistent fault
+    global connectionState
+    disconnected = 0
+    getstatus = False
+    while getstatus is False:
+        #  The working code gets executed here
+        logger.debug('Calling function ' + name + ' with ' + apiModel)
+        result = function()  # The passed in function
+
+        if isinstance(result, tuple): # More than one return variable
+            connect = str(result[0])
+            responseitems = len(result)
+        else:
+            connect = str(result)
+            responseitems = 1
+
+        if connect == 'disconnected' and terminateState != 1:
+            connectionState = False # Stop additional calls
+            disconnected += 1
+            logger.debug('Number of disconnects ' + str(disconnected))
+            time.sleep(1)
+            if disconnected > 2:  #  Persistent error state
+                #  connectionState = False
+                startnextAction('waitforconnection')
+                response = [] # start with a list
+                for i in range(responseitems):
+                    response.append(None) # Dummy return
+                return tuple(response)  # turn the response into a tuple 
+                #checkforConnection() #  Wait for the printer to respond again
+                #disconnected = 0
+        else:
+            getstatus = True # We have a status
+
+    connectionState = True
+    return result
+
+
 def urlCall(url, timelimit, post):
+    # Makes all the calls to the printer
+    # If post is True then make a http post call
     logger.debug('url: ' + str(url) + ' post: ' + str(post))
     loop = 0
     limit = 2  # Started at 2 - seems good enough to catch transients
-    error  =''
+    error  = ''
     while loop < limit:
         try:
             if post is False:
@@ -1095,25 +1300,18 @@ def urlCall(url, timelimit, post):
                 r = requests.post(url, data=post)
             break
         except requests.ConnectionError as e:
-            logger.info('')
-            logger.info(
-                    '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-            logger.info('There was a network failure')
-            logger.info(str(e))
-            logger.info(
-                    '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-            logger.info('')
+            logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            logger.info('Cannot connect to the printer')
+            logger.debug(str(e))
+            logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n')
             error = 'Connection Error'
         except requests.exceptions.Timeout as e:
-            logger.info('')
-            logger.info(
-                    '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-            logger.info('There was a timeout failure')
-            logger.info(str(e))
-            logger.info(
-                    '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-            logger.info('')
+            logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            logger.info('The printer connection timed out')
+            logger.debug(str(e))
+            logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n')
             error = 'Timed Out'
+
         time.sleep(1)
         loop += 1 
  
@@ -1126,30 +1324,38 @@ def urlCall(url, timelimit, post):
     return r
 
 
-def getDuetVersion():
-    # Used to get the status information from Duet
-    try:
-        # model = 'rr_model'
-        URL = ('http://' + duet + '/rr_model?key=boards')
-        r = urlCall(URL, 3, False)
-        j = json.loads(r.text)
-        version = j['result'][0]['firmwareVersion']
-        return 'rr_model', version
-    except:
-        try:
-            model = '/machine/system'
+def getDuetVersion(model):
+    # Used to get the connection information from Duet
+    # ALso used to test for reconnection if there is a disconnect
+    if model == '' or model == 'rr_model':
+            URL = ('http://' + duet + '/rr_model?key=boards')
+            r = urlCall(URL, 3, False)
+            if r.ok:
+                try:
+                    j = json.loads(r.text)
+                    version = j['result'][0]['firmwareVersion']
+                    return 'rr_model', version
+                except:
+                    pass
+
+    if model == '' or model == 'SBC': 
+            #  model = '/machine/system'
             URL = ('http://' + duet + '/machine/status')
             r = urlCall(URL, 3, False)
-            j = json.loads(r.text)
-            version = j['boards'][0]['firmwareVersion']
-            return 'SBC', version
-        except:
-            return 'none', '0'
+            if r.ok:
+                try:
+                    j = json.loads(r.text)
+                    version = j['boards'][0]['firmwareVersion']
+                    return 'SBC', version
+                except:
+                    pass
+    
+    return '' , ''
 
 
-def getDuetJobname(model):
+def Jobname():
     # Used to get the print jobname from Duet
-    if model == 'rr_model':
+    if apiModel == 'rr_model':
         URL = ('http://' + duet + '/rr_model?key=job.file.fileName')
         r = urlCall(URL, 3, False)
         if r.ok:
@@ -1159,9 +1365,11 @@ def getDuetJobname(model):
                 if jobname is None:
                     jobname = ''
                 return jobname
-            except:
-                pass
-    else:
+            except Exception as e:
+                logger.debug('Could not get jobname')
+                logger.debug(e)
+
+    elif apiModel == 'SBC':
         URL = ('http://' + duet + '/machine/status/')
         r = urlCall(URL, 3, False)
         if r.ok:
@@ -1171,41 +1379,53 @@ def getDuetJobname(model):
                 if jobname is None:
                     jobname = ''
                 return jobname
-            except:
-                pass
-    logger.info('getDuetJobname failed to get data. Code: ' + str(r.status_code) + ' Reason: ' + str(r.reason))
-    return ''
+            except Exception as e:
+                logger.debug('Could not get jobname')
+                logger.debug(e)
+
+    return 'disconnected'
 
 
-def getDuetStatus(model):
+def Status():
     # Used to get the status information from Duet
-    if model == 'rr_model':
-        URL = ('http://' + duet + '/rr_model?key=state.status')
+    status = display = ''
+    if apiModel == 'rr_model':
+        URL = ('http://' + duet + '/rr_model?key=state')
+        logger.debug('Getting Status')
         r = urlCall(URL, 3, False)
         if r.ok:
             try:
                 j = json.loads(r.text)
-                status = j['result']
-                return status
-            except:
-                pass
-    else:
+                status = j['result']['status']
+                display = j['result']['displayMessage']
+                if display != '':
+                    parseM117(display)
+                return status, display
+            except Exception as e:
+                logger.debug('Could not get Status')
+                logger.debug(e)
+
+    elif apiModel == 'SBC':
         URL = ('http://' + duet + '/machine/status/')
         r = urlCall(URL, 3, False)
         if r.ok:
             try:
                 j = json.loads(r.text)
                 status = j['state']['status']
-                return status
-            except:
-                pass
-    logger.info('getDuetStatus failed to get data. Code: ' + str(r.status_code) + ' Reason: ' + str(r.reason))
-    return 'disconnected'
+                display = j['state']['displayMessage']
+                if display != '':
+                    parseM117(display)
+                return status, display
+            except Exception as e:
+                logger.debug('Could not get Status')
+                logger.debug(e)
+
+    return 'disconnected', ''
 
 
-def getDuetLayer(model):
-    # Used to get the status information from Duet
-    if model == 'rr_model':
+def Layer():
+    # Used to get the the current layer
+    if apiModel == 'rr_model':
         URL = ('http://' + duet + '/rr_model?key=job.layer')
         r = urlCall(URL, 3, False)
         if r.ok:
@@ -1215,9 +1435,11 @@ def getDuetLayer(model):
                 if layer is None:
                     layer = -1
                 return layer
-            except:
-                pass
-    else:
+            except Exception as e:
+                logger.debug('Could not get Layer Info')
+                logger.debug(e)
+
+    elif apiModel == 'SBC':
         URL = ('http://' + duet + '/machine/status/')
         r = urlCall(URL, 3, False)
         if r.ok:
@@ -1227,15 +1449,16 @@ def getDuetLayer(model):
                 if layer is None:
                     layer = -1
                 return layer
-            except:
-                pass
-    logger.info('getDuetLayer failed to get data. Code: ' + str(r.status_code) + ' Reason: ' + str(r.reason))
+            except Exception as e:
+                logger.debug('Could not get Layer Info')
+                logger.debug(e)
+
     return 'disconnected'
 
 
-def getDuetPosition(model):
+def Position():
     # Used to get the current head position from Duet
-    if model == 'rr_model':
+    if apiModel == 'rr_model':
         URL = ('http://' + duet + '/rr_model?key=move.axes')
         r = urlCall(URL, 3, False)
         if r.ok:
@@ -1245,9 +1468,10 @@ def getDuetPosition(model):
                 Ypos = j['result'][1]['machinePosition']
                 Zpos = j['result'][2]['machinePosition']
                 return Xpos, Ypos, Zpos
-            except:
-                pass
-    else:
+            except Exception as e:
+                logger.debug('Could not get Position Info')
+                logger.debug(e)
+    elif apiModel == 'SBC':
         URL = ('http://' + duet + '/machine/status')
         r = urlCall(URL, 3, False)
         if r.ok:
@@ -1257,16 +1481,15 @@ def getDuetPosition(model):
                 Ypos = j['move']['axes'][1]['machinePosition']
                 Zpos = j['move']['axes'][2]['machinePosition']
                 return Xpos, Ypos, Zpos
-            except:
-                pass
+            except Exception as e:
+                logger.debug('Could not get Position Info')
+                logger.debug(e)
 
-    logger.info('getDuetPosition failed.  Code: ' + str(r.status_code) + ' Reason: ' + str(r.reason))
-    logger.info('Returning coordinates as -1, -1, -1')
-    return -1, -1, -1
+    return 'disconnected'
 
 
 def sendDuetGcode(model, command):
-    # Used to get the status information from Duet
+    # Used to send a command to Duet
     if model == 'rr_model':
         URL = 'http://' + duet + '/rr_gcode?gcode=' + command
         r = urlCall(URL, 3, False)
@@ -1282,27 +1505,90 @@ def sendDuetGcode(model, command):
 
 
 def makeVideo():  #  Adds and extra frame
-    onePhoto('Camera1', camera1, weburl1, camparam1)
-    if camera2 != '':
-        onePhoto('Camera2', camera1, weburl1, camparam1)
+    global makeVideoState, frame1, frame2
+    makeVideoState = 1
+    # Get a final frame
+    # Make copies if appropriate
+
+    if action not in ['snapshot', 'pause', 'start']: #  Would have been called as part of snapshot - so do not add images
+        logger.debug('For Camera1')
+        onePhoto('Camera1', camera1, weburl1, camparam1)  # For Camera 1
+        if extratime != 0 and frame1/int(fps) > minvideo:
+            frame1 = copyLastFrame(camfile1, frame1)
+
+        if camera2 != '':   #  Camera 2
+            logger.debug('For Camera2')
+            onePhoto('Camera2', camera2, weburl2, camparam2)
+            if extratime != 0 and frame2/int(fps) > minvideo:
+                frame2 = copyLastFrame(camfile2, frame2)
+
     createVideo(workingdir)
+    makeVideoState = -1
+
+def copyLastFrame(f, frame):
+    logger.info('Copying last frame to extend video by ' +str(extratime) + ' seconds')
+    fr = str(frame).zfill(8)
+    sourcefile = os.path.normpath(f + fr + '.jpeg')
+    copies = int(extratime)*int(fps)
+    for i in range(1, copies):
+        nf = str(frame + i).zfill(8)
+        targetfile = os.path.normpath(f + nf + '.jpeg')
+
+        try:
+            shutil.copy(sourcefile, targetfile)
+        except shutil.Error as e:
+            logger.info('Error on copy ' + str(e))
+    return int(nf) # Must be an integer for later math
+
+
 
 def terminate():
-    global httpListener, listener, nextactionthread, httpthread
+    global httpListener, listener, httpthread, terminateState, restarting, workingdir_exists
+    # Force verbose messaging
+    setdebug(True)
+
+    terminateState = 1
+    logger.info('Terminating')
+    # Gracefully stop any threads that need to complete
+
+    stopCaptureLoop()
+    waitforcaptureLoop()  # Do not want to respond
+
+    waitforNextAction() # Do not want to respond
+
+    #  Make sure video is complete
+    logger.info('Wait for video to complete')
+    waitforMakeVideo()
+    
+    # Try to shutdown any open threads
+
     cleanupFiles('terminate')
-    # close the nextaction thread if necessary.  nextAction will have close the capturethread
-    try:
-        nextactionthread.join(10)
-    except:
-        pass
-    # close the httpthread if necessary
-    time.sleep(1)  # Give time for the last html to display
-    try:
-        httpthread.join(10)
-    except:
-        pass
-    logger.info('Program Terminated')
-    os.kill(int(pid), 9)
+
+    if restart:
+        setdebug(verbose)
+
+        restarting = True
+        logger.info('----------')
+        logger.info('RESTARTING\n\n')
+        setuplogfile() # Create a new log file
+        terminateState = -1
+        workingdir_exists = False # Force creation of a new workingdir
+        startNow() # reset the initial conditions
+        listoptions() # List the current values
+        issue_warnings() # list any warnings about setting combinations
+        startup() # Warp speed Mr Sulu
+    else:
+        stopgcodeLoop()
+        waitforgcodeLoop()
+        closeHttpListener()
+        logger.info('Program Terminated')
+        os.kill(int(pid), 9)
+
+def quit_forcibly(*args):
+    global restart 
+    restart = False
+    logger.info('!!!!!! Stopped by SIGINT or CTL+C - Post Processing !!!!!!')
+    terminateThread()
 
 
 ###########################
@@ -1325,6 +1611,10 @@ class MyHandler(SimpleHTTPRequestHandler):
     txt.append('</h3>')
     refreshing = ''.join(txt)
     selectMessage = refreshing
+
+    def shutdown(self):
+        self.server._BaseServer__shutdown_request = True
+        logger.debug('Sent shutdown request')
 
     def redirect_url(self, url):
         self.send_response(303)
@@ -1513,10 +1803,8 @@ class MyHandler(SimpleHTTPRequestHandler):
         if hidebuttons:
             btn = ''
             for button in allowed:
-                    btn = btn + ' + ' + button + 'button'
-
+                btn = btn + ' + ' + button + 'button'
             btn = 'statusbutton' + btn + '+ filesbutton + infobutton + terminatebutton + fpsbutton + cssstyle'
-            logger.debug(btn)
             buttons = eval(btn)
         else:
             buttons = statusbutton + startbutton + standbybutton + pausebutton + continuebutton
@@ -1526,8 +1814,6 @@ class MyHandler(SimpleHTTPRequestHandler):
         return buttons
 
     def update_status(self):
-        #global pidlist
-        #pidlist = []
         localtime = time.strftime('%A - %H:%M', time.localtime())
         if zo1 < 0:
             thislayer = 'None'
@@ -1555,11 +1841,13 @@ class MyHandler(SimpleHTTPRequestHandler):
 
         if workingdir_exists:
             imagelocation = workingdir
+            logname = logfilename
         else:
             imagelocation = 'Waiting for first image to be created'
+            logname = 'Waiting for first image to be created'
 
         infotxt = []
-        infotxt.append('<b>This instance is using the following options:</b><br><br>')
+        infotxt.append('<b>This instance WAS STARTED with the following options:</b><br><br>')
         infotxt.append(thisrunninginstance + '<br><br>')
         infotxt.append('<b>Logs and Videos are located here:</b><br><br>')
         infotxt.append(topdir + '<br><br>')
@@ -1581,198 +1869,192 @@ class MyHandler(SimpleHTTPRequestHandler):
         return info
 
     def do_GET(self):
-        global referer, refererip
-        referer = self.headers['Host']  # Should always be there
-        if not referer:  # Lets try authority
-            referer = self.headers['authority']
-            if not referer:
-                referer = 'localhost'  # Best guess if all else fails
-        split_referer = referer.split(":", 1)
-        refererip = split_referer[0]  # just interested in the calling address as we know our port number
+        try:
+            global referer, refererip
+            referer = self.headers['Host']  # Should always be there
+            if not referer:  # Lets try authority
+                referer = self.headers['authority']
+                if not referer:
+                    referer = 'localhost'  # Best guess if all else fails
+            split_referer = referer.split(":", 1)
+            refererip = split_referer[0]  # just interested in the calling address as we know our port number
 
-        global action, selectMessage, refreshing
-        #options = ['status', 'start', 'standby', 'pause', 'continue', 'snapshot', 'restart', 'terminate']
+            global action, selectMessage, refreshing
 
-        if 'favicon.ico' in self.path:
-            return
-
-        query_components = parse_qs(urlparse(self.path).query)
-        logger.debug(str(self.path))
-
-        #  Files request gets trapped here
-        if (query_components and not query_components.get('command') and not query_components.get('delete')) or (
-                not query_components and self.path != '/'):
-            selectMessage = self.display_dir(self.path)
-
-        if query_components.get('delete'):
-            file = query_components['delete'][0]
-            filepath, _ = os.path.split(file)
-            filepath = filepath + '/'
-            filepath = filepath.replace(u'\u02f8', ':')  # make it look nice
-            file = file.replace(':', u'\u02f8')  # get rid of any regular colons
-            file = topdir + file
-
-            if win:
-                file = file.replace('/', '\\')
-                if os.path.isdir(file):
-                    cmd = 'rmdir /s /q "' + file + '"'
-                else:
-                    cmd = 'del /q "' + file + '"'
-            else:
-                cmd = 'rm -rf "' + file + '"'
-
-            if runsubprocess(cmd) is False:
-                logger.info('!!!!! An error occurred trying to delete ' + file + ' !!!!!')
-
-            selectMessage = self.display_dir(filepath)
-
-        if query_components.get('zip'):
-            file = query_components['zip'][0]
-            filepath, _ = os.path.split(file)
-            filepath = filepath + '/'
-            file = topdir + file
-            zipedfile = file + '.zip'
-
-            if win:
-                file = file.replace('/', '\\')
-                zipedfile = zipedfile.replace('/', '\\')
-
-            # threading.Thread(target=make_archive, args=(file, zipedfile,)).start()
-            result = make_archive(file, zipedfile)
-            selectMessage = '<h3>' + result + '<br></h3>' + self.display_dir(filepath)
-            # selectMessage = self.display_dir(filepath)
-
-        if query_components.get('terminate'):  # This form is only called from the UI - see also command=terminate
-            terminatetype = query_components['terminate'][0]
-            logger.info('Terminate Called from UI')
-            selectMessage = self.terminate_process(terminatetype)
-
-        if query_components.get('info'):
-            selectMessage = self.update_info()
-
-        global fps
-        if (query_components.get('fps')):
-            thisfps = query_components['fps'][0]
-            try:
-                thisfps = int(thisfps)
-                if thisfps > 0:
-                    fps = thisfps
-                    logger.info('fps changed to: ' + str(fps))
-            except ValueError:
-                pass
-            fps = str(fps)
-
-            selectMessage = '<h3>fps Changed</h3>'
-
-        if query_components.get('command'):
-            command = query_components['command'][0]
-            logger.info('!!!!! http ' + command + ' request received !!!!!')
-
-            if command == 'status':
-                if selectMessage == None:
-                    selectMessage = refreshing
-
-                if action == 'standby':
-                    allowed = ['start']
-                elif action == 'pause':
-                    allowed = ['standby', 'continue', 'snapshot', 'restart']
-                elif action == 'snapshot' and lastaction == 'pause':  # same as pause
-                    allowed = ['standby', 'continue', 'snapshot', 'restart']
-                elif action == 'restart':
-                    if standby:
-                        allowed = ['start']
-                    else:
-                        allowed = ['standby', 'pause', 'snapshot', 'restart']
-                else:
-                    allowed = ['standby', 'pause', 'snapshot', 'restart']
-
-                buttons = self.update_buttons(allowed)
-                status = self.update_status()
-                # Display Page
-                self._set_headers()
-                self.wfile.write(self._refresh(status + buttons + selectMessage))  # returns after 60 sec
-
-                selectMessage = refreshing
+            if 'favicon.ico' in self.path:
                 return
 
-            # start / standby
-            elif command == 'start':
-                selectMessage = ('<h3>'
-                                     'Starting DuetLapse3.<br><br>'
-                                     '</h3>')
-                threading.Thread(target=nextAction, args=(command,)).start()
+            query_components = parse_qs(urlparse(self.path).query)
+            logger.debug(str(self.path))
 
-            elif command == 'standby':  # can be called at any time
-                txt = []
-                txt.append('<h3>')
-                txt.append( 'Putting DuetLapse3 in standby mode<br><br>')
-                txt.append('</h3>')
-                txt.append('<div class="info-disp">')
-                txt.append('Will NOT create a video.<br>')
-                txt.append('All captured images will be deleted<br>')
-                txt.append('This is the same as if DuetLapse was started with -standby<br><br>')
-                txt.append('</div>')
-                selectMessage = ''.join(txt)
-                threading.Thread(target=nextAction, args=(command,)).start()
+            #  Files request gets trapped here
+            if (query_components and not query_components.get('command') and not query_components.get('delete')) or (
+                    not query_components and self.path != '/'):
 
-            # pause / continue
-            elif command == 'pause':
-                txt = []
-                txt.append('<h3>')
-                txt.append('DuetLapse3 is paused.<br><br>')
-                txt.append('</h3>')
-                selectMessage = ''.join(txt)
+                selectMessage = self.display_dir(self.path)
 
-                threading.Thread(target=nextAction, args=(command,)).start()
+            if query_components.get('delete'):
+                file = query_components['delete'][0]
+                filepath, _ = os.path.split(file)
+                filepath = filepath + '/'
+                filepath = filepath.replace(u'\u02f8', ':')  # make it look nice
+                file = file.replace(':', u'\u02f8')  # get rid of any regular colons
+                file = topdir + file
+                file = os.path.normpath(file)
 
-            elif command == 'continue':
-                txt = []
-                txt.append('<h3>')
-                txt.append('DuetLapse3 is continuing.<br><br>')
-                txt.append('</h3>')
-                selectMessage = ''.join(txt)
+                if os.path.isdir(file):
+                    try:
+                        shutil.rmtree(file)
+                    except shutil.Error as e:
+                        logger.info('Error deleting dir ' + str(e))
+                else:    
+                    try:
+                        os.remove(file)
+                    except OSError as e:
+                        logger.info('Error deleting file ' + str(e))
 
-                threading.Thread(target=nextAction, args=(command,)).start()
+                selectMessage = self.display_dir(filepath)
 
-            # snapshot / restart / terminate
+            if query_components.get('zip'):
+                file = query_components['zip'][0]
+                filepath, _ = os.path.split(file)
+                filepath = filepath + '/'
+                file = topdir + file
+                zipedfile = file + '.zip'
 
-            elif command == 'snapshot':
-                txt = []
-                txt.append('<h3>')
-                txt.append('Attempting to create an interim snapshot video')
-                txt.append('</h3>')
-                txt.append('<div class="info-disp">')
-                txt.append('Check the files menu for completed snapshots<br>')
-                txt.append('Depending on the number of images - this could take some time<br><br>')
-                txt.append('After the snapshot DuetLapse3 returns to the prior state i.e. <b>start or pause</b><br>')
-                txt.append('</div>')
-                selectMessage = ''.join(txt)
+                file = os.path.normpath(file)
+                zipedfile = os.path.normpath(zipedfile)
+                result = make_archive(file, zipedfile)
+                selectMessage = '<h3>' + result + '<br></h3>' + self.display_dir(filepath)
 
-                threading.Thread(target=nextAction, args=(command,)).start()
+            if query_components.get('terminate'):  # This form is only called from the UI - see also command=terminate
+                if action == 'snapshot':
+                    selectMessage = '<br><h3>Cannot terminate while DuetLapse3 State: = snapshot.<br> Check status and wait.</h3>'
+                else:
+                    terminatetype = query_components['terminate'][0]
+                    logger.debug('Terminate Called from UI')
+                    selectMessage = self.terminate_process(terminatetype)
 
-            elif command == 'restart':
-                txt = []
-                txt.append('<h3>')
-                txt.append('Restarting DuetLapse3')
-                txt.append('</h3>')
-                txt.append('<div class="info-disp">')
-                txt.append('Will create a video with the current images.<br>')
-                txt.append('All captured images will be deleted.<br>')
-                txt.append('The restart behavior is the same as initially used to start DuetLapse3<br>')
-                txt.append('</div>')
-                selectMessage = ''.join(txt)
+            if query_components.get('info'):
+                selectMessage = self.update_info()
 
-                threading.Thread(target=nextAction, args=(command,)).start()
+            global fps
+            if (query_components.get('fps')):
+                thisfps = query_components['fps'][0]
+                try:
+                    thisfps = int(thisfps)
+                    if thisfps > 0:
+                        fps = thisfps
+                        logger.info('fps changed to: ' + str(fps))
+                except ValueError:
+                    pass
+                fps = str(fps)
 
-            elif command == 'terminate':  #only called explicitely - backward compatible
-                    selectMessage = self.terminate_process('graceful')
+                selectMessage = '<h3>fps Changed</h3>'
 
-            else:
-                selectMessage = self.ignoreCommandMsg(command, action)
+            if query_components.get('command'):
+                command = query_components['command'][0]
+                logger.debug('!!!!! http ' + command + ' request received !!!!!')
 
-        new_url = 'http://' + referer + '/?command=status'
-        self.redirect_url(new_url)
-        return
+                if command == 'status':
+                    if selectMessage == None:
+                        selectMessage = refreshing
+                    allowed = allowedNextAction(action)
+
+                    buttons = self.update_buttons(allowed)
+                    status = self.update_status()
+                    # Display Page
+                    self._set_headers()
+                    self.wfile.write(self._refresh(status + buttons + selectMessage))  # returns after 60 sec
+
+                    selectMessage = refreshing
+                    return
+
+                # start / standby
+                elif command == 'start':
+                    selectMessage = ('<h3>'
+                                         'Starting DuetLapse3.<br><br>'
+                                         '</h3>')
+                    startnextAction(command)
+
+                elif command == 'standby':  # can be called at any time
+                    txt = []
+                    txt.append('<h3>')
+                    txt.append( 'Putting DuetLapse3 in standby mode<br><br>')
+                    txt.append('</h3>')
+                    txt.append('<div class="info-disp">')
+                    txt.append('Will NOT create a video.<br>')
+                    txt.append('All captured images will be deleted<br>')
+                    txt.append('This is the same as if DuetLapse was started with -standby<br><br>')
+                    txt.append('</div>')
+                    selectMessage = ''.join(txt)
+                    startnextAction(command)
+
+                # pause / continue
+                elif command == 'pause':
+                    txt = []
+                    txt.append('<h3>')
+                    txt.append('DuetLapse3 is paused.<br><br>')
+                    txt.append('</h3>')
+                    selectMessage = ''.join(txt)
+
+                    startnextAction(command)
+
+                elif command == 'continue':
+                    txt = []
+                    txt.append('<h3>')
+                    txt.append('DuetLapse3 is continuing.<br><br>')
+                    txt.append('</h3>')
+                    selectMessage = ''.join(txt)
+
+                    startnextAction(command)
+
+                # snapshot / restart / terminate
+
+                elif command == 'snapshot':
+                    txt = []
+                    txt.append('<h3>')
+                    txt.append('Attempting to create an interim snapshot video')
+                    txt.append('</h3>')
+                    txt.append('<div class="info-disp">')
+                    txt.append('Check the files menu for completed snapshots<br>')
+                    txt.append('Depending on the number of images - this could take a lot of time<br>')
+                    txt.append('10 to 60+ minutes<br>')
+                    txt.append('During this time - images will continue to be captured<br><br>')
+                    txt.append('After the snapshot DuetLapse3 returns to the prior state i.e. <b>start or pause</b><br>')
+                    txt.append('</div>')
+                    selectMessage = ''.join(txt)
+
+                    startnextAction(command)
+
+                elif command == 'restart':
+                    txt = []
+                    txt.append('<h3>')
+                    txt.append('Restarting DuetLapse3')
+                    txt.append('</h3>')
+                    txt.append('<div class="info-disp">')
+                    txt.append('Check the files menu for completed video<br>')
+                    txt.append('Depending on the number of images - this could take a lot of time<br>')
+                    txt.append('5 to 30+ minutes be needed depending on the computer<br>')
+                    txt.append('No more images will be captured<br><br>')
+                    txt.append('All captured images will be deleted.<br>')
+                    txt.append('The restart behavior is the same as initially used to start DuetLapse3<br>')
+                    txt.append('</div>')
+                    selectMessage = ''.join(txt)
+
+                    startnextAction(command)
+
+                elif command == 'terminate':  #only called explicitely - backward compatible
+                        selectMessage = self.terminate_process('graceful')
+
+                else:
+                    selectMessage = self.ignoreCommandMsg(command, action)
+
+            new_url = 'http://' + referer + '/?command=status'
+            self.redirect_url(new_url)
+            return
+        except:
+            return
     """
     End of do_Get
     """
@@ -1793,11 +2075,14 @@ class MyHandler(SimpleHTTPRequestHandler):
 
         return msg
 
-    def terminate_process(self, type):
-        logger.info('Entering Terminate process')
-        if type == None: type = ''
+    def terminate_process(self, ttype):
+        if ttype not in ['graceful', 'forced']:
+           ttype = ''
+           logger.debug('Terminate type requested')
+        else:
+           logger.debug(ttype + ' terminate requested')
 
-        if type == 'graceful':
+        if ttype == 'graceful':
             txt = []
             txt.append('<h3>')
             txt.append('Terminating DuetLapse3<br><br>')
@@ -1805,16 +2090,15 @@ class MyHandler(SimpleHTTPRequestHandler):
             txt.append('</h3>')
             selectMessage = ''.join(txt)
 
-            threading.Thread(target=nextAction, args=('terminate',)).start()
-        elif type == 'forced':
+            startnextAction('completed')
+        elif ttype == 'forced':
             txt = []
             txt.append('<h3>')
             txt.append('Forced Termination of DuetLapse3<br><br>')
             txt.append('No video will be created.')
             txt.append('</h3>')
             selectMessage = ''.join(txt)
-
-            threading.Thread(target=terminate, args=()).start()
+            quit_forcibly()
 
         else:
             txt = []
@@ -1851,11 +2135,9 @@ class MyHandler(SimpleHTTPRequestHandler):
     def display_dir(self, path):
         path = path.split('?', 1)[0]
         path = path.split('#', 1)[0]
-        # Don't forget explicit trailing slash when normalizing. Issue17324
+        # Don't forget explicit trailing slash when normalizing. Issue 17324
         trailing_slash = path.rstrip().endswith('/')
         requested_dir = topdir + path
-        if win:
-            requested_dir = requested_dir.replace('/','\\') #since linux path format being passed
 
         if trailing_slash:  # this is a dir request
             response = self.list_dir(requested_dir)
@@ -1880,7 +2162,7 @@ class MyHandler(SimpleHTTPRequestHandler):
                 self.copyfile(f, self.wfile)
                 f.close()
             except ConnectionError:
-                logger.info('Connection reset - normal if displaying file')
+                logger.debug('Connection reset - normal if displaying file')
             except:
                 logger.info('Error sending file')
 
@@ -1889,7 +2171,7 @@ class MyHandler(SimpleHTTPRequestHandler):
     def list_dir(self, path):  # Copied from super class
         # Pass the directory tree and determine what can be done with each file / dir
         jpegfile = '.jpeg'
-        deletablefiles = ['.mp4','.zip'] #Different to startDUetLapse3
+        deletablefiles = ['.mp4','.zip'] #  Different to startDuetLapse3
         jpegfolder = []
         deletelist = []
         for thisdir, subdirs, files in os.walk(topdir):
@@ -1919,7 +2201,8 @@ class MyHandler(SimpleHTTPRequestHandler):
             displaypath = urllib.parse.unquote(path)
 
         displaypath = html.escape(displaypath, quote=False)
-        # Pass the direstory tree and determine what can be done with each file / dir - NOT USED
+
+        # Parse the direstory tree and determine what can be done with each file / dir - NOT USED
         try:
             list = os.listdir(path)
         except OSError:
@@ -1931,7 +2214,8 @@ class MyHandler(SimpleHTTPRequestHandler):
             response = ''.join(txt)
             return response
 
-        list.sort(key=lambda a: a.lower())
+        #  list.sort(key=lambda a: a.lower())
+        list.sort(key=lambda fn: os.path.getmtime(os.path.join(path, fn))) # Have to use full path to stat file
 
         subdir = path.replace(topdir, '') #path relative to topdir
         parentdir, _ = os.path.split(subdir) # Get rid of trailing information
@@ -1948,6 +2232,7 @@ class MyHandler(SimpleHTTPRequestHandler):
             child_dir = False
         else:
             child_dir = True
+
         # add parent dir
         if child_dir:
             if (not parentdir.endswith('/')) and (not parentdir.endswith('\\')):
@@ -1967,7 +2252,7 @@ class MyHandler(SimpleHTTPRequestHandler):
                 continue  # only display for this instance
 
             fullname = os.path.join(path, name)
-            fullname = os.path.normpath(fullname) #no trailing slash will add in later if its a directory
+            fullname = os.path.normpath(fullname) #  no trailing slash will add in later if its a directory
             action_name = fullname.replace(topdir, '')  # used to force delete and zip and video to be relative to topdir
             # we do this after above assignment so that we don't have problems with slash direction between OS's
             # Note: a link to a directory displays with @ and folder  with /
@@ -2008,8 +2293,6 @@ class MyHandler(SimpleHTTPRequestHandler):
             r.append(deletebutton)
             r.append('</tr>')
 
-            # else:  # r.append('</tr>') #end the row
-
         r.append('</table>')
 
         response = ''.join(r)
@@ -2019,55 +2302,202 @@ class MyHandler(SimpleHTTPRequestHandler):
     end of requesthandler
 """
 
-def createHttpListener():
+def allowedNextAction(thisaction):
+                if thisaction == 'standby':
+                    return ['start']
+                elif thisaction == 'pause':
+                    return ['standby', 'continue', 'snapshot', 'restart']
+                elif thisaction == 'snapshot' and lastaction == 'pause':  # same as pause
+                    return ['standby', 'continue', 'snapshot', 'restart']
+                elif thisaction == 'restart':
+                    if standby:
+                        return ['start']
+                    else:
+                        return ['standby', 'pause', 'snapshot', 'restart']
+                else:
+                    return ['standby', 'pause', 'snapshot', 'restart']
+
+
+def startHttpListener():
     global listener
-    listener = ThreadingHTTPServer((host, port), MyHandler)
-    listener.serve_forever()
-    sys.exit(7)  # May not be needed since never returns from serve_forever
+    try:
+        listener = ThreadingHTTPServer((host, port), MyHandler)
+        threading.Thread(name='httpServer', target=listener.serve_forever, daemon=False).start()  #Avoids blocking
+        logger.info('##########################################################')
+        logger.info('***** Started http listener *****')
+        logger.info('##########################################################\n')
+    except Exception as e:
+        logger.info('There was a problem starting the http listener')
+        logger.info(e)
+        logger.info('Is it running from a prior start ?')
+        logger.info('Continuing')
+
+
+def closeHttpListener():
+    global listener
+    try:
+        listener.shutdown()
+        logger.debug('!!!!! http listener stopped  !!!!!')
+    except Exception as e:
+        logger.debug('Could not terminate http listener')
+        logger.debug(e)
+
+
+def execRun(displaymessage):
+        cmd = displaymessage.split(execkey)[1]
+        logger.info('!!!!!!!!  Make call to execute !!!!!!!!')
+        logger.info(cmd)
+        subprocess.Popen(cmd, shell=True, start_new_session=True)  # run the program
+        sendDuetGcode(apiModel,'M117 ""')
+
+
+###################################
+#  Thread Control functions
+##################################
+# Threads have tri-states
+# -1 is stopped
+# 0 is request to stop
+# 1 is running
+
+def startCaptureLoop():
+    #  global captureLoopState
+    if captureLoopState == 1 or terminateState == 1: # Already running or don't start
+        return
+    threading.Thread(name='captureLoop', target=captureLoop, args=(), daemon=False).start()
+
+def stopCaptureLoop():
+    global captureLoopState
+    if captureLoopState == 1:
+        captureLoopState = 0  # Signals capture thread to shutdown
+
+def waitforcaptureLoop():
+    #  global captureLoopState
+    if captureLoopState == -1:
+        logger.debug('captureLoop is not running')
+    while captureLoopState >= 0:  # only one thread at a time may cause delay in http page update
+        time.sleep(pollcheck) # Check 4 times per poll interval
+        logger.debug('********* Waiting for captureLoop to complete *********')
+    logger.debug('Exited captureLoop')
+
+
+def startgcodeLoop():
+    #  global gcodeLoopState
+    if gcodeLoopState == 1 or terminateState == 1:  #  Already running or don't start
+        return
+    threading.Thread(name='gcodeLoop', target=gcodeLoop, args=(), daemon=False).start()
+
+def stopgcodeLoop():
+    global gcodeLoopState
+    if gcodeLoopState == 1:
+        gcodeLoopState = 0  # Signals capture thread to shutdown
+
+def waitforgcodeLoop():
+    if gcodeLoopState == -1:
+        logger.debug('gcodeLoop is not running')
+        return
+    while gcodeLoopState >= 0:  # only one thread at a time may cause delay in http page update
+        time.sleep(pollcheck) 
+        logger.debug('********* Waiting for gcodeLoop to complete *********')
+    logger.debug('Exited gcodeLoop')
+
+
+
+def startnextAction(command): # Does not run in a loop
+    if terminateState == 1: # Block it if terminating
+        return
+    waitforNextAction()  
+    threading.Thread(name='nextAction', target=nextAction, args=(command,), daemon=False).start()
+
+
+def waitforNextAction():
+    if nextActionState == -1:
+        logger.info('nextAction is available')
+        return
+    while nextActionState >= 0:  # Only one thread at a time may cause delay in http page update
+        time.sleep(1)
+        logger.debug('********* Waiting for nextAction to complete *********')
+    logger.debug('nextaction is ready')
+    
+
+def startcheckforConnection():
+    if checkforconnectionState == 1 or terminateState == 1:  #  Already running or don't start
+        return
+    threading.Thread(name='checkforConnection', target=checkforConnection, args=(), daemon=False).start()
+
+def terminateThread(): # Can only be run once - but calles as a thread to allow other threads to finish
+    if terminateState == 1: #    Already Terminating
+        return
+    threading.Thread(name='terminate', target=terminate, args=(), daemon=False).start()
+
+
+def waitforMakeVideo():
+    global makeVideoState
+    while makeVideoState >= 0: # wait till its completed
+        time.sleep(5)  # Makevideo is fairly slow
+        logger.debug('********* Waiting for makeVideo thread to finish *********')
+    logger.debug('makeVideo is not running')
+
+
+def startMakeVideo(): # Does not run in a loop - so we block it before running it
+    if terminateState == 1: # Block it if terminating
+        return
+    waitforMakeVideo()      
+    threading.Thread(name='makeVideo', target=makeVideo, args=(), daemon=False).start()
+
 
 
 ###################################
 #  Main Control Functions
 ###################################
 
+def gcodeLoop():
+    # Used for handling M117 Messages
+    # Runs continously except during terminate processing
+    global gcodeLoopState, action, duetStatus
+
+    if connectionState is False:
+        return
+
+    gcodeLoopState = 1 # Running
+    logger.info('###########################')
+    logger.info('Starting gcode Listener')
+    logger.info('###########################\n')
+
+    while gcodeLoopState == 1 and terminateState != 1 and connectionState:  # Setting to 0 stops
+        duetStatus, _ = getDuet('Status from gcodelistener', Status)
+        if gcodeLoopState == 1:
+            time.sleep(5)  #  Check frequently
+    gcodeLoopState = -1 # Not Running
+    return
+
+
 def captureLoop():  # Run as a thread
-    global capturing, printState, duetStatus, nextactionthread
-    capturing = True
-    disconnected = 0
+
+    global printState, duetStatus, captureLoopState
+    
+    if connectionState is False:
+        return
+    
+    captureLoopState = 1
     printState = 'Not Capturing'
-    lastDuetStatus = ''
 
-    while capturing:  # action can be changed by httpListener or SIGINT or CTL+C
+    lastDuetStatus = 'idle' # logical state on start of each thread instance
 
-        duetStatus = getDuetStatus(apiModel)
+    logger.debug('Starting Capture Loop')
 
-        if duetStatus == 'disconnected':  # provide some resiliency for temporary disconnects
-            disconnected += 1
-            logger.info('Printer is disconnected - Trying to reconnect')
-            if disconnected > 10:  # keep trying for a while just in case it was a transient issue
-                logger.info('')
-                logger.info(
-                        '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                logger.info('Printer was disconnected from Duet for too long')
-                logger.info('Finishing this capture attempt')
-                logger.info(
-                        '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                logger.info('')
-                printState = 'Disconnected'
-                nextactionthread = threading.Thread(target=nextAction,
-                                                    args=('terminate',)).start()  # Note comma in args is needed
-                # nextactionthread.start()
-                return
-
+    while captureLoopState == 1:  # Set to 0 to stop. e.g  By http listener or SIGINT or CTL+C
         if duetStatus != lastDuetStatus:  # What to do next?
-            logger.info('****** Duet status changed to: ' + duetStatus + ' *****')
+            logger.info('****** Duet status changed to: ' + str(duetStatus) + ' *****')
             # logical states for printer are printing, completed
             if (duetStatus == 'idle') and (printState in ['Capturing', 'Busy']):  # print job has finished
-                printState = 'Completed'  # logger.info('****** Print State changed to ' + printState + ' *****')
+                printState = 'Completed'
+                logger.debug('****** Print State changed to ' + printState + ' *****')
             elif (duetStatus in ['processing', 'idle']) or (duetStatus == 'paused' and detect == 'pause'):
-                printState = 'Capturing'  # logger.info('****** Print State changed to: ' + printState + ' *****')
+                printState = 'Capturing'
+                logger.debug('****** Print State changed to: ' + printState + ' *****')
             elif duetStatus == 'busy':
-                printState = 'Busy'  # logger.info('****** Print State changed to: ' + printState + ' *****')
+                printState = 'Busy'
+                logger.debug('****** Print State changed to: ' + printState + ' *****')
             else:
                 printState = 'Waiting'
             logger.info('****** Print State changed to: ' + printState + ' *****')
@@ -2077,67 +2507,87 @@ def captureLoop():  # Run as a thread
             if camera2 != '':
                 oneInterval('Camera2', camera2, weburl2, camparam2)
             unPause()  # Nothing should be paused at this point
-            disconnected = 0
         elif printState == 'Completed':
             logger.info('Print Job Completed')
             printState = 'Not Capturing'
             # use a thread here as it will allow this thread to close.
-            nextactionthread = threading.Thread(target=nextAction,
-                                                args=('terminate',)).start()  # Note comma in args is needed
-            return
+            startnextAction('completed')
+            break # Do not want to wait to end
 
-        if capturing:  # If no longer capturing - sleep is by-passed for speedier exit response
+        if captureLoopState == 1 and terminateState != 1 and connectionState:  # If still running then sleep
             lastDuetStatus = duetStatus
-            #how long since last image capture
-            time.sleep(poll)  # poll every n seconds - placed here to speed startup
+            time.sleep(poll)
 
-    logger.info('Exiting Capture loop')
-    capturing = False
     printState = 'Not Capturing'
-    return  # The return ends the thread
+    captureLoopState = -1
+    return  # End of captureLoop
 
 
 def nextAction(nextaction):  # can be run as a thread
-    global action, capturethread, capturing, lastaction
-    lastaction = action
-    action = nextaction  # default
+    global action, printState, captureLoopState, lastaction, logger, nextActionState, standby, gcodeLoopState, restart
+    logger.info('++++++ ' + nextaction + ' state requested ++++++')
+    # All nextactions need the capture thread to be shut down
+    stopCaptureLoop()
+    # This section needs to ge first as it checks for reconnection after network issue
+    if nextaction == 'waitforconnection': # Go into connection check loop
+        startcheckforConnection() 
+        nextActionState = -1
+        return
+    elif nextaction == 'reconnected':
+        startgcodeLoop() # restart the gcode monitor
+        time.sleep(5) # Give the gcodeloop time to get nest status
+        nextaction = lastaction
+        logger.info('Resuming after reconnect with nextaction = ' + nextaction)
 
-    # All nextactions assume the capturethread is shutdown
-    try:
-        capturing = False  # Signals captureThread to shutdown
-        time.sleep(1)  # Wait a few seconds to avoid race condition e.g. printer paused to capture image
-        capturethread.join(10)  # Timeout is to wait up to 10 seconds for capture thread to stop
-    except:
-        pass
+    if connectionState is False: #traps any requests during a disconnect
+        nextActionState = -1
+        return
+
+    nextActionState = 1
+    action = nextaction  # default
 
     # This test is positionally sensitive
     if nextaction == 'completed':  # end of a print job
-        if httpListener:  # controlled by http listener
-            nextaction = 'restart'
-        else:  # running as a one-off
-            nextaction = 'terminate'
+        printState = 'Completed'  # Update may have come from if came from M117
+        if novideo:
+            logger.info('Video creation was skipped')
+        else:
+            startMakeVideo()
+        nextaction = 'terminate'
 
-    logger.info('++++++ Entering ' + action + ' state ++++++')
+    logger.debug('++++++ Determining next logical action ++++++')
 
     if nextaction == 'start':
-        capturing = True
+        startCaptureLoop()
+        action = 'start'
+
     elif nextaction == 'standby':
         cleanupFiles(nextaction)  # clean up and start again
         setstartvalues()
-    if nextaction == 'pause':
-        pass
+        action = 'standby'
+
+    elif nextaction == 'pause':
+        action = 'pause'
+ 
     elif nextaction == 'continue':
-        capturing = True
+        startCaptureLoop()
         action = 'start'
+
     elif nextaction == 'snapshot':
-        makeVideo()
+        startMakeVideo()
+        logger.debug('Snapshot being created, last action was ' + lastaction)
         if lastaction == 'pause':
-            action = lastaction
-            capturing = False
+            action = 'pause'
         else:
-            capturing = True
+            action = 'start'
+            startCaptureLoop()
+
     elif nextaction == 'restart':
-        makeVideo()
+        if novideo:
+            logger.info('Video creation was skipped')
+        else:
+            startMakeVideo()
+            waitforMakeVideo() # Wait until done before deleting files
         cleanupFiles(nextaction)  # clean up and start again
         setstartvalues()
         startNow()
@@ -2145,54 +2595,152 @@ def nextAction(nextaction):  # can be run as a thread
             action = 'standby'
         else:
             action = 'start'
-            capturing = True
+            startCaptureLoop()
     elif nextaction == 'terminate':
-        if novideo:
-            logger.info('Video creation was skipped')
-        else:
-            makeVideo()
-        terminate()
-    elif nextaction == 'disconnected':
-        terminate()
+        terminateThread() #  Allows nextAction to finish
+        action = 'terminate'
 
-    if capturing:
-        action = 'start'
-        logger.info('++++++ Entering ' + action + ' state ++++++')
-        capturethread = threading.Thread(target=captureLoop, args=()).start()  # capturethread.start()
-
+    logger.info('++++++ Entering ' + action + ' state ++++++')
+    try:
+        lastaction = action
+    except NameError:
+        lastaction = action
+    nextActionState = -1
     return
 
+###################################
+#  Utility Functions
+###################################
 
+
+def parseM117(displaymessage):
+    global action
+    displaymessage = displaymessage.strip() # get rid of leading / trailing blanks
+
+    if displaymessage.startswith('DuetLapse3.'):
+        sendDuetGcode(apiModel,'M117 ""') #  Clear the display message
+
+        logger.info('M117 Command: ' + displaymessage)
+        nextaction = displaymessage.split('DuetLapse3.')[1]
+
+        if nextaction == action: #  Nothing to do
+            logger.info('Already in ' + action + ' state')
+            return
+
+        if nextaction == 'graceful':
+            startnextAction('completed')
+        elif nextaction == 'forced':
+            quit_forcibly()
+        elif nextaction in allowedNextAction(action) or nextaction == 'completed':
+            logger.debug ('M117 sending to startnextAction: ' + nextaction)
+            startnextAction(nextaction)
+        elif nextaction.startswith('change.'):
+            command = nextaction.split('change.')[1]
+            changehandling(command)
+        else:
+            logger.info('The requested action: ' + nextaction + ' is not available at this time')
+            logger.info('The current state is: ' + action)
+
+    elif execkey != '' and displaymessage.startswith(execkey):
+        sendDuetGcode(apiModel,'M117 ""') #  Clear the display message
+        execRun(displaymessage) # Run the command 
+
+
+def changehandling(command):
+    global logger
+    command = command.replace(' ','') # Make sure it is well formed
+    changevariables = ['verbose', 'seconds', 'poll', 'detect', 'dontwait', 'pause', 'restart', 'novideo', 'keepfiles','minvideo','extratime', 'fps', 'rest',  'execkey']
+    variable = command.split('=')[0]
+    value = command.split('=')[1]
+    if variable in changevariables:
+        logger.debug('Changing variable with: ' + command)
+        if variable == 'verbose' and value in ['True', 'False']:
+            updateglobals(variable, value)
+            setdebug(verbose)
+        elif variable == 'seconds':
+            if int(value) >= 12 or int(value) == 0:
+                updateglobals(variable, value)
+                poll_seconds()
+                if seconds > 0 and 'none' in detect:
+                    updateglobals('dontwait', 'True')
+        elif variable == 'poll':
+            if int(value) >= 12:
+                updateglobals(variable, value)
+                poll_seconds()
+        elif variable == 'detect' and value in ['layer', 'pause', 'none']:
+            command = "detect='" + value + "'"
+            updateglobals(variable, value)
+        elif variable == 'pause' and value in ['yes', 'no']:
+            updateglobals(variable, value)
+        elif variable in ['restart', 'novideo', 'keepfies'] and value in ['True', 'False']:  # Booleans
+            updateglobals(variable, value)
+        else:  #  General numeric or string
+            updateglobals(variable, value)
+    else:
+        logger.info('Changing variable with: ' + command + ' is not supported')
+
+def updateglobals(var,val):
+    convert = ''
+    if var in globals():  # Otherwise do nothing
+        #  Determine the original type
+        #  use type() instead of isinstance() to avoid subtype issues
+        vartype = str(type(globals()[var]))
+        if 'int' in vartype:
+            convert = 'int'
+        elif 'float' in vartype:
+            convert = 'float'
+        elif 'bool' in vartype:
+            convert = 'bool'
+        elif val in globals() or 'str' in vartype:  # val cannot be a globals value
+            val = '"' + val + '"' # force the string literal
+            convert = 'str'
+        else:
+            logger.debug(var + ' is a global of type ' + convert + ' will force to string')
+            convert = 'str'
+
+    else:
+        logger.info(var + ' is not a global variable')
+        return
+
+    if convert != '':  # Only handle the types above
+        #  Change the value
+        #  Need to declare that we are working with the global in exec
+        changevar = 'global ' + var + '; ' + var + ' = ' + val
+        exec(changevar)
+        # restore to the correct type
+        changetype = 'global ' + var + '; ' + var + ' = ' + convert + '(' + var + ')'
+        exec(changetype)
+        logger.info(var + ' has been changed to ' + str(val))
+
+    else:
+        logger.debug('unknown type. No change on ' + var)
+        return
+         
 def startMessages():
     if startNow():
-        logger.info('')
         logger.info('##########################################################')
         logger.info('Will start capturing images immediately')
-        logger.info('##########################################################')
-        logger.info('')
+        logger.info('##########################################################\n')
     else:
-        logger.info('')
-        logger.info('##########################################################')
-        if 'layer' in detect:
-            logger.info('Will start capturing images on first layer change')
-        elif 'pause' in detect:
-            logger.info('Will start capturing images on first pause in print stream')
-        logger.info('##########################################################')
-        logger.info('')
+        if 'layer' in detect or 'pause' in detect:
+            logger.info('##########################################################')
+            if 'layer' in detect:
+                logger.info('Will start capturing images on first layer change')
+            elif 'pause' in detect:
+                logger.info('Will start capturing images on first pause in print stream')
+            logger.info('##########################################################\n')
 
     if standby:
-        logger.info('')
         logger.info('##########################################################')
         logger.info('Will not start until command=start received from http listener')
-        logger.info('##########################################################')
-        logger.info('')
+        logger.info('or M117 DuetLapse3.start send in gcode')
+        logger.info('##########################################################\n')
 
-    logger.info('')
     logger.info('##########################################################')
     logger.info('Video will be created when printing ends')
-    logger.info('or if program termination is requested from the browser interface')
-    logger.info('##########################################################')
-    logger.info('')
+    logger.info('or if requested from the browser interface or M117 DuetLapse3. message')
+    logger.info('##########################################################\n')
+
     logger.info('##########################################################')
     logger.info('If running from a console using the command line')
     if win:
@@ -2200,19 +2748,17 @@ def startMessages():
         logger.info('On machines without the Break key - try Fn+Ctl+B')
     else:
         logger.info('Press Ctrl+C one time to stop the program and create a video.')
-    logger.info('##########################################################')
-    logger.info('')
+    logger.info('##########################################################\n')
 
     return
 
-
-def startHttpListener(host, port):
-    global httpthread
+def checkforvalidport():
+    global host, port
     sock = socket.socket()
     if (host == '0.0.0.0') and win:  # Windows does not report properly with 0.0.0.0
-        portcheck = sock.connect_ex(('127.0.0.1', port))
-    else:
-        portcheck = sock.connect_ex((host, port))
+        host = '127.0.0.1'
+
+    portcheck = sock.connect_ex((host, port))
 
     if portcheck == 0:
         logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
@@ -2221,40 +2767,50 @@ def startHttpListener(host, port):
         logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         sys.exit(8)
 
-    # import threading
-    httpthread = threading.Thread(target=createHttpListener, args=()).start()
-    logger.info('')
-    logger.info('##########################################################')
-    logger.info('***** Started http listener *****')
-    logger.info('##########################################################')
-    logger.info('')
+
+def startup():
+
+    setstartvalues()  # Default startup global values
+
+    checkforPrinter()  # Needs to be connected before gcodeloop
+
+    if httpListener and restarting is False:
+        startHttpListener()
+
+    startgcodeLoop()
+
+
+    logger.info('Initiating with action set to ' + action)
+    nextAction(action)
 
 
 ###########################
 # Program  begins here
 ###########################
 if __name__ == "__main__":  # Do not run anything below if the file is imported by another program
+    
+    # Allow process running in background or foreground to be gracefully
+    # shutdown with SIGINT (kill -2 <pid>)
+    signal.signal(signal.SIGINT, quit_forcibly) # Ctrl + C
 
-    # Globals.
-    global httpListener, win, pid, action, workingdir_exists
+    # Globals 
+    global httpListener, win, pid, action, apiModel, workingdir_exists, workingdirs
+    global nextActionState, makeVideoState, captureLoopState, gcodeLoopState, terminateState
+    global connectionState, restarting, checkforconnectionState
+    # Status flag for threads
+    nextActionState = captureLoopState = makeVideoState = gcodeLoopState = terminateState = checkforconnectionState =  -1  #  All set as not running
+    connectionState = restarting = False
+    commands = ['start','standby','pause','continue', 'snapshot', 'restart', 'terminate']
+    
     httpListener = False  # Indicates if an integral httpListener should be started
     win = False  # Windows OS
     pid = ''  # pid for this instance - used for temp filenames
+    workingdirs = []
     workingdir_exists = False
-
-    setstartvalues()  # Default startup global values
+    apiModel = ''
 
     init()
-
+    issue_warnings()
+    port_ok = checkforvalidport() # Exits if invalid
     startMessages()
-
-    startNow()  # Determine starting action
-
-    try:
-        if httpListener:
-            startHttpListener(host, port)
-
-        nextAction(action)
-
-    except KeyboardInterrupt:
-        pass  # This is handled as SIGINT
+    startup()
