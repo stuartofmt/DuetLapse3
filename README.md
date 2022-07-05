@@ -104,4 +104,16 @@ Provides the ability to generate time-lapse videos from for Duet based 3D printe
 - [13]  After Snapshot, returns to the previous logical state either 'start' or 'pause' 
 
 ### Version 4.0.0
-[Add description]
+- [1]  Added the ability to control the program with gcode M117 messages
+- [2]  Added the ability to execute an arbitrary program by sending M117 gcode with configrable prefix
+- [3]  Added -restart option to allow a program to continue running at end of print
+- [4]  Significantly improved ability to continue running after extended network interuptions.
+- [5]  Can continue to run even if printer is turned off
+- [6]  Changed - extratime handling so as not to require tpad support in ffmpeg
+- [7]  Added -minvideo option to set minimum video length (seconds default 5)
+- [8]  Changed default -poll to minimum of 12 seconds.
+- [9]  Changed default -seconds to minimum of 12 seconds.
+- [10] Supressed a lot of output unless -verbose is used
+- [11] Changed logfile naming convention to better support - restart.<br>
+Initially the logfile is created with a timestamp. When the print starts the logfile is renamed to reflect the name of the print job
+
