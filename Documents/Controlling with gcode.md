@@ -58,7 +58,8 @@ For example if -execkey was :do: the following message will attempt to run test.
 M117 DuetLapse3 :do: ./test.sh "hello world"
 G4 S10
 ```
-
+Note: There are no additional single or double quotes used in the M117 gcode.<br>
+The command portion is presented as it would be from the command line of the relevent OS.
 
 ### Test Example
 This example demonstrates controlling DuetLapse3 using M117 messages.
