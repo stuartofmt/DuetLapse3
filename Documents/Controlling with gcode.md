@@ -90,10 +90,11 @@ Start DuetLapse3 with the following suggested options, in addition to those need
 -restart -verbose -standby -keepfiles 
 
 **Note**
-- [1]  The use of M117 DuetLapse3.standby early in the print job to prepare for capture. 
+- [1]  The use of M117 DuetLapse3.standby early in the print job (in the macro) to prepare for capture. 
 - [2]  The use of M117 DuetLapse3.start to control when capture will start.
 - [3]  The use of M117 DuetLapse3.complated to indicate when capture will stop.
 
 Placement of these options allows fine control over the timelapse.  This is especially useful if -restart is used and DuetLapse3 is running continuously.
 
-
+Macros can be especially useful if running DuetLapse 3 continuously. You could (for example) having a standard set of options that are called at the end of each print job and specific macros (layer only, layer and time, timeonly) for certain type of timelapse.
+Embedding these macro calls from your slicer makes easy use of this functionality.
