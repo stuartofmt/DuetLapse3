@@ -9,7 +9,7 @@
 ## General Description
 Provides the ability to generate time-lapse videos from for Duet based 3D printers.
 
-##Version History
+## Version History
 
 ### Version 3.0.0
 - [1]  Removal of dependency on DuetWebAPI.py (by Danal Estes).  DuetLapse3.py is a standalone Python3 program.
