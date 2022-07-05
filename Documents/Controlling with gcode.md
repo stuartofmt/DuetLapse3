@@ -96,5 +96,6 @@ Start DuetLapse3 with the following suggested options, in addition to those need
 
 Placement of these options allows fine control over the timelapse.  This is especially useful if -restart is used and DuetLapse3 is running continuously.
 
-Macros can be especially useful if running DuetLapse 3 continuously. You could (for example) having a standard set of options that are called at the end of each print job and specific macros (layer only, layer and time, timeonly) for certain type of timelapse.
+Macros can be especially useful if running DuetLapse 3 continuously.<br>
+You could (for example) having a standard set of options that are called at the end of each print job and specific macros (layer only, layer and time, timeonly, different -second settings etc.) for certain type of timelapse.
 Embedding these macro calls from your slicer makes easy use of this functionality.
