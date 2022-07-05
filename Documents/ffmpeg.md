@@ -1,3 +1,5 @@
+## Building ffmpeg 
+
 Here are the steps I went through to build a more up-to-date ffmpeg (well - the straight line version that avoids the various dead ends and failures to compile the optional packages).  They were taken from here but shortened to omit the optional packages in the post and using a build that omits calling those packages.
 
 https://pimylifeup.com/compiling-ffmpeg-raspberry-pi/
