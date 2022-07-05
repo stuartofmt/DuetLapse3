@@ -1,5 +1,6 @@
 #!python3
 
+
 """
 #Python program to take Time Lapse photographs during a print on
 #   a Duet based 3D printer and convert them into a video.
