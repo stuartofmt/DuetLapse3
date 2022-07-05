@@ -9,6 +9,25 @@
 ## General Description
 Provides the ability to generate time-lapse videos from for Duet based 3D printers.
 
+DuetLapse3.md
+
+https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/DuetLapse.md
+
+
+startDuetLapse3.md
+
+https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/startDuetLapse3.md
+
+
+Useage Examples.md
+
+https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/Useage%20Examples.md
+
+Controlling with gcode.md
+
+https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/Controlling%20with%20gcode.md
+
+
 ## Version History
 
 ### Version 3.0.0
