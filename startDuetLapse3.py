@@ -8,6 +8,7 @@ Simple HTTP server for starting and stopping DuetLapse3
 # Developed on WSL with Debian Buster. Tested on Raspberry pi, Windows 10 and WSL. SHOULD work on most other linux distributions. 
 """
 
+
 import argparse
 import os
 import sys

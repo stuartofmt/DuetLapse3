@@ -61,6 +61,7 @@ It provides a simple http interface for starting and terminating DuetLapse3 inst
 ### Version 4.0.0
 - [1]  ????.
 - [2]  ????.
+- [3]  ????.
 
 ## General Description
 

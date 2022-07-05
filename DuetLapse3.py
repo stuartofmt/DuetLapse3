@@ -55,7 +55,6 @@ duetLapse3Version = '4.0.0'
 #  Changed logfile naming convention.  Initially the logfile is created with a timestamp. When the print starts the logfile is renamed to reflect the name of the print job
 
 
-
 def setstartvalues():
     global zo1, zo2, printState, captureLoopState, gcodeLoopState,  duetStatus, timePriorPhoto1, timePriorPhoto2, frame1, frame2
 
