@@ -19,9 +19,9 @@ startDuetLapse3.md
 https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/startDuetLapse3.md
 
 
-Useage Examples.md
+DuetLapse3 Useage Examples.md
 
-https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/Useage%20Examples.md
+https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/DuetLapse3%20Useage%20Examples.md
 
 Controlling with gcode.md
 
