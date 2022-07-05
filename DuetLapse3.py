@@ -46,9 +46,9 @@ duetLapse3Version = '4.0.0'
 #  Added -restart to cause a restart at end of print
 #  Changed - extratime so as not to require tpad support in ffmpeg
 #  Added the ability to execute an arbitrary program by sending M117 gcode with execkey prefix 
-#  Goes into a retry loop if no printer connection at start or during execution
+#  Improved network outage handling.
+#  Can continue to run even if printer is turned off
 #  Can now run continuously.
-#  Efficiency improvements.
 #  Added -minvideo to set minimum video length (seconds default 5)
 #  Changed default -poll to minimum of 12 seconds.
 #  Changed default -seconds to minimum of 12 seconds.
