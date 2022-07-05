@@ -83,7 +83,7 @@ An alternative if you are on Win10/11 is to use  Windows Subsystem for Linux (WS
 If running in nohup mode CTRL+C cannot be used so, you need to send the terminate command (?command=terminate) from the http listener
 The same applies if running in Windows with pythonw*
 
-**In addition to a browser interface DuetLapse3 can be controlled directly from gcode.**
+**In addition to a browser interface DuetLapse3 can be controlled directly from gcode using M117 messages**
 
 [Controlling with gcode.md](https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/Controlling%20with%20gcode.md)
 
@@ -467,6 +467,18 @@ Hides menu buttons that are currently invalid - otherwise, invalid buttons are g
 ```
 -hidebuttons       #Hides menu buttons that are currently invalid
 
+```
+___
+#### -execkey [string]
+If omitted the feature is disabled.
+If used, the string should be something unique and unlikely to appear in an M117 message by accident.
+See the following document for more details:
+
+[Controlling with gcode.md](https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/Controlling%20with%20gcode.md)
+
+**example**
+```
+-execkey :do: # M117 messages starting with :do: will treated as an OS command.
 ```
 
 
