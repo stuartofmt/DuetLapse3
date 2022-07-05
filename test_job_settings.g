@@ -25,4 +25,3 @@ M117 DuetLapse3.change.dontwait=True
 ;
 M117 DuetLapse3.change.execkey=:do:
 G4 S10
-;

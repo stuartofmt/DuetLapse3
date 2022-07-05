@@ -1,5 +1,4 @@
 ; Test gcode file for demonstrating DuetLapse3. style messages
-;
 M98 P"/macros/test_job_settings.g"
 ;
 T0             ; turn on the tool
