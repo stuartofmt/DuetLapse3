@@ -1,31 +1,29 @@
-# Currently being actively changed = do not use = likely just today
-
 ## DuetLapse3
  
-#### This is a modified version of the original DuetLapse created by Danal Estes https://github.com/DanalEstes/DuetLapse
+#### This is a significantly modified version of the original DuetLapse created by Danal Estes https://github.com/DanalEstes/DuetLapse
 #### The core ideas are his work.
 
-[General Description - links to DuetLapse3.md and startDuetLapse3.md and Usage Examples.md and Controlling with gcode.md]
 ## General Description
-Provides the ability to generate time-lapse videos from for Duet based 3D printers.
 
-DuetLapse3.md
+DuetLapse3 provides a highly configurable program for creating timelapse videos from printers using the Deut3D software.
+It can be run as a one-of or continuously in the background.
 
-https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/DuetLapse.md
+A companion program startDuetLapse 3 provides administration capabilities and is especially useful if multiple instances of DuetLapse3 are running and connected to multiple printers.
 
+### Details of DuetLapse3 are in this document:
 
-startDuetLapse3.md
+[DuetLapse3.md](https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/DuetLapse.md)
 
-https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/startDuetLapse3.md
+**In addition to a browser interface DuetLapse3 can be controlled directly from gcode.**
 
+[Controlling with gcode.md](https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/Controlling%20with%20gcode.md)
 
-DuetLapse3 Useage Examples.md
+### Details of startDuetLapse3 are in this document:
 
-https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/DuetLapse3%20Useage%20Examples.md
+[startDuetLapse3.md](https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/startDuetLapse3.md)
 
-Controlling with gcode.md
-
-https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/Controlling%20with%20gcode.md
+### Useage examples are in this document:
+[DuetLapse3 Useage Examples.md](https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/DuetLapse3%20Useage%20Examples.md)
 
 
 ## Version History
