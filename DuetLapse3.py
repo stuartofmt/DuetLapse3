@@ -1300,16 +1300,14 @@ def urlCall(url, timelimit, post):
                 r = requests.post(url, data=post)
             break
         except requests.ConnectionError as e:
-            logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-            logger.info('Cannot connect to the printer')
+            logger.info('Cannot connect to the printer\n')
             logger.debug(str(e))
-            logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n')
+            logger.debug('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n')
             error = 'Connection Error'
         except requests.exceptions.Timeout as e:
-            logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-            logger.info('The printer connection timed out')
+            logger.info('The printer connection timed out\n')
             logger.debug(str(e))
-            logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n')
+            logger.debug('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n')
             error = 'Timed Out'
 
         time.sleep(1)
