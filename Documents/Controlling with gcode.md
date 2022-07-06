@@ -32,7 +32,7 @@ verbose, seconds, poll, detect, dontwait, pause, restart, novideo, keepfiles, mi
 
 Examples
 ```
-M117 DuetLapse3.standby # Will place the program into standy
+M117 DuetLapse3.standby # Will place the program into standby
 G4 S10
 ```
 
@@ -60,9 +60,10 @@ M117 DuetLapse3 :do: ./test.sh "hello world"
 G4 S10
 ```
 Note: There are no additional single or double quotes used in the M117 gcode.<br>
-The command portion is presented as it would be from the command line of the relevent OS.
+The command portion is presented as it would be from the command line of the relevant OS.
 
 ### Test Example
+
 This example demonstrates controlling DuetLapse3 using M117 messages.
 It does not print anything but simulates a small print job.
 DuetLapse3. messages are both inline (in the gcode) and called inside a macro.
@@ -83,7 +84,7 @@ echo "$1 $2"
 echo "----------"
 
 ```
-Dont forget to make the file executable:
+Don't forget to make the file executable:
 ```
 chmod + x ./test.sh
 ```
@@ -98,6 +99,6 @@ Start DuetLapse3 with the following suggested options, in addition to those need
 
 Placement of these options allows fine control over the timelapse.  This is especially useful if -restart is used and DuetLapse3 is running continuously.
 
-Macros can be especially useful if running DuetLapse 3 continuously.<br>
-You could (for example) having a standard set of options that are called at the end of each print job and specific macros (layer only, layer and time, timeonly, different -second settings etc.) for certain type of timelapse.
+Macros can be especially useful if running DuetLapse3 continuously.<br>
+You could (for example) having a standard set of options that are called at the end of each print job and specific macros (layer only, layer and time, time only, different -second settings etc.) for certain type of timelapse.
 Embedding these macro calls from your slicer makes easy use of this functionality.
