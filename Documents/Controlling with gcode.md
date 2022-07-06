@@ -15,19 +15,20 @@ The strong recommendation is that the delay is 10 seconds i.e. **G4 S10**
 
 ### M117 DuetLapse3.(x)
 In the first form, the following settings are available:<br>
-{list}.
+start, standby, pause, continue, restart, snapshot, completed, graceful, forced
+
 These correspond to the same actions in the UI.<br>
 Note that **terminate** is not supported instead use **graceful** or **forced** depending on your need.
 
 There is also a special variant which can be used to change options on-the-fly.<br>
-This is equivalent to setting an option in the commandline at startup.
+This is equivalent to setting an option in the command line at startup.
 
 ```
 M117 DuetLapse3.change.(variable)=(value)
 G4 S10
 ```
 The following variables are supported:<br>
-{list}
+verbose, seconds, poll, detect, dontwait, pause, restart, novideo, keepfiles, minvideo, extratime, fps, rest , execkey
 
 Examples
 ```
