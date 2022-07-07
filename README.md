@@ -12,7 +12,7 @@ A companion program startDuetLapse 3 provides administration capabilities and is
 
 ### Details of DuetLapse3 are in this document:
 
-[DuetLapse3.md](https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/DuetLapse.md)
+[DuetLapse3.md](https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/DuetLapse3.md)
 
 **In addition to a browser interface DuetLapse3 can be controlled directly from gcode.**
 
