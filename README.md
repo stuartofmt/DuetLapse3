@@ -136,5 +136,5 @@ Initially the logfile is created with a timestamp. When the print starts the log
 
 ### Version 4.1.0
 - [1]  Added support for M117 DuetLapse.change.movehead=x,y
-- [2]  Added Delete, Zip, Video in UI for cpmpleted jobs in currently running instance
-- [3]  Supressed long message when a client (browser) disconnects during UI update
+- [2]  Added Delete, Zip, Video in UI for completed jobs in currently running instance
+- [3]  Suppressed long message when a client (browser) disconnects during UI update
