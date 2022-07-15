@@ -134,3 +134,7 @@ A companion program startDuetLapse 3 provides administration capabilities and is
 - [11] Changed logfile naming convention to better support - restart.<br>
 Initially the logfile is created with a timestamp. When the print starts the logfile is renamed to reflect the name of the print job
 
+### Version 4.1.0
+- [1]  Added support for M117 DuetLapse.change.movehead=x,y
+- [2]  Added Delete, Zip, Video in UI for cpmpleted jobs in currently running instance
+- [3]  Supressed long message when a client (browser) disconnects during UI update
