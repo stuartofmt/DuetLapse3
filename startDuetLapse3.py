@@ -25,8 +25,8 @@ import shutil
 import signal
 import logging
 
-startDuetLapse3Version = '4.0.0'
-#  Efficiency improvements and minor bug fixes
+startDuetLapse3Version = '4.1.0'
+#  Mitigated client disconnect in do_Get
 
 class whitelistParser(argparse.ArgumentParser):
     def exit(self, status=0, message=None):
@@ -312,8 +312,10 @@ class MyHandler(SimpleHTTPRequestHandler):
                 referer = self.headers['authority']
                 if not referer:
                     referer = 'localhost'  # Best guess if all else fails
+            logger.info('Referer = ' + str(referer))
             split_referer = referer.split(":", 1)
             refererip = split_referer[0]  # just interested in the calling address as we know our port number
+            
             # Update main content
             header, status, buttons = self.update_content()
 
@@ -343,19 +345,17 @@ class MyHandler(SimpleHTTPRequestHandler):
                 selectMessage = self.display_dir(thisdir)
 
             if (query_components.get('delete')):
-                file = query_components['delete'][0]
-                filepath, _ = os.path.split(file)
-                filepath = filepath + '/'
-                file = topdir + file
-                file = os.path.normpath(file)
-                if os.path.isdir(file):
+                qfn = query_components['delete'][0]
+                fn, filepath = self.parsefilename(qfn)
+
+                if os.path.isdir(fn):
                     try:
-                        shutil.rmtree(file)
+                        shutil.rmtree(fn)
                     except shutil.Error as e:
                         logger.info('Error deleting dir ' + str(e))
-                elif os.path.isfile(file): 
+                elif os.path.isfile(fn): 
                     try:
-                        os.remove(file)
+                        os.remove(fn)
                     except OSError as e:
                         logger.info('Error deleting file ' + str(e))
 
@@ -363,15 +363,10 @@ class MyHandler(SimpleHTTPRequestHandler):
                 selectMessage = self.display_dir(filepath)
 
             if (query_components.get('zip')):
-                file = query_components['zip'][0]
-                filepath, _ = os.path.split(file)
-                filepath = filepath + '/'
-                file = topdir + file
-                zipedfile = file + '.zip'
-
-                file = os.path.normpath(file)
-                zipedfile = os.path.normpath(zipedfile)
-                result = make_archive(file, zipedfile)
+                qfn = query_components['zip'][0]
+                fn , filepath = self.parsefilename(qfn)
+                zipedfile = os.path.normpath(fn + '.zip')
+                result = make_archive(fn, zipedfile)
                 selectMessage = '<h3>' + result + '<br></h3>' + self.display_dir(filepath)
 
             if (query_components.get('video')):
@@ -386,14 +381,10 @@ class MyHandler(SimpleHTTPRequestHandler):
                     except ValueError:
                         pass
                 fps = str(fps)
-                file = query_components['video'][0]
-                filepath, _ = os.path.split(file)
-                filepath = filepath + '/'
-                file = topdir + file
+                qfn = query_components['video'][0]
+                fn,filepath = self.parsefilename(qfn)
 
-                file = os.path.normpath(file)
-
-                result = createVideo(file)
+                result = createVideo(fn)
 
                 selectMessage = '<h3>'+result+'<br></h3>'+self.display_dir(filepath)
 
@@ -432,7 +423,13 @@ class MyHandler(SimpleHTTPRequestHandler):
             new_url = 'http://' + referer + '/?command=status'
             self.redirect_url(new_url)
             return
-        except: #supress disconnect messages
+        except Exception as e: # Mainly to supress client disconnect messages
+            logger.info(str(e))
+            try:
+                self.wfile.close()
+                self.wfile = None
+            except:
+                logger.info('Could not close wfile')
             return
         #  --------------
         #  End of do_Get
@@ -622,6 +619,16 @@ class MyHandler(SimpleHTTPRequestHandler):
         selectMessage = ''.join(txt)
         return selectMessage
 
+    def parsefilename(self, fn):
+        filepath, _ = os.path.split(fn)
+        if not filepath.endswith('/'):
+           filepath = filepath + '/'
+        filepath = filepath.replace(u'\u02f8', ':')  # make it look nice
+        fn = fn.replace(':', u'\u02f8')  # get rid of any regular colons
+        fn = topdir + fn
+        fn = os.path.normpath(fn)
+        return fn, filepath
+
     def display_dir(self, path):
         path = path.split('?', 1)[0]  #get rid of any query arguments
         path = path.split('#', 1)[0]
@@ -677,11 +684,11 @@ class MyHandler(SimpleHTTPRequestHandler):
                     response = ''.join(txt)
                     return response
 
-            for file in files:
-                if any (ext in file for ext in deletablefiles):
-                    deletelist.append(os.path.join(thisdir, file))
+            for fn in files:
+                if any (ext in fn for ext in deletablefiles):
+                    deletelist.append(os.path.join(thisdir, fn))
 
-                elif file.lower().endswith(jpegfile.lower()) and subdirs == []:  # if ANY jpeg in bottom level folder
+                elif fn.lower().endswith(jpegfile.lower()) and subdirs == []:  # if ANY jpeg in bottom level folder
                     jpegfolder.append(os.path.join(thisdir, ''))
                     deletelist.append(os.path.join(thisdir, ''))
                     break  # Assume all files are jpeg
@@ -744,8 +751,10 @@ class MyHandler(SimpleHTTPRequestHandler):
             r.append('</tr>')  # end the row
 
         for name in list:
+            if name.startswith('_tmpvideo.mp4'): # Ignore temp video file
+                continue
             fullname = os.path.join(path, name)
-            fullname = os.path.normpath(fullname) #no trailing slash will add in later if its a directory
+            fullname = os.path.normpath(fullname) #  no trailing slash will add in later if its a directory
             action_name = fullname.replace(topdir, '')  # used to force delete and zip and video to be relative to topdir
             # we do this after above assignment so that we don't have problems with slash direction between OS's
             # Note: a link to a directory displays with @ and folder  with /
@@ -829,7 +838,7 @@ class MyHandler(SimpleHTTPRequestHandler):
 
 
 def make_archive(source, destination):
-    base = os.path.basename(destination)
+    # base = os.path.basename(destination)
     format = pathlib.Path(destination).suffix
     name = destination.replace(format,'')
     format = format.replace('.','')
@@ -855,25 +864,36 @@ def createVideo(directory):
         logger.info(msg)
         return msg
 
-    cam1 = False
-    cam2 = False
-    frame = 0
+    f1 = f2 = 0
     Cameras = []
-    for name in list:
-        if not cam1:
-            if 'Camera1' in name:
-                cam1 = True
-                Cameras.append('Camera1')
-        elif not cam2:
-            if 'camera2' in name:
-                cam2 = True
-                Cameras.append('Camera2')
-        frame += 1
+    C1 = C2 = False
+    for fn in list:
+        if fn.startswith('Camera1_') and fn.endswith('.jpeg'):
+            C1 = True
+            f1 += 1
+        elif fn.startswith('Camera2_') and fn.endswith('.jpeg'):
+            C2 = True
+            f2 += 1
+    
+    if C1 is False and C2 is False:
+        msg = 'Cannot create video.  Could not determine which camera was used'
+        logger.info(msg)
+        makeVideoState = -1
+        return msg
+
+    if C1: Cameras.append('Camera1')
+    if C2: Cameras.append('Camera2')
 
     for cameraname in Cameras:
-        if frame < int(fps):
+        if cameraname == 'Camera1':
+            frame = f1
+        elif cameraname == 'Camera2':
+            frame = f2
+        minvideo = 1 #  minvideo not a setting in startDL3
+        if frame/int(fps) < minvideo:
             msg = 'Error: ' + cameraname + ': Cannot create video of less than 1 second: ' + fps + ' frames are required.'
             logger.info(msg)
+            makeVideoState = -1
             return msg
 
         logger.info(cameraname + ': now making ' + str(frame) + ' frames into a video')
@@ -883,11 +903,12 @@ def createVideo(directory):
         timestamp = time.strftime('%a-%H-%M', time.localtime())
 
         fn = os.path.normpath(directory + '_' + cameraname + '_' + timestamp + '.mp4')
+        tmpfn = os.path.normpath(directory + '_tmpvideo.mp4')
         location = os.path.normpath(directory + '/' + cameraname + '_%08d.jpeg')
-        cmd = 'ffmpeg -threads 1 ' + ffmpegquiet + ' -r ' + fps + ' -i ' + location + ' -vcodec libx264 -y -threads 2 ' + fn + debug
- 
 
-#  Wait for up to minutes for ffmpeg capacity to  become available
+        cmd = 'ffmpeg -threads 1 ' + ffmpegquiet + ' -r ' + fps + ' -i ' + location + ' -vcodec libx264 -y -threads 2 ' + tmpfn + debug
+ 
+        #  Wait for up to minutes for ffmpeg capacity to  become available
         #  If still not available - try anyway
         minutes = 5
         increment = 15  #  seconds
@@ -904,11 +925,24 @@ def createVideo(directory):
         if runsubprocess(cmd) is False:
             msg = ('!!!!!!!!!!!  There was a problem creating the video for '+cameraname+' !!!!!!!!!!!!!!!')
             logger.info(msg)
+            if os.path.isfile(tmpfn): 
+                try:
+                    os.remove(tmpfn)
+                except OSError as e:
+                    logger.info('Error deleting file ' + str(e))
+            makeVideoState = -1
+            return msg
         else:
-            logger.info('Video processing completed for ' + cameraname)
-            logger.info('Video is in file ' + fn)
-            msg = 'Video(s) successfully created'
+            try:
+                shutil.move(tmpfn, fn)
+                logger.info('Video processing completed for ' + cameraname)
+                logger.info('Video is in file ' + fn)                
+                msg = 'Video(s) successfully created'
+            except shutil.Error as e:
+                msg = 'Error on move ' + str(e)
+                logger.info(msg)
 
+    makeVideoState = -1    
     return msg
 
 

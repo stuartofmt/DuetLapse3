@@ -28,7 +28,7 @@ M117 DuetLapse3.change.(variable)=(value)
 G4 S10
 ```
 The following variables are supported:<br>
-verbose, seconds, poll, detect, dontwait, pause, restart, novideo, keepfiles, minvideo, extratime, fps, rest , execkey
+verbose, seconds, poll, detect, dontwait, pause, movehead, restart, novideo, keepfiles, minvideo, extratime, fps, rest , execkey
 
 Examples
 ```
@@ -47,6 +47,10 @@ G4 S10
 ```
 ```
 M117 DuetLapse3.change.seconds=20 # Will capture an image every 20 seconds
+G4 S10
+```
+```
+M117 DuetLapse3.change.movehead=1,200 # move the print head (x=1, Y=200) if pause=yes is used
 G4 S10
 ```
 
