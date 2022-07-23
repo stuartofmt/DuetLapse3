@@ -41,11 +41,9 @@ import pathlib
 import signal
 import logging
 
-duetLapse3Version = '4.1.0'
-#  Added support for M117 control to set movehead
-#  Tightened job complete logic in captureloop
-#  Added Delete, Video and Zip to UI for completed jobs
-#  Mitigated client disconnect in do_Get
+duetLapse3Version = '4.1.1'
+#  Fixed error on _tmpvideo.mp4 check
+
 
 def setstartvalues():
     global zo1, zo2, printState, captureLoopState, gcodeLoopState,  duetStatus, timePriorPhoto1, timePriorPhoto2, frame1, frame2
@@ -2301,7 +2299,7 @@ class MyHandler(SimpleHTTPRequestHandler):
             r.append('</tr>')  # end the row
 
         for name in list:  #this loop is DuetLapse3 specific - different to startDuetLapse3
-            if not name.startswith(pid) and not name.endswith('.jpeg') or name.startswith('_tmpvideo.mp4'): # Ignore temp video file
+            if not name.startswith(pid) and not name.endswith('.jpeg') or name.endswith('_tmpvideo.mp4'): # Ignore temp video file
                 continue  # only display for this instance
 
             fullname = os.path.join(path, name)
