@@ -27,6 +27,7 @@ import logging
 
 startDuetLapse3Version = '4.1.1'
 #  Fixed error on _tmpvideo.mp4 check
+#  Send Broken pipe error to debug
 
 class whitelistParser(argparse.ArgumentParser):
     def exit(self, status=0, message=None):
@@ -424,7 +425,11 @@ class MyHandler(SimpleHTTPRequestHandler):
             self.redirect_url(new_url)
             return
         except Exception as e: # Mainly to supress client disconnect messages
-            logger.info(str(e))
+            if 'Broken pipe' in str(e):
+                 logger.debug(str(e))           
+            else:
+                logger.info(str(e))
+
             try:
                 self.wfile.close()
                 self.wfile = None
