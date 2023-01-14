@@ -1,5 +1,6 @@
 ## DuetLapse3 Usage Examples
 
+
 Many options can be combined.  For example, the program can trigger on both "seconds" and "detect layer". It will inform you if you select conflicting options.
 
 Example: Using a config file.  Start the http server using port 8082. Capture an image every 20 seconds, do not respond to layer changes or pauses, use a streaming webcam at the specified url:

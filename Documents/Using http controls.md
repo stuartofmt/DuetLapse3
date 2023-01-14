@@ -2,7 +2,6 @@
 
 Basic control can be achieved by sending http messages in the form:
 
-
 ```
 http://<ip-address><port>/?command=<valid command>
 ```
