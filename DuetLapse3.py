@@ -22,18 +22,11 @@
 #
 """
 
-duetLapse3Version = '5.0.0'
+duetLapse3Version = '5.0.1'
 
 """
 CHANGES
-#  Completely revised UI
-#  Added display of last captured image to UI
-#  Added ability to specify a config file with -file option
-#  Try to install python modules if not loaded
-#  Added option for maxvideo - varies fps
-#  Added ability to change -minvideo and -maxvideo from UI
-#  UI gives current indication of current video
-#  Misc bug fixes
+#  
 """
 
 """
