@@ -1,5 +1,6 @@
 ## DuetLapse3 
 
+
 ### Overview
  
 Designed and tested on Raspberry Pi but should work on other linux platform. Supports cameras via
@@ -64,12 +65,14 @@ The three ways are:
 
 #### Browser based UI
 
-Sameple screen shots of the UI are here:
-https://github.com/stuartofmt/DuetLapse3/tree/main/Images
+Sample screen shots of the UI are here:
+[Controlling with the UI](https://github.com/stuartofmt/DuetLapse3/tree/main/Images)
 
 #### http messages
 
+http methods for controlling DUetLapse3 can be found here:
 
+[Controlling with http](https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/Using%20http%20controls.md)
 
 #### gcode messages
 
