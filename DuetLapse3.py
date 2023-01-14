@@ -23,7 +23,7 @@
 #
 """
 
-duetLapse3Version = '4.2.0'
+duetLapse3Version = '5.0.0'
 
 """
 CHANGES
@@ -37,11 +37,13 @@ CHANGES
 #  Misc bug fixes
 """
 
+"""
+# Experimenal
 import pathlib
 import subprocess
 import sys
 
-modules = {'operator', 'platform', 'argparse', 'shlex', 'time', 'requests', 'json', 'os', 'glob', 'socket', 'threading', 'psutil', 'shutil', 'stat', 'pathlib', 'signal', 'logging'}
+modules = {'operator', 'platform', 'argparse', 'shlex', 'time', 'requests', 'json', 'os', 'socket', 'threading', 'psutil', 'shutil', 'stat', 'pathlib', 'signal', 'logging'}
 
 for m in modules:
     try:
@@ -72,18 +74,14 @@ import time
 import requests
 import json
 import os
-import glob
 import socket
 import threading
 import psutil
 import shutil
 import pathlib
+import stat
 import signal
 import logging
-"""
-
-
-
 
 
 def setstartvalues():
@@ -913,7 +911,8 @@ def createVideo(directory):
             f2 += 1
     
     if C1 is False and C2 is False:
-        msg = 'Error: Cannot create video.  Could not determine which camera was used'
+        msg = 'Cannot create a video\\n\
+              Are there any images captured?'
         logger.info(msg)
         makeVideoState = -1
         return msg
@@ -2210,7 +2209,8 @@ class MyHandler(SimpleHTTPRequestHandler):
                     if workingDirStatus != -1:
                         result = startMakeVideo(workingDir)
                     else:
-                        result = 'Cannot create video.  Try again later.'
+                        result = 'There are no images captured yet.\\n\
+                                 Try again later.'
                 elif api == 'video':
                         result = startMakeVideo(api_args)
                 if result != '' and queriesProcessed == numQueries:  # return the display
