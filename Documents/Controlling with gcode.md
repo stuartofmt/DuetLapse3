@@ -60,7 +60,7 @@ The character sequence specified by -execkey is used to identify the command.
 
 For example if -execkey was :do: the following message will attempt to run test.sh
 ```
-M117 DuetLapse3 :do: ./test.sh "hello world"
+M117 :do: ./test.sh "hello world"
 G4 S10
 ```
 Note: There are no additional single or double quotes used in the M117 gcode.<br>

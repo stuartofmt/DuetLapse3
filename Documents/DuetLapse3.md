@@ -18,13 +18,11 @@ Feedback via issues on Duet forum https://forum.duet3d.com/topic/20932/duetlapse
 
 * Python3  V3.7 or greater
 * Duet printer must be RRF V3 or later (i.e. support either the  rr_model or /machine calls)
-* To use -extratime: ffmpeg version newer than 4.2 (this may need to be compiled if your system has an older version as standard)
   The following instructions may help https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/ffmpeg.md
-* If not using -extratime ffmpeg version 4.1.6
 * Python dependencies that are missing will be called out by the program
 * Duet printer must be reachable via network
 * Depending on camera type, one or more of the following may be required:
-  * fswebcam (for USB cameras)
+  * fswebcam (for USB cameras that provide still images)
   * raspistill or libcamera-still (for Pi cam or Ardu cam)
   * wget (for Web cameras)
 
@@ -43,20 +41,38 @@ https://docs.python.org/3/using/windows.html
   
 ## Usage
 
-The python program can be started from the command line or, more usually, from the companion program startDuetLapse3.  Although there are defaults for many of the options - it's unlikely that the program will do exactly what you want with just the defaults.
+The python program can be started from the command line, from the companion program startDuetLapse3 or using operating system utilities (such as systemctl).  Although there are defaults for many of the options - it's unlikely that the program will do exactly what you want with just the defaults.
+Options can be specified on the command line, in a configuration file ( see -file below) or using a combination.  If both a configuration file is used and command line options are provided, the command line options that duplicate those in the configration file take precidence.
+
+Examples of command line options are shown here:
+
 The program will usually be started just before you starting a printing - but this is not critical.  Depending on options (e.g. dontwait) it will either immediately start creating still images or wait until the printer changes status from "Idle" to "Processing".<br>
 At the end of the print job the program combines the still images into a mp4 video to create the time-lapse.<br>
-If the program is run in foreground it can be stopped at any time, using CTRL+C (on linux) or CTRL+Break(on Windows).  If the program is run in background it can be stopped using SIGINT (kill -2 <pid> in linux).
+If the program is run in foreground it can be stopped at any time, using CTRL+C (on linux) or CTRL+Break(on Windows). The best approach, when running on linux, is to use systemctl.
  
-An **Integrated http listener** is available for basic control of DuetLapse3 (not the attached printer).<br>
-The http listener is activated by specifying a port number using the -port option.<br>
-In conjunction with the -host option it provides the following functionality from a browser (or curl or other method of performing a http get).
+
+
+### Controlling DuetLapse3
+
+There are three ways to control DuetLapse.  All three require that its integrated http server is activated by using the -port option (see below).  THIS IS HIGHLY RECOMMENDED.
+The three ways are:
+1) Browser based UI
+2) Sending http messages e.g. froma browser or using curl
+3) From a gcode print using a specific form of M117 messages
+
+***Note:*** *The http server will stop responding if DuetLapse3 is run from a command console that is then closed.<br>
+
+#### Browser based UI
+
+Sameple screen shots of the UI are here: 
+
+#### http messages
+
+Basic control can be achieved by sending http messages in the form:
 
 ```
 http://<ip-address><port>/?command=<valid command>
 ```
-
-status     - returns brief information about the running state of DuetLapse3
 ___
 start      - Starts DuetLapse3 recording if the -standby option was used
              or after a standby command
@@ -68,7 +84,6 @@ pause      - causes DuetLapse3 to temporarily stop capturing images.
 continue   - causes DuetLapse3 to resume capturing images.
 ___
 
-snapshot   - causes DuetLapse3 to make an interim video and then return to its previous state (start or pause).
 restart    - causes DuetLapse3 to stop capturing images, create a video
              and then restart with a new capture set
 ___
@@ -77,13 +92,10 @@ terminate  - causes DuetLapse3 to stop capturing images, create a video and
              Note: Depending on your system - it may take several minutes
              for the http listener to completely shutdown following a terminate request.
 
-***Note:*** *The http listener will stop responding if DuetLapse3 is run from a command console that is then closed.<br>
-This will happen even if started in background.  To avoid this - use nohup (linux) or pythonw (Windows)<br>
-An alternative if you are on Win10/11 is to use  Windows Subsystem for Linux (WSL) and run DuetLapse as a linux application inside WSL.<br>
-If running in nohup mode CTRL+C cannot be used so, you need to send the terminate command (?command=terminate) from the http listener
-The same applies if running in Windows with pythonw*
 
-**In addition to a browser interface DuetLapse3 can be controlled directly from gcode using M117 messages**
+#### gcode messages
+
+DuetLapse3 can be controlled directly from gcode using M117 messages
 
 [Controlling with gcode.md](https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/Controlling%20with%20gcode.md)
 
@@ -97,6 +109,15 @@ python3 DuetLapse3.py -h
 The response will give the version number at the top.
 
 The options are described here.  Each option is preceded by a dash -. Some options have parameters described in the square brackets. The square brackets are NOT used in entering the options. If an option is not specified the default used.
+
+#### -file [filename]
+
+Optional (but highly recommended).  A text file with one option per line.
+  
+**example**
+```
+-file ./DuetLapse3.config     # Read options from this file
+```
 
 #### -duet [ip address]
 
@@ -451,7 +472,15 @@ Sets the default frames-per-second when the snapshot button is used.
 ___
 #### -minvideo
 If omitted the default is 5 seconds
-Sets the minimum number of frames that must have been created before an attempt is made to create a video.<br>
+If there are not enough frames to create a video of this length, no video will be created.<br>
+
+**example**
+```
+
+___
+#### -maxvideo
+If omitted there is no limit on the length of the video.
+Sets the maximum length for the resulting video.<br>
 
 **example**
 ```

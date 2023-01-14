@@ -25,8 +25,9 @@ import shutil
 import signal
 import logging
 
-startDuetLapse3Version = '4.1.0'
-#  Mitigated client disconnect in do_Get
+startDuetLapse3Version = '4.1.1'
+#  Fixed error on _tmpvideo.mp4 check
+#  Send Broken pipe error to debug
 
 class whitelistParser(argparse.ArgumentParser):
     def exit(self, status=0, message=None):
@@ -424,7 +425,11 @@ class MyHandler(SimpleHTTPRequestHandler):
             self.redirect_url(new_url)
             return
         except Exception as e: # Mainly to supress client disconnect messages
-            logger.info(str(e))
+            if 'Broken pipe' in str(e):
+                 logger.debug(str(e))           
+            else:
+                logger.info(str(e))
+
             try:
                 self.wfile.close()
                 self.wfile = None
@@ -751,7 +756,7 @@ class MyHandler(SimpleHTTPRequestHandler):
             r.append('</tr>')  # end the row
 
         for name in list:
-            if name.startswith('_tmpvideo.mp4'): # Ignore temp video file
+            if name.endswith('_tmpvideo.mp4'): # Ignore temp video file
                 continue
             fullname = os.path.join(path, name)
             fullname = os.path.normpath(fullname) #  no trailing slash will add in later if its a directory

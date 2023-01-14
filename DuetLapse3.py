@@ -14,7 +14,7 @@
 # Released under The MIT License. Full text available via https://opensource.org/licenses/MIT
 #
 #
-# Developed on Raspberry Pi and WSL with Debian Buster and on Windows 10/11. SHOULD work on most other linux distributions.
+# Developed on Raspberry Pi and WSL with Debian Bullseye and on Windows 10/11. SHOULD work on most other linux distributions.
 # For USB or Pi camera, The Camera MUST be physically attached to the Pi computer.
 # For Webcam, the camera must be network reachable and via a defined URL for a still image.
 # For Stream   the camera must be network reachable and via a defined URL
@@ -23,33 +23,69 @@
 #
 """
 
+duetLapse3Version = '5.0.0'
+
+"""
+CHANGES
+#  Completely revised UI
+#  Added display of last captured image to UI
+#  Added ability to specify a config file with -file option
+#  Try to install python modules if not loaded
+#  Added option for maxvideo - varies fps
+#  Added ability to change -minvideo and -maxvideo from UI
+#  UI gives current indication of current video
+#  Misc bug fixes
+"""
+
+"""
+# Experimenal
+import pathlib
+import subprocess
+import sys
+
+modules = {'operator', 'platform', 'argparse', 'shlex', 'time', 'requests', 'json', 'os', 'socket', 'threading', 'psutil', 'shutil', 'stat', 'pathlib', 'signal', 'logging'}
+
+for m in modules:
+    try:
+        #import m
+        globals()[m] = __import__(m)
+    except ImportError:
+        print('Trying to install: ' + m)
+        cmd = 'python -m pip install ' + m
+        subprocess.run(cmd , shell=True)
+    finally:
+        if m not in sys.modules:
+            try:
+                #import m
+                globals()[m] = __import__(m)
+            except ImportError:
+                print('Could not import: ' + m)
+
+
+
+"""
 from operator import truediv  #  To support proper division
 import subprocess
 import sys
 import platform
 import argparse
+import shlex
 import time
 import requests
 import json
 import os
-import glob
 import socket
 import threading
 import psutil
 import shutil
 import pathlib
+import stat
 import signal
 import logging
 
-duetLapse3Version = '4.1.0'
-#  Added support for M117 control to set movehead
-#  Tightened job complete logic in captureloop
-#  Added Delete, Video and Zip to UI for completed jobs
-#  Mitigated client disconnect in do_Get
 
 def setstartvalues():
-    global zo1, zo2, printState, captureLoopState, gcodeLoopState,  duetStatus, timePriorPhoto1, timePriorPhoto2, frame1, frame2
-
+    global zo1, zo2, printState, captureLoopState, gcodeLoopState,  duetStatus, timePriorPhoto1, timePriorPhoto2, frame1, frame2, lastImage
     printState = 'Not Capturing'
     stopCaptureLoop()
     duetStatus = 'Not yet determined'
@@ -58,11 +94,14 @@ def setstartvalues():
     timePriorPhoto1 = time.time()
     timePriorPhoto2 = time.time()
 
-    # reset the frame counters and layer (zo) state
+    # frame counters and layer (zo) state
     frame1 = 0 # Camera1
     zo1 = -1  
     frame2 = 0 # Camera2
-    zo2 = -1  
+    zo2 = -1 
+
+    # last image captured
+    lastImage = ''
 
 ###########################
 # General purpose methods begin here
@@ -70,7 +109,7 @@ def setstartvalues():
 
 def returncode(code):  # Defined here - used by calling programs
     codes = { 0 : 'Not Used',
-              1 : 'Not Used',
+              1 : 'OS error',
               2 : 'Invalid options combination',
               3 : 'Missing software dependency',
               4 : 'No response from Printer',
@@ -84,6 +123,27 @@ def returncode(code):  # Defined here - used by calling programs
     else:
         text = str(code) + ' is an unidentified Code'
     return text
+
+
+class LoadFromFilex (argparse.Action):
+    def __call__ (self, parser, namespace, values, option_string = None):
+        with values as file:
+            try:
+                import copy
+
+                old_actions = parser._actions
+                file_actions = copy.deepcopy(old_actions)
+
+                for act in file_actions:
+                    act.required = False
+
+                parser._actions = file_actions
+                parser.parse_args(shlex.split(file.read()), namespace)
+                parser._actions = old_actions
+
+            except Exception as e:
+                logger.info('Error: ' +  str(e))
+                return
 
 
 def whitelist(parser):
@@ -110,14 +170,14 @@ def whitelist(parser):
     parser.add_argument('-keepfiles', action='store_true', help='Dont delete files on startup or shutdown')
     # Execution
     parser.add_argument('-dontwait', action='store_true', help='Capture images immediately.')
-    parser.add_argument('-seconds', type=float, nargs=1, default=[0])
+    parser.add_argument('-seconds', type=int, nargs=1, default=[0])
     parser.add_argument('-detect', type=str, nargs=1, choices=['layer', 'pause', 'none'], default=['layer'],
                         help='Trigger for capturing images. Default = layer')
     parser.add_argument('-pause', type=str, nargs=1, choices=['yes', 'no'], default=['no'],
                         help='Park head before image capture.  Default = no')
-    parser.add_argument('-movehead', type=float, nargs=2, default=[0.0, 0.0],
+    parser.add_argument('-movehead', type=int, nargs=2, default=[0, 0],
                         help='Where to park head on pause, Default = 0,0')
-    parser.add_argument('-rest', type=float, nargs=1, default=[1],
+    parser.add_argument('-rest', type=int, nargs=1, default=[1],
                         help='Delay before image capture after a pause.  Default = 1')
     parser.add_argument('-standby', action='store_true', help='Wait for command to start.')
     parser.add_argument('-restart', action='store_true', help='Will restart when print finishes')
@@ -129,8 +189,9 @@ def whitelist(parser):
                         help='Optional second camera. No Default')
     parser.add_argument('-weburl2', type=str, nargs=1, default=[''], help='Url for Camera2 if web or stream')
     # Video
-    parser.add_argument('-extratime', type=float, nargs=1, default=[0], help='Time to repeat last image, Default = 0')
-    parser.add_argument('-minvideo', type=float, nargs=1, default=[5], help='Minimum video length, Default = 5')
+    parser.add_argument('-extratime', type=int, nargs=1, default=[0], help='Time to repeat last image, Default = 0')
+    parser.add_argument('-minvideo', type=int, nargs=1, default=[5], help='Minimum video length (sec), Default = 5')
+    parser.add_argument('-maxvideo', type=int, nargs=1, default=[0], help='Fixed video length (sec), Default = inactive')
     # Overrides
     parser.add_argument('-camparam1', type=str, nargs=1, default=[''],
                         help='Camera1 Capture overrides. Use -camparam1="parameters"')
@@ -143,11 +204,13 @@ def whitelist(parser):
     parser.add_argument('-fps', type=int, nargs=1, default=[10], help='Frames-per-second for video. Default = 10')
     parser.add_argument('-hidebuttons', action='store_true', help='Hides buttons not logically available.')
     #Special Functions
-    parser.add_argument('-execkey', type=str, nargs=1, default=[''],
-                        help='string to identify executable command')
+    parser.add_argument('-execkey', type=str, nargs=1, default=[''],help='string to identify executable command')
+
     return parser
 
-###  Main routines for calling subprocesses
+################################################
+##  Main routines for calling subprocesses
+################################################
 
 
 def runsubprocess(cmd):
@@ -176,7 +239,11 @@ def init():
     parser = argparse.ArgumentParser(
             description='Create time lapse video for Duet3D based printer. V' + duetLapse3Version, allow_abbrev=False)
     parser = whitelist(parser)
-    args = vars(parser.parse_args())
+
+    parser.add_argument('-file', type=argparse.FileType('r'), help='file of options', action=LoadFromFilex)
+
+    args = vars(parser.parse_args())  # Save as a dict
+
     inputs = {}
 
     global duet, basedir, poll, pollcheck, instances, logtype, nolog, verbose, host, port
@@ -243,9 +310,9 @@ def init():
     inputs.update({'dontwait': str(dontwait)})
 
     seconds = args['seconds'][0]
-    inputs.update({'seconds': str(seconds)})
     if seconds != 0 and seconds < 12: # If used set to minimum of 12 seconds
         seconds = 12
+    inputs.update({'seconds': str(seconds)})
 
     detect = args['detect'][0]
     inputs.update({'detect': str(detect)})
@@ -272,7 +339,7 @@ def init():
     inputs.update({'# Camera': ''})
 
     camera1 = args['camera1'][0]
-    inputs.update({' camera1': str( camera1)})
+    inputs.update({'camera1': str(camera1)})
 
     camera2 = args['camera2'][0]
     inputs.update({'camera2': str(camera2)})
@@ -284,17 +351,24 @@ def init():
     inputs.update({'weburl2': str(weburl2)})
 
     # Video
-    global extratime, fps, minvideo
+    global extratime, fps, minvideo, maxvideo
     inputs.update({'# Video': ''})
 
     extratime = args['extratime'][0]
     inputs.update({'extratime': str(extratime)})
 
-    fps = str(args['fps'][0])
+    fps = args['fps'][0]
     inputs.update({'fps': str(fps)})
 
     minvideo = args['minvideo'][0]
     inputs.update({'minvideo': str(minvideo)})
+
+    maxvideo = args['maxvideo'][0]
+    if maxvideo > 0:
+       if maxvideo < minvideo:
+           maxvideo = minvideo
+
+    inputs.update({'maxvideo': str(maxvideo)})
 
     # Overrides
     global camparam1, camparam2, vidparam1, vidparam2
@@ -372,32 +446,41 @@ def init():
     duetname = duet.replace('.', '-')
 
     # set directories for files
-    global topdir, baseworkingdir, workingdir, loggingset, logname
+    global topDir, nextWorkingDir, workingDir, loggingset, logname, pidIncrement
     loggingset = False
+    pidIncrement = 0 # Used to create a new path for each job.
     if basedir == '':
         basedir = os.path.dirname(os.path.realpath(__file__))
+    # clean up the separators
+    basedir = basedir.replace('\\', '/')
+    if basedir.startswith('.'):  #  this little trick so as not to drop ./ or ../
+        basedir = './' + basedir
+        basedir = os.path.normpath(basedir) # get slashes in correct direction
+
+    topDir = os.path.join(basedir, socket.getfqdn(), duetname)
+    logger.debug('The top level dir is ' + topDir)
     
-    basedir = basedir.replace('\\','/') # Could be user error
-    basedir = os.path.normpath(basedir) # Normalise the dir - no trailing slash
- 
-    topdir = os.path.normpath(basedir + '/' + socket.getfqdn() + '/' + duetname)
-    baseworkingdir = os.path.normpath(topdir + '/' + pid)  # may be changed later
-    if not os.path.isdir(topdir): # If not already exists - create
+    pidID = pid + '_' + str(pidIncrement)
+    nextWorkingDir = os.path.join(topDir, pidID)  # used to seed workinDir
+
+    if not os.path.isdir(topDir): # If not already exists - create
         try:
-            os.makedirs(topdir)  # Use recursive form to create intermediate directories
+            os.makedirs(topDir)  # Use recursive form to create intermediate directories
         except OSError as e:
             logger.info('Could not create dir ' + str(e))
+            sys.exit(1)
+    
+    # Should not happen (almost like winning the lottery)
+    for item in listTopDir():
+        if item.startswith(pidID):  # Wow - a pid collision
+            pidIncrement += 1
+            nextWorkingDir = os.path.join(topDir, pid + '_' + str(pidIncrement))
+
 
     #  Clean up older files
     cleanupFiles('startup')
 
     setuplogfile()
-
-    ####################################################
-    # Display the options being used
-    ####################################################
-
-    listoptions()
     
     ###############################################
     # derived parameters
@@ -458,6 +541,7 @@ def init():
 
     return # init()
 
+
 def issue_warnings():
     # Information and Warnings
     global dontwait
@@ -510,49 +594,68 @@ def issue_warnings():
     return # issue_warnings()
 
 
-def listoptions():
+####################################################
+# Display the options being used
+####################################################
+
+def getOptions():
     for var in inputs: # update the values
         if var in globals():
             val = globals()[var]
             newvalue = {var:val}
             inputs.update(newvalue)
-    # output the options
-    logger.info("################### Options at start of this print job  #####################")
-    col_width = max(len(row) for row in inputs) + 2  # width of first column
-    for label, value in inputs.items():
-       logger.info("".join(label.ljust(col_width) + str(value)))
+    return inputs
+
+def listOptions():
+    options = getOptions()
+    logger.info("################### Options at start of this print job  #####################")  
+    for label, value in options.items():
+        value = str(value)
+        if label.startswith('#'):
+            logger.info(label)
+        elif value == '':
+            logger.info('-' + label)
+        else:
+            logger.info('-' + label + '  =  ' + value)
     logger.info('-----------------------------------------------------------------------\n\n')
 
-def setuplogfile():
-    global loggingset, logname, logfilename
+
+####################################################
+# Logfile setup
+####################################################
+
+def setuplogfile():  #Called at start and restart
+    global loggingset, logname, logfilename, nextWorkingDir, pidIncrement
     #  Set up log file now that we have a name for it
-    logfilename = topdir + '/' + pid + '_' + time.strftime('%y-%m-%dT%H:%M:%S', time.localtime()) + '.log'
-    logfilename = logfilename.replace(':', u'\u02f8')  # cannot use regular colon in windows file names
-    logfilename = os.path.normpath(logfilename)
+    
+    logfilename = os.path.join(topDir, 'startup.log')
+    pidIncrement += 1
+    nextWorkingDir = os.path.join(topDir, pid + '_' + str(pidIncrement))
 
     if nolog is False:
         filehandler = None
         for handler in logger.handlers:
             if handler.__class__.__name__ == "FileHandler":
                 filehandler = handler
-                break # There is only ever one
         
-        if filehandler != None:  #  Get rid of it
-            filehandler.flush()
-            filehandler.close()
-            logger.removeHandler(filehandler)
-            time.sleep(3) # Wait for any messages to propogate
+            if filehandler != None:  #  Get rid of it
+                filehandler.flush()
+                filehandler.close()
+                logger.removeHandler(filehandler)
+                time.sleep(3) # Wait for any messages to propogate
 
         f_handler = logging.FileHandler(logfilename, mode='w', encoding='utf-8')
         f_format = logging.Formatter('%(asctime)s - %(threadName)s - %(message)s')
         f_handler.setFormatter(f_format)
         logger.addHandler(f_handler)
-        logger.debug('Created logfile at ' + logfilename)
+        logger.info('DUETLAPSE3 LOGFILE')
+        logger.info(logfilename)
+        logger.info('-------------------------------------------------------------------------------\n')
 
     loggingset = True
 
 
-def renamelogfile(): # called from createworkingdir 
+def renamelogfile(thisDir): # called from createworkingDir 
     global logname, logfilename
 
     if nolog is False:
@@ -567,19 +670,23 @@ def renamelogfile(): # called from createworkingdir
             filehandler.close()
             logger.removeHandler(filehandler)
         
-        newlogfilename = os.path.normpath(workingdir + '.log')
-        newlogfilename = newlogfilename.replace(':', u'\u02f8')  # cannot use regular colon in windows file names
+        newlogfilename = thisDir + '.log'
 
         try:
+            logger.debug('Renaming logfile to ' + newlogfilename)
             shutil.move(logfilename, newlogfilename)
         except shutil.Error as e:
-            logger.info('Error on move ' + str(e))
+            logger.info('Error on move of logfile ' + str(e))
 
         f_handler = logging.FileHandler(newlogfilename, mode='a', encoding='utf-8')
         f_format = logging.Formatter('%(asctime)s - %(threadName)s - %(message)s')
         f_handler.setFormatter(f_format)
         logger.addHandler(f_handler)
         logfilename = newlogfilename
+
+####################################################
+# Misc settings
+####################################################
    
 def setdebug(val): # How much output
     global debug, ffmpegquiet, logger
@@ -616,43 +723,43 @@ def poll_seconds():
     pollcheck = int(poll/4) #  Check quicker than poll interval
 
 
-    def checkDependencies(id):
-        if id == 1:
-            camera = camera1
-            camparam  = camparam1
-        else:
-            camera = camera2
-            camparam  = camparam2
+def checkDependencies(id):
+    if id == 1:
+        camera = camera1
+        camparam  = camparam1
+    else:
+        camera = camera2
+        camparam  = camparam2
 
-        if 'usb' in camera:
-            if runsubprocess('fswebcam --version') is False:
-                logger.info("Module 'fswebcam' is required. ")
-                if not win:
-                    logger.info("Obtain via 'sudo apt install fswebcam'")
-                sys.exit(3)
-
-        if 'pi' in camera:
-            logger.info('NOTE: THE -camera pi OPTION IS DEPRECATED')
-
-        if 'pi' in camera or 'raspistill' in camparam:
-            if runsubprocess('raspistill --help') is False:
-                logger.info("Module 'raspistill' is required BUT is only available for Pi version Buster or lower. ")
-                if not win:
-                    logger.info("Obtain via 'sudo apt install raspistill'")
-                sys.exit(3)
-
-        if 'web' in camera or 'wget' in camparam:
-            if runsubprocess('wget --version') is False:
-                logger.info("Module 'wget' is required. ")
-                if not win:
-                    logger.info("Obtain via 'sudo apt install wget'")
-                sys.exit(3)
-
-        if runsubprocess('ffmpeg -version') is False:
-            logger.info("Module 'ffmpeg' is required. ")
+    if 'usb' in camera:
+        if runsubprocess('fswebcam --version') is False:
+            logger.info("Module 'fswebcam' is required. ")
             if not win:
-                logger.info("Obtain via 'sudo apt install ffmpeg'")
+                logger.info("Obtain via 'sudo apt install fswebcam'")
             sys.exit(3)
+
+    if 'pi' in camera:
+        logger.info('NOTE: THE -camera pi OPTION IS DEPRECATED')
+
+    if 'pi' in camera or 'raspistill' in camparam:
+        if runsubprocess('raspistill --help') is False:
+            logger.info("Module 'raspistill' is required BUT is only available for Pi version Buster or lower. ")
+            if not win:
+                logger.info("Obtain via 'sudo apt install raspistill'")
+            sys.exit(3)
+
+    if 'web' in camera or 'wget' in camparam:
+        if runsubprocess('wget --version') is False:
+            logger.info("Module 'wget' is required. ")
+            if not win:
+                logger.info("Obtain via 'sudo apt install wget'")
+            sys.exit(3)
+
+    if runsubprocess('ffmpeg -version') is False:
+        logger.info("Module 'ffmpeg' is required. ")
+        if not win:
+            logger.info("Obtain via 'sudo apt install ffmpeg'")
+        sys.exit(3)
 
     checkDependencies(1)
     if camera2 != '':
@@ -744,8 +851,18 @@ def checkforConnection():
 ##  Utility Functions
 #####################################################
 
-def make_archive(source, destination):
-    # base = os.path.basename(destination)
+def listTopDir():
+    try:
+        listdir = os.listdir(topDir)
+    except FileNotFoundError as e:
+        logger.info('--------------------------------- FATAL ERROR --------------------------------')
+        logger.info('Trying to list dir -- ' + topDir + '\n')
+        logger.info(str(e))
+        sys.exit(1)
+    return listdir
+
+def make_archive(source):
+    destination = source + '.zip'
     format = pathlib.Path(destination).suffix
     name = destination.replace(format,'')
     format = format.replace('.','')
@@ -773,12 +890,19 @@ def createVideo(directory):
         makeVideoState = -1
         return msg
 
-    list = os.listdir(directory)
-
     f1 = f2 = 0
     Cameras = []
     C1 = C2 = False
-    for fn in list:
+
+    try:
+        listdir = os.listdir(directory)
+    except FileNotFoundError as e:
+        msg = 'Error: Could not list video directory'
+        logger.info(msg)
+        logger.info(str(e))
+        return msg
+
+    for fn in listdir:
         if fn.startswith('Camera1_') and fn.endswith('.jpeg'):
             C1 = True
             f1 += 1
@@ -787,7 +911,8 @@ def createVideo(directory):
             f2 += 1
     
     if C1 is False and C2 is False:
-        msg = 'Cannot create video.  Could not determine which camera was used'
+        msg = 'Cannot create a video\\n\
+              Are there any images captured?'
         logger.info(msg)
         makeVideoState = -1
         return msg
@@ -801,21 +926,31 @@ def createVideo(directory):
         elif cameraname == 'Camera2':
             frame = f2
 
-        if frame/int(fps) < minvideo:
-            msg = 'Error: ' + cameraname + ': Cannot create video of less than ' + str(minvideo) + ' seconds.'
+        if maxvideo > 0:
+            if frame < maxvideo:
+                thisfps = 1.0                         #  make it as long as we can     
+            else:
+                thisfps = float(frame/maxvideo)       #  set for  maxvideo duration
+        else:
+            thisfps = float(fps)                      #  set for fixed fps
+
+
+        if frame/thisfps < minvideo:
+            msg = 'Error: ' + cameraname + ': Cannot create video shorter than ' + str(minvideo) + ' second(s).\n Length would have been ' + str(frame/thisfps) + ' second(s).' 
             logger.info(msg)
+            logger.info('frame = ' + str(frame) + ' thisfps = ' + str(thisfps) + ' fps = ' + str(fps) + ' maxvideo = ' + str(maxvideo) + ' minvideo = ' + str(minvideo))
             makeVideoState = -1
             return msg
 
-        logger.info(cameraname + ': now making ' + str(frame) + ' frames into a video')
+        logger.info(cameraname + ': now making ' + str(frame) + ' frames into a video with fps = ' +str(thisfps))
         if 250 < frame:
             logger.info("This can take a while...")
 
         timestamp = time.strftime('%a-%H-%M', time.localtime())
 
-        fn = os.path.normpath(directory + '_' + cameraname + '_' + timestamp + '.mp4')
-        tmpfn = os.path.normpath(directory + '_tmpvideo.mp4')
-        location = os.path.normpath(directory + '/' + cameraname + '_%08d.jpeg')
+        fn = directory + '_' + cameraname + '_' + timestamp + '.mp4'
+        tmpfn = os.path.join(directory, '_tmpvideo.mp4')
+        location = os.path.join(directory, cameraname + '_%08d.jpeg')
 
         if printState == 'Completed':
             threadsin = ''  #  Dont limit ffmpeg
@@ -824,7 +959,7 @@ def createVideo(directory):
             threadsin = ' -threads 1 '
             threadsout = ' -threads 2 '
 
-        cmd = 'ffmpeg' + threadsin + ffmpegquiet + ' -r ' + fps + ' -i ' + location + ' -vcodec libx264 -y ' + threadsout + tmpfn + debug
+        cmd = 'ffmpeg' + threadsin + ffmpegquiet + ' -r ' + str(thisfps) + ' -i ' + location + ' -vcodec libx264 -y ' + threadsout + tmpfn + debug
 
         #  Wait for up to minutes for ffmpeg capacity to  become available
         #  If still not available - try anyway
@@ -841,7 +976,7 @@ def createVideo(directory):
 
 
         if runsubprocess(cmd) is False:
-            msg = ('!!!!!!!!!!!  There was a problem creating the video for '+cameraname+' !!!!!!!!!!!!!!!')
+            msg = ('!!!!!  There was a problem creating the video for '+cameraname+' !!!!!')
             logger.info(msg)
             if os.path.isfile(tmpfn): 
                 try:
@@ -857,7 +992,7 @@ def createVideo(directory):
                 logger.info('Video is in file ' + fn)                
                 msg = 'Video(s) successfully created'
             except shutil.Error as e:
-                msg = 'Error on move ' + str(e)
+                msg = 'Error on move of temp video file ' + str(e)
                 logger.info(msg)
  
     makeVideoState = -1
@@ -879,120 +1014,104 @@ def ffmpeg_available():
 def getRunningInstancePids():
     pidlist = []
     for p in psutil.process_iter():
-        if ((
-                'python3' in p.name() or 'pythonw' in p.name()) and '-duet' in p.cmdline()):  # Check all other python3 instances
+        if 'python' in p.name():  # Check all other python instances
             pidlist.append(str(p.pid))
     return pidlist
 
 
 def getPidDirs():
     dirlist = []
-    if os.path.isdir(topdir):
-        for item in os.listdir(topdir):
-            if os.path.isdir(os.path.join(topdir, item)):
+    if os.path.isdir(topDir):
+        for item in listTopDir():
+            if os.path.isdir(os.path.join(topDir, item)):
                 dirlist.append(item)
 
     return dirlist
 
-
-def createWorkingDir(baseworkingdir):
-    global workingdir_exists, workingdir, workingdirs
-    jobname = getDuet('Jobname from createworkingdir', Jobname)
-    if connectionState is False:
-        return
-    if jobname != '':
-        _, jobname = os.path.split(jobname)  # get the filename less any path
-        jobname = jobname.replace(' ', '_')  # prevents quoting of file names
-        jobname = jobname.replace('.gcode', '')  # get rid of the extension
-        jobname = jobname.replace(':', u'\u02f8')  # replace any colons with raised colon
-        workingdir = baseworkingdir + '_' + jobname
-    else:
-        workingdir = baseworkingdir
-
-    olddir = ''
-    for dir in workingdirs:
-        logger.info(dir)
-        if workingdir in dir: # partial match
-            olddir = dir # get the last.  They are in order in the list
-    if  olddir != '':
-        if '--' in olddir:
-            dirparts = olddir.split('--')
-            increment = int(dirparts[1])
-            increment += 1
-            workingdir = dirparts[0] + '--' + str(increment)
-            logger.info(workingdir)
-        else:
-            workingdir = workingdir + '--1'
-    
-    workingdir = os.path.normpath(workingdir)
-
+def createworkingDir():
+    global workingDirStatus, nextWorkingDir, pidIncrement
+ 
     try:
-        os.mkdir(workingdir)
-        logger.debug('Created working directory ' + workingdir)
-        workingdirs.append(workingdir)
-        workingdir_exists = True
-        renamelogfile()  # change the logfle to match the working dir
+        os.mkdir(nextWorkingDir)
+        logger.debug('Created working directory: ' + nextWorkingDir)
+        renamelogfile(nextWorkingDir)  # change the logfle to match the working dir
+        workingDirStatus = 0
     except OSError as e:
         logger.info('Could not create working directory ' + str(e))
+        workingDirStatus = -1
+    return nextWorkingDir
 
-    return workingdir
+def renameworkingDir(thisDir):
+    global workingDirStatus
+    jobname = getDuet('Jobname from renameworkingDir', Jobname)
+
+    if connectionState is False or jobname == '':
+        logger.debug('jobname was not available')
+        return thisDir
+
+    _, jobname = os.path.split(jobname)  # get the filename less any path
+    jobname = jobname.replace(' ', '_')  # prevents quoting of file names
+    jobname = jobname.replace('.gcode', '')  # get rid of the extension
+    jobname = jobname.replace(':', '_')  # replace any colons because Win does not like
+    
+    if thisDir.endswith(jobname): # No change
+        workingDirStatus = 1
+        return thisDir
+    nextWorkingDir = thisDir + '_' + jobname
+
+    try:
+        shutil.move(thisDir, nextWorkingDir)
+        logger.debug('Renaming working directory: ' + nextWorkingDir)
+        renamelogfile(nextWorkingDir)  # change the logfle to match the working dir
+        workingDirStatus = 1
+    except shutil.Error as e:
+        logger.info('Error on move of workingDir ' + str(e))
+        workingDirStatus = 0
+    return nextWorkingDir
 
 
 def cleanupFiles(phase):
-    global workingdir_exists, keepfiles, workingdirs
-    logger.debug('Cleaning up files for phase:  ' + phase)
+    global workingDirStatus, keepfiles
+    logger.debug('*****  Cleaning up files for phase:  ' + phase + '  *****')
     pidlist = getRunningInstancePids()
-    dirlist = getPidDirs()
+
+    dirlist = listTopDir()
 
     # Make and clean up directorys.
 
     if phase == 'startup':
         if keepfiles: return
-        for dirs in dirlist:
-            split_dirs = dirs.split("-", 1)
-            dirpid = split_dirs[0]
-            if dirpid not in pidlist:
-                olddir = topdir + '/' + dirs
-                try:
-                    shutil.rmtree(olddir)
-                except shutil.Error as e:
-                    logger.info('Error on remove dir ' + str(e))
-                
-        if (not keeplogs) and (len(pidlist) == 1):  # only delete logs if no other processes running
-            pattern = r'"' + topdir + '/*.log"'
-            for oldlog in glob.iglob(pattern, recursive=True):
-                try:
-                    os.remove(oldlog)
-                except OSError as e:
-                    logger.info('Error on remove log ' + str(e))
 
-    elif (phase == 'standby') or (phase == 'restart'):  # deleted images directory will be recreated on first capture
-        if workingdir_exists:  # Will not be the case after restart
-            olddir = workingdir
-            try:
-                shutil.rmtree(olddir)
-                logger.debug('Deleted workingdir' + workingdir)
-                workingdirs.remove(workingdir)
-                workingdir_exists = False
-            except shutil.Error as e:
-                logger.info('Error on remove dir ' + str(e))
-                workingdir_exists = True
+        for dirs in dirlist: #  Delete old dirs and files
+            split_dirs = dirs.split("_", 1)
+            dirpid = split_dirs[0]
+
+            if dirpid not in pidlist:  # only if not running
+                fn = os.path.join(topDir, dirs)
+                if os.path.isdir(fn):  # a directory
+                    deleteFileFolder(fn)
+                elif (not keeplogs) and dirs.endswith('.log'):  # logfiles
+                    deleteFileFolder(fn)
+
+    elif phase == 'standby':  # deleted images directory will be recreated on first capture
+        if workingDirStatus != -1:
+            deleteFileFolder(workingDir)
+            workingDirStatus = -1
+
+    elif phase == 'restart':  # new image directory will be created on first capture
+        pass
 
     elif phase == 'terminate':
         if keepfiles: return
 
         if deletepics:
-            for olddir in workingdirs:
-                try:
-                    shutil.rmtree(olddir)
-                    logger.debug('Deleted workingdir' + workingdir)
-                    workingdir_exists = False
-                except shutil.Error as e:
-                    logger.info('Error on remove dir ' + str(e))
+            for dirs in dirlist:
+                fn = os.path.join(topDir, dirs)
+                if os.path.isdir(fn):
+                    deleteFileFolder(fn)
+                    workingDirStatus = -1
             # Assume sucess even if error from above
-            workingdirs = []
-            workingdir_exists = False
-
+            workingDirStatus = -1
     return  # cleanupFiles
 
 def startNow():
@@ -1143,12 +1262,17 @@ def unPause():
 
 
 def onePhoto(cameraname, camera, weburl, camparam):
-    global frame1, frame2, workingdir, camfile1, camfile2
+    global frame1, frame2, workingDir, camfile1, camfile2, lastImage, referer
 
-    if not workingdir_exists:
-        workingdir = createWorkingDir(baseworkingdir)  # created as late as possible - adds job fileName if available
-        camfile1 = workingdir + '/Camera1_'
-        camfile2 = workingdir + '/Camera2_'
+    if workingDirStatus == -1: # Create as late as possible
+        workingDir = createworkingDir()
+        camfile1 = workingDir + '/Camera1_'
+        camfile2 = workingDir + '/Camera2_'
+    
+    if workingDirStatus == 0: # Keep checking until jobname is known
+        workingDir = renameworkingDir(workingDir)
+        camfile1 = workingDir + '/Camera1_'
+        camfile2 = workingDir + '/Camera2_'
 
     if cameraname == 'Camera1':
         frame1 = frame1 + 1
@@ -1158,8 +1282,6 @@ def onePhoto(cameraname, camera, weburl, camparam):
         frame2 = frame2 + 1
         s = str(frame2).zfill(8)
         fn = camfile2 + s + '.jpeg'
-    
-    fn = os.path.normpath(fn)
 
     if 'usb' in camera:
         cmd = 'fswebcam --quiet --no-banner ' + fn + debug
@@ -1168,9 +1290,11 @@ def onePhoto(cameraname, camera, weburl, camparam):
         cmd = 'raspistill -t 1 -w 1280 -h 720 -ex sports -mm matrix -n -o ' + fn + debug
 
     if 'stream' in camera:
-        cmd = 'ffmpeg -threads 1' + ffmpegquiet + ' -y -i ' + weburl + ' -vframes 1 -threads 1' + fn + debug
+        cmd = 'ffmpeg -threads 1' + ffmpegquiet + ' -y -i ' + weburl + ' -vframes 1 -threads 1 ' + fn + debug
 
     if 'web' in camera:
+        # Only for use if the url delivers single images (not for streaming)
+        # ? on use of --auth-no-challenge
         cmd = 'wget --auth-no-challenge -nv -O ' + fn + ' "' + weburl + '" ' + debug
 
     if 'other' in camera:
@@ -1179,7 +1303,7 @@ def onePhoto(cameraname, camera, weburl, camparam):
     global timePriorPhoto1, timePriorPhoto2
 
     if runsubprocess(cmd) is False:
-        logger.info('!!!!!!!!!!!  There was a problem capturing an image !!!!!!!!!!!!!!!')
+        logger.info('!!!!!  There was a problem capturing an image !!!!!')
         # Decrement the frame counter because we did not capture anything
         if cameraname == 'Camera1':
             frame1 -= 1
@@ -1192,6 +1316,12 @@ def onePhoto(cameraname, camera, weburl, camparam):
                 frame2 = 0
             return
     else:   #  Success
+        try:
+           referer  # May not be defined yet
+        except NameError:
+            pass
+        else:
+            lastImage = 'http://' + referer + '?getfile=' + fn
         if cameraname == 'Camera1':
             timePriorPhoto1 = time.time()
             return
@@ -1323,7 +1453,7 @@ def urlCall(url, timelimit, post):
         except requests.exceptions.Timeout as e:
             logger.info('The printer connection timed out\n')
             logger.debug(str(e))
-            logger.debug('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n')
+            logger.debug('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n')
             error = 'Timed Out'
 
         time.sleep(1)
@@ -1524,29 +1654,30 @@ def makeVideo(directory):  #  Adds and extra frame
     # Get a final frame
     # Make copies if appropriate
 
-    if action not in ['snapshot', 'pause', 'start']: #  Would have been called as part of snapshot - so do not add images
+    if action in ['terminate', 'restart']: #  Do not add images if called from snapshot or video
         logger.debug('For Camera1')
         onePhoto('Camera1', camera1, weburl1, camparam1)  # For Camera 1
-        if extratime != 0 and frame1/int(fps) > minvideo:
+        if extratime != 0 and frame1/fps > minvideo:
             frame1 = copyLastFrame(camfile1, frame1)
 
         if camera2 != '':   #  Camera 2
             logger.debug('For Camera2')
             onePhoto('Camera2', camera2, weburl2, camparam2)
-            if extratime != 0 and frame2/int(fps) > minvideo:
+            if extratime != 0 and frame2/fps > minvideo:
                 frame2 = copyLastFrame(camfile2, frame2)
 
-    _ = createVideo(directory)
+    result = createVideo(directory)
     makeVideoState = -1
+    return result
 
 def copyLastFrame(f, frame):
     logger.info('Copying last frame to extend video by ' +str(extratime) + ' seconds')
     fr = str(frame).zfill(8)
-    sourcefile = os.path.normpath(f + fr + '.jpeg')
-    copies = int(extratime)*int(fps)
+    sourcefile = f + fr + '.jpeg'
+    copies = extratime*fps
     for i in range(1, copies):
         nf = str(frame + i).zfill(8)
-        targetfile = os.path.normpath(f + nf + '.jpeg')
+        targetfile = f + nf + '.jpeg'
 
         try:
             shutil.copy(sourcefile, targetfile)
@@ -1554,10 +1685,17 @@ def copyLastFrame(f, frame):
             logger.info('Error on copy ' + str(e))
     return int(nf) # Must be an integer for later math
 
-
+def restartAction():
+        global workingDirStatus, pidIncrement, nextWorkingDir
+        workingDirStatus = -1 # Force creation of a new workingDir
+        setuplogfile() # Create a new log file
+        startNow() # determine start state
+        listOptions() # List the current values
+        issue_warnings() # list any warnings about setting combinations
+        startup() # Warp speed Mr Sulu
 
 def terminate():
-    global httpListener, listener, httpthread, terminateState, restarting, workingdir_exists
+    global httpListener, listener, httpthread, terminateState, restarting, workingDirStatus
     # Force verbose messaging
     setdebug(True)
 
@@ -1568,10 +1706,10 @@ def terminate():
     stopCaptureLoop()
     waitforcaptureLoop()  # Do not want to respond
 
-    waitforNextAction() # Do not want to respond
+    # waitforNextAction() # Do not want to respond
 
     #  Make sure video is complete
-    logger.info('Wait for video to complete')
+    logger.debug('Wait for video to complete')
     waitforMakeVideo()
     
     # Try to shutdown any open threads
@@ -1580,17 +1718,11 @@ def terminate():
 
     if restart:
         setdebug(verbose)
-
         restarting = True
         logger.info('----------')
         logger.info('RESTARTING\n\n')
-        setuplogfile() # Create a new log file
         terminateState = -1
-        workingdir_exists = False # Force creation of a new workingdir
-        startNow() # reset the initial conditions
-        listoptions() # List the current values
-        issue_warnings() # list any warnings about setting combinations
-        startup() # Warp speed Mr Sulu
+        restartAction()
     else:
         stopgcodeLoop()
         waitforgcodeLoop()
@@ -1601,8 +1733,8 @@ def terminate():
 def quit_forcibly(*args):
     global restart 
     restart = False
-    logger.info('!!!!!! Stopped by SIGINT or CTL+C - Post Processing !!!!!!')
-    terminateThread()
+    logger.info('!!!!! Stopped by SIGINT or CTL+C - Post Processing !!!!!')
+    terminateThread() 
 
 
 ###########################
@@ -1619,11 +1751,9 @@ import html
 class MyHandler(SimpleHTTPRequestHandler):
     # Default selectMessage
     global refreshing, selectMessage
-    txt = []
-    txt.append('<h3>')
-    txt.append('Status will update every 60 seconds')
-    txt.append('</h3>')
-    refreshing = ''.join(txt)
+    refreshing =    '<h4>\
+                    Status will update every 60 seconds\
+                    </h4>'
     selectMessage = refreshing
 
     def shutdown(self):
@@ -1636,198 +1766,177 @@ class MyHandler(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def _set_headers(self):
+        #self.send_response(200)
+        #self.send_header("Content-type", "text/html")
         self.send_response(200)
-        self.send_header("Content-type", "text/html")
+        self.send_header('Age', '0')
+        self.send_header('Cache-Control', 'no-cache, private')
+        self.send_header('Pragma', 'no-cache')
+        self.send_header('Content-Type', "text/html")
+        self.end_headers()
+
+    def _set_headers204(self):
+        self.send_response(204)
+        self.send_header("Content-type", "application/json")
         self.end_headers()
 
     def _refresh(self, message):
-        content = f'<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd"><html><head><meta http-equiv="refresh" content="60"></head><body><h2>{message}</h2></body></html>'
+        content = f'<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd"><html><head><meta http-equiv="refresh" content="60"; http-equiv="Content-Security-Policy" content="frame-ancestors *:*"/></head><body>{message}</body></html>'
+        return content.encode("utf8")  # NOTE: must return a bytes object!
+
+    def _no_refresh(self, message):
+        content = f'<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd"><html><head><meta http-equiv="Content-Security-Policy" content="frame-ancestors *:*"/></head><body>{message}</body></html>'
         return content.encode("utf8")  # NOTE: must return a bytes object!
 
     def _html(self, message):
-        content = f'<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd"><html><head><meta http-equiv = "refresh" content = "15; url = https://localhost:8082" /></head><body><h2>{message}</h2></body></html>'
+        content = f'<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd"><html><head><meta http-equiv = "refresh" content = "15; http-equiv="Content-Security-Policy" content="frame-ancestors *:*"/; url = https://localhost:' + port + '" /></head><body>{message}</body></html>'
         return content.encode("utf8")  # NOTE: must return a bytes object!
 
     def _redirect(self, url, message):
-        content = f'<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd"><html><head><meta http-equiv = "refresh" content = "60; url = ' + url + '" /></head><body><h2>' + message + '</h2></body></html>'
+        content = f'<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd"><html><head><meta http-equiv = "refresh" content = "60; http-equiv="Content-Security-Policy" content="frame-ancestors *.*"/; url = ' + url + '" /></head><body>' + message + '</body></html>'
         return content.encode("utf8")  # NOTE: must return a bytes object!
 
-    def update_buttons(self, allowed):
-
-        txt = []
-        txt.append('<div class="inline">')
-        txt.append('<form action="http://' + referer + '">')
-        txt.append('<input type="hidden" name="command" value="status" />')
-        txt.append('<input type="submit" value="Status" style="background-color:green"/>')
-        txt.append('</form>')
-        txt.append('</div>')
-        statusbutton = ''.join(txt)
-
-        txt = []
-        value = 'start'
-        if value in allowed:
+    def display_controls(self):
+        allowed_buttons = allowedNextAction(action)
+        # start
+        if 'start' in allowed_buttons:
             disable = ''
         else:
             disable = 'disabled'
-        txt.append('<div class="inline">')
-        txt.append('<form action="http://' + referer + '">')
-        txt.append('<input type="hidden" name="command" value="' + value + '" />')
-        txt.append('<input type="submit" value="Start" ' + disable + ' style="background-color:orange"/>')
-        txt.append('</form>')
-        txt.append('</div>')
-        startbutton = ''.join(txt)
 
-        txt = []
-        value = 'standby'
-        if value in allowed:
+
+        startbutton =   '<div class="inline">\
+                        <button class="button" style="background-color:yellow" onclick="\
+                        fetch(\'http://' + referer + '?command=start\');\
+                        repeatDisplayStatus();\
+                        " ' + disable + ' >Start</button>\
+                        </div>'
+
+        # standby
+        if 'standby' in allowed_buttons:
             disable = ''
         else:
             disable = 'disabled'
-        txt.append('<div class="inline">')
-        txt.append('<form action="http://' + referer + '">')
-        txt.append('<input type="hidden" name="command" value="' + value + '" />')
-        txt.append('<input type="submit" value="Standby" ' + disable + ' style="background-color:orange"/>')
-        txt.append('</form>')
-        txt.append('</div>')
-        standbybutton = ''.join(txt)
 
-        txt = []
-        value = 'pause'
-        if value in allowed:
+        standby_msg =   'Standby.\\n\
+                        Does NOT create a video.\\n\
+                        All captured images will be deleted.'
+
+        standbybutton = '<div class="inline">\
+                        <button class="button" style="background-color:yellow" onclick="(async () => {\
+                        let response = await fetch(\'http://' + referer + '?command=standby\');\
+                        alert(\'' + standby_msg + '\');\
+                        await displayControls();\
+                        })()" ' + disable + ' >Standby</button>\
+                        </div>'
+
+        # pause
+        if 'pause' in allowed_buttons:
             disable = ''
         else:
             disable = 'disabled'
-        txt.append('<div class="inline">')
-        txt.append('<form action="http://' + referer + '">')
-        txt.append('<input type="hidden" name="command" value="' + value + '" />')
-        txt.append('<input type="submit" value="Pause" ' + disable + ' style="background-color:pink"/>')
-        txt.append('</form>')
-        txt.append('</div>')
-        pausebutton = ''.join(txt)
+        
+        pausebutton =   '<div class="inline">\
+                        <button class="button" style="background-color:pink" onclick="(async () => {\
+                        let response = await fetch(\'http://' + referer + '?command=pause\');\
+                        await displayControls();\
+                        })()" ' + disable + ' >Pause</button>\
+                        </div>'
 
-        txt = []
-        value = 'continue'
-        if value in allowed:
+        # continue
+        if 'continue' in allowed_buttons:
             disable = ''
         else:
             disable = 'disabled'
-        txt.append('<div class="inline">')
-        txt.append('<form action="http://' + referer + '">')
-        txt.append('<input type="hidden" name="command" value="' + value + '" />')
-        txt.append('<input type="submit" value="Continue" ' + disable + ' style="background-color:pink"/>')
-        txt.append('</form>')
-        txt.append('</div>')
-        continuebutton = ''.join(txt)
 
-        txt =[]
-        value = 'snapshot'
-        if value in allowed:
+        continuebutton =    '<div class="inline">\
+                            <button class="button" style="background-color:pink" onclick="(async () => {\
+                            let response = await fetch(\'http://' + referer + '?command=continue\');\
+                            await displayControls();\
+                            })()" ' + disable + ' >Continue</button>\
+                            </div>'
+
+        # restart
+        if 'restart' in allowed_buttons:
             disable = ''
         else:
             disable = 'disabled'
-        txt.append('<div class="inline">')
-        txt.append('<form action="http://' + referer + '">')
-        txt.append('<input type="hidden" name="command" value="' + value + '" />')
-        txt.append('<input type="submit" value="Snapshot" ' + disable + ' style="background-color:green"/>')
-        txt.append('</form>')
-        txt.append('</div>')
-        snapshotbutton = ''.join(txt)
 
-        txt = []
-        value = 'restart'
-        if value in allowed:
-            disable = ''
-        else:
-            disable = 'disabled'
-        txt.append('<div class="inline">')
-        txt.append('<form action="http://' + referer + '">')
-        txt.append('<input type="hidden" name="command" value="' + value + '" />')
-        txt.append('<input type="submit" value="Restart" ' + disable + ' style="background-color:yellow"/>')
-        txt.append('</form>')
-        txt.append('</div>')
-        restartbutton = ''.join(txt)
+        restart_msg =   'Restarting.\\n\
+                        Will try to create a video.\\n\\n\
+                        All captured images will be deleted.\\n\
+                        Unless -keepfiles was set'
 
-        txt = []
-        txt.append('<div class="inline">')
-        txt.append('<form action="http://' + referer + '">')
-        txt.append('<input type="hidden" name="terminate" value='' />')
-        txt.append('<input type="submit" value="Terminate" style="background-color:yellow"/>')
-        txt.append('</form>')
-        txt.append('</div>')
-        terminatebutton = ''.join(txt)
+        restartbutton = '<div class="inline">\
+                        <button class="button" style="background-color:yellow" onclick="(async () => {\
+                        let response = await fetch(\'http://' + referer + '?command=restart\');\
+                        alert(\'' + restart_msg + '\');\
+                        await repeatDisplayStatus();\
+                        })()" ' + disable + ' >Restart</button>\
+                        </div>'
 
-        txt = []
-        txt.append('<div class="inline">')
-        txt.append('<form action="http://' + referer + '">')
-        txt.append('<input type="hidden" name="files" value= ' + topdir + ' />')
-        txt.append('<input type="submit" value="Files" style="background-color:green"/>')
-        txt.append('</form>')
-        txt.append('</div>')
-        filesbutton = ''.join(txt)
+        # terminate
+        terminatebutton =   '<div class="inline">\
+                            <button class="button" style="background-color:orange" class="tablinks"onclick="displayTerminate(event)">Terminate</button>\
+                            </div>'
 
-        txt = []
-        txt.append('<div class="inline">')
-        txt.append('<form action="http://' + referer + '">')
-        txt.append('<input type="hidden" name="info" value= '' />')
-        txt.append('<input type="submit" value="Info" style="background-color:green"/>')
-        txt.append('</form>')
-        txt.append('</div>')
-        infobutton = ''.join(txt)
-
-        txt = []
-        txt.append('<div class="inline">')
-        txt.append('<form action="http://' + referer + '">')
-        txt.append('<input type="text" id="fps" name="fps" value=' + fps + ' style="background-color:lime; width:30px; border:none"/>')
-        txt.append('fps')
-        txt.append('</form>')
-        txt.append('</div>')
-        fpsbutton = ''.join(txt)
-
-        txt = []
-        txt.append('<style type="text/css">')
-        txt.append('{')
-        txt.append('position:relative;')
-        txt.append('width:200px;')
-        txt.append('}')
-        txt.append('.inline{')
-        txt.append('margin-left: 5px; margin-bottom:8px;')
-        txt.append('display:inline-block;')
-        txt.append('}')
-        txt.append('.pad30{')
-        txt.append('margin-left: 30px;')
-        txt.append('}')
-        txt.append('input[type=submit] {')
-        txt.append('width: 6em;  height: 2em;')
-        txt.append('background:#ccc; border:0 none; cursor:pointer; -webkit-border-radius: 5px;border-radius: 5px;')
-        txt.append('}')
-        txt.append('.process-disp{')
-        txt.append('width:550px; height:25px; overflow:auto; resize:both; border:1px solid; font-size:12px; line-height:12px;')
-        txt.append('}')
-        txt.append('.info-disp{')
-        txt.append('width:auto; height:auto; overflow:auto; resize:both; border:1px solid; font-size:16px; line-height:16px;')
-        txt.append('}')
-        txt.append('} </style>')
-        txt.append('<style> textarea {')
-        txt.append('width:550px; height:100px; wrap:soft;')
-        txt.append('box-sizing: border-box; border: 2px solid #ccc; border-radius: 4px; background-color: #f8f8f8;')
-        txt.append('font-size: 16px;')
-        txt.append('} </style>')
-        cssstyle = ''.join(txt)
-
+        # hide buttons if option was set
         if hidebuttons:
-            btn = ''
-            for button in allowed:
-                btn = btn + ' + ' + button + 'button'
-            btn = 'statusbutton' + btn + '+ filesbutton + infobutton + terminatebutton + fpsbutton + cssstyle'
-            buttons = eval(btn)
+            btnstring = ''
+            for button in allowed_buttons:
+                btn = button + 'button'
+                btnstring = btnstring + eval(btn)
+            buttons = btnstring + terminatebutton
         else:
-            buttons = statusbutton + startbutton + standbybutton + pausebutton + continuebutton
-            buttons = buttons + snapshotbutton + filesbutton + infobutton + restartbutton + terminatebutton + fpsbutton
-            buttons = buttons + cssstyle
+            buttons = startbutton + standbybutton + pausebutton + continuebutton + restartbutton + terminatebutton
 
         return buttons
 
-    def update_status(self):
+    def display_video(self):
+
+        options =  '<form action="http://' + referer + '" onsubmit="setTimeout(function() {displayOptions();}, 1500)">\
+                   <label for="fps">fps:</label>\
+                   <input type="text" id="fps" name="fps" value=' + str(fps) + ' style="background-color:lime; width:30px; border:none" />\
+                   <label for="minvideo">minvideo:</label>\
+                   <input type="text" id="minvideo" name="minvideo" value=' + str(minvideo) + ' style="background-color:lime; width:30px; border:none"/>\
+                   <label for="maxvideo">maxvideo:</label>\
+                   <input type="text" id="maxvideo" name="maxvideo" value=' + str(maxvideo) + ' style="background-color:lime; width:30px; border:none"/>\
+                   <br><br>\
+                   <input type="submit" value="Update">\
+                   </form>'
+
+        if maxvideo > 0:
+            if frame1 > maxvideo:
+                videolength = 'Video will be ' + str(maxvideo) + ' seconds long'
+            elif frame1 > minvideo:
+                videolength = 'Video will be ' + str(frame1) + ' seconds long'
+            else:
+                videolength = 'Not enough images for video to be created'
+        else:
+            if frame1/fps > minvideo:
+                videolength = 'Video will be ' + str(frame1/fps) + ' seconds long'
+            else:
+                videolength = 'Insufficient images for video to be created'
+
+        options += '<br><b>' + videolength + '&nbsp;&nbsp;&nbsp;&nbsp;'
+
+        # snapshot
+        snapshotbutton =    '<div class="inline">\
+                            <button class="button" style="background-color:yellow" onclick="(async () => {\
+                            let promise = await fetch(\'http://' + referer + '?snapshot=snapshot\');\
+                            let result = await promise.text();\
+                            alert(result);\
+                            await displayVideo();\
+                            console.log(result);\
+                            })()">Snapshot</button>\
+                            </div>'
+
+        options += snapshotbutton
+
+        return options
+
+    def display_status(self):
+        global lastImage
         localtime = time.strftime('%A - %H:%M', time.localtime())
         if zo1 < 0:
             thislayer = 'None'
@@ -1835,52 +1944,213 @@ class MyHandler(SimpleHTTPRequestHandler):
             thislayer = str(zo1)
 
         txt = []
-        txt.append('DuetLapse3 Version ' + str(duetLapse3Version) + '<br>')
-        txt.append('<h3>')
-        txt.append('Connected to printer:  ' + str(duet) + '<br>')
-        txt.append('Process Id:  ' + str(pid) + '     Port: ' + str(port))
-        txt.append('<br><br>')
-        txt.append('Last Update:    ' + str(localtime) + '<br>')
-        txt.append('Capture Status:            =    ' + str(printState) + '<br>')
-        txt.append('DuetLapse3 State:          =    ' + str(action) + '<br>')
-        txt.append('Duet Status:               =    ' + str(duetStatus) + '<br>')
-        txt.append('Images Captured:           =    ' + str(frame1) + '<br>')
-        txt.append('Current Layer:             =    ' + str(thislayer))
-        txt.append('</h3>')
-        status = ''.join(txt)
+        #  Set style for 2 flex columns
+        status =    '<style>\
+                    * {box-sizing: border-box;}\
+                    .column {float: left; width: 50%; padding: 10px;}\
+                    .row:after {content: "";display: table;clear: both;}\
+                    @media screen and (max-width: 400px) {.column {width: 100%;}}\
+                    </style>'
+                    
+        status +=   '<div class="row">\
+                    <div class="column">\
+                    DuetLapse3 Version ' + str(duetLapse3Version) + '<br>\
+                    Connected to printer at:  ' + str(duet) + ':' + str(port) + '<br><br>\
+                    Process Id:  ' + str(pid) + '<br>\
+                    Last Update:    ' + str(localtime) + '<br>\
+                    Capture Status:= ' + str(printState) + '<br>\
+                    DuetLapse3 State:= ' + str(action) + '<br>\
+                    Duet Status:= ' + str(duetStatus) + '<br>\
+                    Images Captured:= ' + str(frame1) + '<br>\
+                    Current Layer:= ' + str(thislayer) + '<br>\
+                    </div>\
+                    <div class="column">'
+        if lastImage != '':
+            status += '<p><img src=' + lastImage + ' alt="No image available" width="400"></p>'
+        else:
+            status += 'Waiting for first image to be captured'
+
+        status +=   '</div>\
+                    </div>'
         return status
 
-    def update_info(self):
-        thisrunninginstance = getThisInstance(int(pid))
-
-        if workingdir_exists:
-            imagelocation = workingdir
-            logname = logfilename
+    def display_info(self):
+        if workingDirStatus != -1:
+            imagelocation = workingDir
         else:
             imagelocation = 'Waiting for first image to be created'
-            logname = 'Waiting for first image to be created'
 
-        infotxt = []
-        infotxt.append('<b>This instance WAS STARTED with the following options:</b><br><br>')
-        infotxt.append(thisrunninginstance + '<br><br>')
-        infotxt.append('<b>Logs and Videos are located here:</b><br><br>')
-        infotxt.append(topdir + '<br><br>')
-        infotxt.append('<b>Images are located here:</b><br><br>')
-        infotxt.append(imagelocation + '<br><br>')
-        infotxt.append('<b>The logfile for this instance is:</b><br><br>')
-        infotxt.append(logname)
-        information = ''.join(infotxt)
 
-        txt = []
-        txt.append('<h3>')
-        txt.append('Process Id:    ' + pid + '<br>')
-        txt.append('</h3>')
-        txt.append('<div class="info-disp">')
-        txt.append(information)
-        txt.append('</div>')
-        info = ''.join(txt)
+        info = '<div>\
+                <b>Process Id:</b> ' + pid + '<br>\
+                <b>Option Settings:</b><br>\
+                <table style="width:auto">\
+                <tr valign="top">'
+        
+        options = getOptions()
+
+        count = 0
+        for label, value in options.items():
+            if label.startswith('#'):  #  Omit the section info
+                continue
+            if (count % 3) == 0: # 3 columns
+                info += '</tr><tr valign="top">'
+            info += '<td align="left"><b>' + label + ' </b><br>' + str(value) + '</td>'
+            count += 1
+        
+        info += '</tr></table>\
+                <br><hr /><b>Logs and Videos are located here:</b>&nbsp; &nbsp;' + topDir+ '\
+                <br><hr /><b>Images are located here:</b>&nbsp; &nbsp;' + imagelocation + '\
+                <br><hr /><b>The current logfile is:</b>&nbsp; &nbsp;' +logfilename + '\
+                </div>'
 
         return info
+
+    def display_page(self):   
+        html_display_page = '<!DOCTYPE html>\
+                        <html>\
+                        <head>\
+                        <metaname="viewport"content="width=device-width,initial-scale=1">\
+                        <style>\
+                        body{font-family:Arial;}\
+                        /*Style the tab*/\
+                        .tab{\
+                        overflow:hidden;\
+                        border:1px solid #ccc;\
+                        background-color:#f1f1f1;\
+                        }\
+                        /*Style the buttons inside the tab*/\
+                        .tab button{\
+                        background-color:inherit;\
+                        float:left;\
+                        border:none;\
+                        outline:none;\
+                        cursor:pointer;\
+                        padding:14px 16px;\
+                        transition:0.3s;\
+                        font-size:17px;\
+                        }\
+                        /*Change background color of buttons on hover*/\
+                        .tab button:hover{\
+                        background-color:#ddd;\
+                        }\
+                        \
+                        /*Create an active/current tab link class*/\
+                        .tab button.active{\
+                        background-color:#ccc;\
+                        }\
+                        \
+                        /*Style the tab content*/\
+                        .tabcontent{\
+                        padding:6px 12px;\
+                        border:1px solid #ccc;\
+                        border-top:none;\
+                        font-size:12px;\
+                        }\
+                        \
+                        .button{\
+                        height:auto;\
+                        border-radius: 20px;\
+                        }\
+                        .inline{\
+                        margin-left: 5px; margin-bottom:8px;\
+                        display:inline-block;\
+                        }\
+                        \
+                        form {\
+                            display:grid;\
+                            grid-template-columns: max-content max-content;\
+                            grid-gap:10px;\
+                        }\
+                        form label {\
+                           text-align:right;\
+                        }\
+                        </style>\
+                        <script>\
+                        let nIntervalId;\
+                        function repeatDisplayStatus(evt){\
+                            displayStatus();\
+                            if (!nIntervalId) {\
+                                nIntervalId = setInterval(displayStatus, ' + str(poll/2*1000) + ' );\
+                            }\
+                        }\
+                        async function displayStatus(evt){\
+                            let content = document.getElementById("tab-content");\
+                            const getUrl = "http://' + referer + '/?displayStatus=true";\
+                            let promise = await fetch(getUrl);\
+                            let result = await promise.text();\
+                            content.innerHTML = result;\
+                        }\
+                        async function displayControls(evt){\
+                            if (nIntervalId) {\
+                                clearInterval(nIntervalId);\
+                                nIntervalId = undefined;\
+                            }\
+                            let content = document.getElementById("tab-content");\
+                            const getUrl = "http://' + referer + '/?displayControls=true";\
+                            let promise = await fetch(getUrl);\
+                            let result = await promise.text();\
+                            content.innerHTML = result;\
+                        }\
+                        async function displayVideo(evt){\
+                            if (nIntervalId) {\
+                                clearInterval(nIntervalId);\
+                                nIntervalId = undefined;\
+                            }\
+                            let content = document.getElementById("tab-content");\
+                            const getUrl = "http://' + referer + '/?displayVideo=true";\
+                            let promise = await fetch(getUrl);\
+                            let result = await promise.text();\
+                            content.innerHTML = result;\
+                        }\
+                        async function displayFiles(evt, path){\
+                            if (nIntervalId) {\
+                                clearInterval(nIntervalId);\
+                                nIntervalId = undefined;\
+                            }\
+                            let content = document.getElementById("tab-content");\
+                            const getUrl = `http://' + referer + '/?displayFiles=${path}`;\
+                            let promise = await fetch(getUrl);\
+                            let result = await promise.text();\
+                            content.innerHTML = result;\
+                        }\
+                        async function displayInfo(evt){\
+                            if (nIntervalId) {\
+                                clearInterval(nIntervalId);\
+                                nIntervalId = undefined;\
+                            }\
+                            let content = document.getElementById("tab-content");\
+                            const getUrl = "http://' + referer + '/?displayInfo=true";\
+                            let promise = await fetch(getUrl);\
+                            let result = await promise.text();\
+                            content.innerHTML = result;\
+                        }\
+                        async function displayTerminate(evt){\
+                            if (nIntervalId) {\
+                                clearInterval(nIntervalId);\
+                                nIntervalId = undefined;\
+                            }\
+                            let content = document.getElementById("tab-content");\
+                            const getUrl = "http://' + referer + '/?displayTerminate=true";\
+                            let promise = await fetch(getUrl);\
+                            let result = await promise.text();\
+                            content.innerHTML = result;\
+                        }\
+                        </script>\
+                        </head>\
+                        <body onload="repeatDisplayStatus()">\
+                        <h3>DuetLapse</h3>\
+                        <div class="tab">\
+                        <button class="tablinks"onclick="repeatDisplayStatus(event)">Status</button>\
+                        <button class="tablinks"onclick="displayControls(event)">Controls</button>\
+                        <button class="tablinks"onclick="displayVideo(event)">Video</button>\
+                        <button class="tablinks"onclick="displayFiles(event,\'true\')">Files</button>\
+                        <button class="tablinks"onclick="displayInfo(event)">Info</button>\
+                        </div>\
+                        <div id="tab-content" class="tabcontent" style="width:inherit; max-height:200px; overflow-y:auto"></div>\
+                        </body>\
+                        </html>'
+        return html_display_page
 
     def do_GET(self):
         try:
@@ -1901,188 +2171,121 @@ class MyHandler(SimpleHTTPRequestHandler):
                 return
 
             query_components = parse_qs(urlparse(self.path).query)
-            logger.debug(str(self.path))
+            logger.debug('!!!!! http call: ' + str(query_components) + ' !!!!!')
 
-            #  Files request gets trapped here
-            if (query_components and not query_components.get('command') and not query_components.get('delete')) or (
-                    not query_components and self.path != '/'):
+            if query_components is None or len(query_components) == 0 :
+                # Display Page
+                self._set_headers()
+                self.wfile.write(self._no_refresh(self.display_page()))
+                return
+            numQueries = len(query_components)
+            queriesProcessed = 0
 
-                selectMessage = self.display_dir(self.path)
+            for api, value in query_components.items():
+                queriesProcessed += 1
+                api_args = value[0]
 
-            if query_components.get('delete'):
-                qfn = query_components['delete'][0]
-                fn, filepath = self.parsefilename(qfn)
-                if os.path.isdir(fn):
-                    try:
-                        shutil.rmtree(fn)
-                    except shutil.Error as e:
-                        logger.info('Error deleting dir ' + str(e))
-                else:    
-                    try:
-                        os.remove(fn)
-                    except OSError as e:
-                        logger.info('Error deleting file ' + str(e))
-
-                selectMessage = self.display_dir(filepath)
-
-            if query_components.get('zip'):
-                qfn = query_components['zip'][0]
-                fn, filepath = self.parsefilename(qfn)
-                zipedfile = os.path.normpath(fn + '.zip')
-                result = make_archive(fn, zipedfile)
-
-                selectMessage = '<h3>' + result + '<br></h3>' + self.display_dir(filepath)
-
-            if (query_components.get('video')):  # This is different to startDuetLapse3 - we do not pass fps
-                qfn = query_components['video'][0]
-                fn, filepath = self.parsefilename(qfn)
-                if terminateState == 1: # Block it if terminating
-                    result = 'Video process is busy at this time'
-                else:
-                    waitforMakeVideo()
-                    result = createVideo(fn)
-
-                selectMessage = '<h3>' + result + '<br></h3>'+self.display_dir(filepath)
-
-
-            if query_components.get('terminate'):  # This form is only called from the UI - see also command=terminate
-                if action == 'snapshot':
-                    selectMessage = '<br><h3>Cannot terminate while DuetLapse3 State: = snapshot.<br> Check status and wait.</h3>'
-                else:
-                    terminatetype = query_components['terminate'][0]
-                    logger.debug('Terminate Called from UI')
-                    selectMessage = self.terminate_process(terminatetype)
-
-            if query_components.get('info'):
-                selectMessage = self.update_info()
-
-            global fps
-            if (query_components.get('fps')):
-                thisfps = query_components['fps'][0]
-                try:
-                    thisfps = int(thisfps)
-                    if thisfps > 0:
-                        fps = thisfps
-                        logger.info('fps changed to: ' + str(fps))
-                except ValueError:
-                    pass
-                fps = str(fps)
-
-                selectMessage = '<h3>fps Changed</h3>'
-
-            if query_components.get('command'):
-                command = query_components['command'][0]
-                logger.debug('!!!!! http ' + command + ' request received !!!!!')
-
-                if command == 'status':
-                    if selectMessage == None:
-                        selectMessage = refreshing
-                    allowed = allowedNextAction(action)
-
-                    buttons = self.update_buttons(allowed)
-                    status = self.update_status()
-                    # Display Page
+                if not api in ['displayStatus', 'displayControls', 'displayVideo', 'displayFiles', 'displayInfo', 'displayTerminate', 'snapshot', 'command', 'delete', 'zip', 'video', 'terminate', 'fps', 'minvideo', 'maxvideo', 'getfile']:
+                    msg = 'The API call "' + api + '" with value "' + api_args + '" is not supported\
+                           <br><br>' + str(query_components) + '<br>'
                     self._set_headers()
-                    self.wfile.write(self._refresh(status + buttons + selectMessage))  # returns after 60 sec
-
-                    selectMessage = refreshing
+                    self.wfile.write(msg.encode("utf8"))
                     return
+                
+                result= ''
+                if api == 'displayStatus':
+                    result = self.display_status()
+                elif api == 'displayControls':
+                    result = self.display_controls()
+                elif api == 'displayVideo':
+                    result = self.display_video()
+                elif api == 'displayFiles':
+                    result = self.display_files(api_args)
+                elif api == 'displayInfo':
+                    result = self.display_info()
+                elif api == 'displayTerminate':
+                    result = self.display_terminate_buttons()
+                elif api == 'snapshot':
+                    if workingDirStatus != -1:
+                        result = startMakeVideo(workingDir)
+                    else:
+                        result = 'There are no images captured yet.\\n\
+                                 Try again later.'
+                elif api == 'video':
+                        result = startMakeVideo(api_args)
+                if result != '' and queriesProcessed == numQueries:  # return the display
+                    self._set_headers()
+                    self.wfile.write(result.encode("utf8"))
+                    continue
+                                
+                # An API Call (No Content)  actions that do not change html
+                if api == 'command':
+                    self.update_command(api_args)
+                elif api == 'delete':
+                    deleteFileFolder(api_args)
+                elif api == 'zip':
+                    make_archive(api_args)
+                elif api == 'terminate':
+                    self.terminate_process(api_args)
+                elif api == 'fps':
+                    changeFps(api_args)
+                elif api == 'minvideo':
+                    changeMinvideo(api_args)
+                elif api == 'maxvideo':
+                    changeMaxvideo(api_args)
+                # api calls that close the connection need to negate queriesProcessed
+                elif api == 'getfile':
+                    self.get_file(api_args)
+                    queriesProcessed -= 1 #  get_file closes the connection
+                if queriesProcessed == numQueries:
+                    # Send a 204
+                    self._set_headers204()
 
-                # start / standby
-                elif command == 'start':
-                    selectMessage = ('<h3>'
-                                            'Starting DuetLapse3.<br><br>'
-                                            '</h3>')
-                    startnextAction(command)
-
-                elif command == 'standby':  # can be called at any time
-                    txt = []
-                    txt.append('<h3>')
-                    txt.append( 'Putting DuetLapse3 in standby mode<br><br>')
-                    txt.append('</h3>')
-                    txt.append('<div class="info-disp">')
-                    txt.append('Will NOT create a video.<br>')
-                    txt.append('All captured images will be deleted<br>')
-                    txt.append('This is the same as if DuetLapse was started with -standby<br><br>')
-                    txt.append('</div>')
-                    selectMessage = ''.join(txt)
-                    startnextAction(command)
-
-                # pause / continue
-                elif command == 'pause':
-                    txt = []
-                    txt.append('<h3>')
-                    txt.append('DuetLapse3 is paused.<br><br>')
-                    txt.append('</h3>')
-                    selectMessage = ''.join(txt)
-
-                    startnextAction(command)
-
-                elif command == 'continue':
-                    txt = []
-                    txt.append('<h3>')
-                    txt.append('DuetLapse3 is continuing.<br><br>')
-                    txt.append('</h3>')
-                    selectMessage = ''.join(txt)
-
-                    startnextAction(command)
-
-                # snapshot / restart / terminate
-
-                elif command == 'snapshot':
-                    txt = []
-                    txt.append('<h3>')
-                    txt.append('Attempting to create an interim snapshot video')
-                    txt.append('</h3>')
-                    txt.append('<div class="info-disp">')
-                    txt.append('Check the files menu for completed snapshots<br>')
-                    txt.append('Depending on the number of images - this could take a lot of time<br>')
-                    txt.append('10 to 60+ minutes<br>')
-                    txt.append('During this time - images will continue to be captured<br><br>')
-                    txt.append('After the snapshot DuetLapse3 returns to the prior state i.e. <b>start or pause</b><br>')
-                    txt.append('</div>')
-                    selectMessage = ''.join(txt)
-
-                    startnextAction(command)
-
-                elif command == 'restart':
-                    txt = []
-                    txt.append('<h3>')
-                    txt.append('Restarting DuetLapse3')
-                    txt.append('</h3>')
-                    txt.append('<div class="info-disp">')
-                    txt.append('Check the files menu for completed video<br>')
-                    txt.append('Depending on the number of images - this could take a lot of time<br>')
-                    txt.append('5 to 30+ minutes be needed depending on the computer<br>')
-                    txt.append('No more images will be captured<br><br>')
-                    txt.append('All captured images will be deleted.<br>')
-                    txt.append('The restart behavior is the same as initially used to start DuetLapse3<br>')
-                    txt.append('</div>')
-                    selectMessage = ''.join(txt)
-
-                    startnextAction(command)
-
-                elif command == 'terminate':  #only called explicitely - backward compatible
-                        selectMessage = self.terminate_process('graceful')
-
-                else:
-                    selectMessage = self.ignoreCommandMsg(command, action)
-
-            new_url = 'http://' + referer + '/?command=status'
-            self.redirect_url(new_url)
             return
         except Exception as e:
-            logger.info(str(e))
+            if 'Broken pipe' in str(e):
+                 logger.debug(str(e))           
+            else:
+                logger.info(str(e))
+
             try:
                 self.wfile.close()
                 self.wfile = None
             except:
                 logger.info('Could not close wfile')
             return
+    # End of do_Get
 
-    """
-    End of do_Get
-    """
+    
+    def update_command(self, command):
+        # start / standby
+        if command == 'start':
+            startnextAction(command)
+
+        elif command == 'standby':  # can be called at any time
+            startnextAction(command)
+            while action != command: # Dont return until success
+                pass
+
+        # pause / continue
+        elif command == 'pause':
+            startnextAction(command)
+            while action != command: # Dont return until success
+                pass
+
+        elif command == 'continue':
+            startnextAction(command) # Dont return until success
+            while action != command:
+                pass
+
+        elif command == 'restart':
+            startnextAction(command)
+            while action not in ['start', 'standby']: # Dont return until success
+                pass
+
+        elif command == 'terminate':  #command=terminate - backward compatible
+            self.terminate_process('terminateg')
+        return
 
     def log_request(self, code=None, size=None):
         pass
@@ -2090,108 +2293,72 @@ class MyHandler(SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
 
-    def ignoreCommandMsg(self, command, action):
-        txt = []
-        txt.append('<h3>')
-        txt.append(command + ' request has been ignored<br><br>')
-        txt.append(action + ' state is currently enabled')
-        txt.append('</h3>')
-        msg = ''.join(txt)
-
-        return msg
-
     def terminate_process(self, ttype):
-        if ttype not in ['graceful', 'forced']:
-           ttype = ''
-           logger.debug('Terminate type requested')
-        else:
-           logger.debug(ttype + ' terminate requested')
+        if ttype not in ['terminateg', 'terminatef']:
+           logger.info (ttype + ' invalid terminate requested')
+           return
 
-        if ttype == 'graceful':
-            txt = []
-            txt.append('<h3>')
-            txt.append('Terminating DuetLapse3<br><br>')
-            txt.append('Will finish last image capture, create a video, then terminate.')
-            txt.append('</h3>')
-            selectMessage = ''.join(txt)
-
+        if ttype == 'terminateg':
             startnextAction('completed')
-        elif ttype == 'forced':
-            txt = []
-            txt.append('<h3>')
-            txt.append('Forced Termination of DuetLapse3<br><br>')
-            txt.append('No video will be created.')
-            txt.append('</h3>')
-            selectMessage = ''.join(txt)
+        elif ttype == 'terminatef':
             quit_forcibly()
 
+        return
+
+    def display_terminate_buttons(self):
+        if restart:
+           pageAction = 'repeatDisplayStatus();'
         else:
-            txt = []
-            txt.append('<h3>')
-            txt.append('Select the type of Termination<br><br>')
-            txt.append('Graceful will create video.  Forced will not<br>')
-            txt.append('</h3>')
-            txt.append('<br>')
-            message = ''.join(txt)
+            pageAction = "document.body.innerHTML = \'\';"
 
-            txt = []
-            txt.append('<div class="inline">')
-            txt.append('<form action="http://' + referer + '">')
-            txt.append('<input type="hidden" name="terminate" value="graceful" />')
-            txt.append('<input type="submit" value="Graceful" style="background-color:yellow"/>')
-            txt.append('</form>')
-            txt.append('</div>')
-            gracefulbutton = ''.join(txt)
+        graceful_button =   '<td>\
+                            <div class="inline">\
+                            <button class="button" style="background-color:green" onclick="fetch(\'http://' + referer + '?terminate=terminateg\'); ' + pageAction + ' alert(\'Graceful Terminate\\nWill attempt to create a video.\\nThis can take some time to complete.\');">Graceful Terminate</button>\
+                            </div>\
+                            </td>'
 
-            txt = []
-            txt.append('<div class="inline">')
-            txt.append('<form action="http://' + referer + '">')
-            txt.append('<input type="hidden" name="terminate" value="forced" />')
-            txt.append('<input type="submit" value="Forced" style="background-color:red"/>')
-            txt.append('</form>')
-            txt.append('</div>')
-            forcedbutton = ''.join(txt)
+        forced_button =     '<td>\
+                            <div class="inline">\
+                            <button class="button" style="background-color:red" onclick="fetch(\'http://' + referer + '?terminate=terminatef\'); document.body.innerHTML = \'\';  alert(\'Forced Terminate\\nA video will NOT be created.\');">Forced Terminate</button>\
+                            </div>\
+                            </td>'
 
-            selectMessage = message+gracefulbutton+forcedbutton
+        return graceful_button + forced_button
 
-        return selectMessage
 
-    def parsefilename(self, fn):
-        filepath, _ = os.path.split(fn)
-        if not filepath.endswith('/'):
-           filepath = filepath + '/'
-        filepath = filepath.replace(u'\u02f8', ':')  # make it look nice
-        fn = fn.replace(':', u'\u02f8')  # get rid of any regular colons
-        fn = topdir + fn
-        fn = os.path.normpath(fn)
-        return fn, filepath
 
-    def display_dir(self, path):
-        path = path.split('?', 1)[0]
-        path = path.split('#', 1)[0]
-        # Don't forget explicit trailing slash when normalizing. Issue 17324
-        trailing_slash = path.rstrip().endswith('/')
-        requested_dir = topdir + path
+    def display_files(self, path):
+        if path == 'true':
+            path = topDir
 
-        if trailing_slash:  # this is a dir request
-            response = self.list_dir(requested_dir)
+        if os.path.isdir(path):  # if its a dir then list it
+            response = self.list_dir(path)
             return response
-        else:  # this is a file request
-            requested_dir = requested_dir.replace('%CB%B8',
-                                                  u'\u02f8')  # undoes raised colons that were replaced by encoding
-            ctype = self.guess_type(requested_dir)
+        else:
+            return 'Requested path ' + path + ' is not a dir.'
+
+
+    def get_file(self, path):
+        if os.path.isfile(path):
+            logger.debug('Trying to get file ' + path)
+            fn = os.path.split(path)[1]
+            ctype = self.guess_type(path)
             logger.debug(str(ctype))
 
             try:
-                f = open(requested_dir, 'rb')
+                f = open(path, 'rb')
                 fs = os.fstat(f.fileno())
             except:
-                logger.info('Problem opening file: ' + requested_dir)
+                logger.info('Problem opening file: ' + path)
 
             try:
                 self.send_response(200)
                 self.send_header("Content-type", ctype)
                 self.send_header("Content-Length", str(fs[6]))
+                if fn.endswith('.log'):
+                    self.send_header("Content-Disposition", 'attachment; filename=' + os.path.split(path)[1])  # must be downloaded
+                else:
+                    self.send_header("Content-Disposition", 'filename=' + os.path.split(path)[1]) #  Can be displayed in browser
                 self.end_headers()
                 self.copyfile(f, self.wfile)
                 f.close()
@@ -2199,203 +2366,211 @@ class MyHandler(SimpleHTTPRequestHandler):
                 logger.debug('Connection reset - normal if displaying file')
             except:
                 logger.info('Error sending file')
-
-        return ''
+        else:
+            return 'Requested file ' + path + ' is not a file.'
     
     def list_dir(self, path):  # Copied from super class
         # Pass the directory tree and determine what can be done with each file / dir
-        jpegfile = '.jpeg'
+        logger.debug('list_dir called with path = ' + path)
+
+        jpegfiles = ['.jpeg', '.jpg']
         deletablefiles = ['.mp4','.zip', '.log'] #  Different to startDuetLapse3
+        fullfilenames = []
         jpegfolder = []
         deletelist = []
-        for thisdir, subdirs, files in os.walk(topdir):
-            if not subdirs and not files:  # Directory is empty
-                deletelist.append(os.path.join(thisdir, ''))
-                if thisdir == topdir:
-                    txt = []
-                    txt.append('<h3>')
-                    txt.append('There are no files to display at this time<br><br>')
-                    txt.append('You likely need to start an instance of DuetLapse3 first')
-                    txt.append('</h3>')
-                    response = ''.join(txt)
-                    return response
-
-            for fn in files:
-                if any(ext in fn for ext in deletablefiles):
-                    deletelist.append(os.path.join(thisdir, fn))
-
-                elif fn.lower().endswith(jpegfile.lower()) and subdirs == []:  # if ANY jpeg in bottom level folder
-                    jpegfolder.append(os.path.join(thisdir, ''))
-                    deletelist.append(os.path.join(thisdir, ''))
-                    break  # Assume all files are jpeg
-
+      
         try:
             displaypath = urllib.parse.unquote(path, errors='surrogatepass')
         except UnicodeDecodeError:
             displaypath = urllib.parse.unquote(path)
 
-        displaypath = html.escape(displaypath, quote=False)
+        displaypath = html.escape(displaypath, quote=False)                   # this is to handle differences between html and OS representations
 
-        # Parse the directory tree and determine what can be done with each file / dir - NOT USED
+        # Parse the directory tree and determine what can be done with each file / dir
         try:
-            list = os.listdir(path)
-        except OSError:
-            txt = []
-            txt.append('<h3>')
-            txt.append('There are no files or directories named '+displaypath+'<br>')
-            txt.append('or you do not have permission to access')
-            txt.append('</h3>')
-            response = ''.join(txt)
+            listdir = os.listdir(path)
+        except FileNotFoundError as e:
+            logger.info('No files found: ' + str(e))
+            response =  '<h4>\
+                        There are no files or directories named '+displaypath+'<br>\
+                        or  you do not have access permission\
+                        </h4>'
             return response
 
-        #  list.sort(key=lambda a: a.lower())
-        list.sort(key=lambda fn: os.path.getmtime(os.path.join(path, fn))) # Have to use full path to stat file
+        #  sort the list by datetime last modified
+        listdir.sort(key=lambda fn: -os.path.getmtime(os.path.join(path, fn))) # Sort in reverse order
         
+        dirPid = str(pid) + '_' + str(pidIncrement)  # get current pid + suffix
 
-        #find the oldest dir, and logfile and remove them from the deletelist
-        dirlast = loglast = None
-        for fn in list:
-            fn = os.path.join(path, fn)
+        for sfn in listdir:
+            fn = os.path.join(path, sfn)
+            fullfilenames.append(fn)
+            fn_elements =  os.path.splitext(fn)
+            ext = fn_elements[1]
             if os.path.isdir(fn):
-                dirlast = fn + '/'  #  Needs training / so as to properly match
-            elif fn.endswith('.log'):
-                loglast = fn
+                if dirPid not in fn:
+                    deletelist.append(fn)
+                    try:
+                        fndir = os.listdir(fn)  #  Check the subdirectory
+                    except FileNotFoundError as e:
+                        logger.info('Subdirectory error:' + str(e))
+                    for jp in fndir:  # break if we find one
+                        jp_elements =  os.path.splitext(jp)
+                        jpext = jp_elements[1]
+                        if jpext in jpegfiles:
+                            jpegfolder.append(fn)
+                            break
+            elif ext in deletablefiles:
+                if sfn == 'startup.log':  # use the short filename
+                    continue
+                if dirPid not in fn:
+                    if ext in ['mp4']:  # can delete mp4 from current print snapshot
+                        continue
+                    deletelist.append(fn)
 
-        if workingdir_exists:
-            if dirlast in deletelist:
-                logger.debug('Deleting last dir from deletelist ' + str(dirlast))
-                deletelist.remove(dirlast)
+        #  get the structure information
 
-        if loglast in deletelist:
-            logger.debug('Deleting last logfile from deletelist ' + str(loglast))
-            deletelist.remove(loglast)
-
-        subdir = path.replace(topdir, '') #path relative to topdir
-        parentdir, _ = os.path.split(subdir) # Get rid of trailing information
-        parentdir, _ = os.path.split(parentdir)  # Go back up one level
-
-        r = []
-        r.append('<style>table {font-family: arial, sans-serif;border-collapse: collapse;}')
-        r.append('td {border: 1px solid #dddddd;text-align: left;padding: 0px;}')
-        r.append('tr:nth-child(even) {background-color: #dddddd;}</style>')
-        r.append('<table>')
-        r.append('<tr><th style="width:400px"></th><th style="width:100px"></th></tr>')
-
-        if parentdir == subdir:  # we are at the top level
+        if path == topDir:
             child_dir = False
         else:
+            parentdir = os.path.split(path)[0]
             child_dir = True
 
-        # add parent dir
+        dir_table =     '<style>table {font-family: arial, sans-serif;border-collapse: collapse;}\
+                        td {border:none; text-align:left; padding: 0px;}\
+                        tr:nth-child(even) {background-color: #dddddd;}\
+                        </style>\
+                        <table>\
+                        <tr><th style="width:400px"></th><th style="width:100px;"></th></tr>'
+
+        # add parent dir to the html
         if child_dir:
-            if (not parentdir.endswith('/')) and (not parentdir.endswith('\\')):
-                parentdir = parentdir + '/'  # identify it as a dir and not a file
-            if parentdir == '/' or parentdir =='\\':
-                parentdir = parentdir + '?files='  # go back to the top level directory
-            if win:
-                displayname = '.\\'
-            else:
-                displayname = './'
-            r.append('<tr>')  # start the row
-            r.append('<td><a href="%s">%s</a></td>' % (parentdir, html.escape(displayname, quote=False)))
-            r.append('</tr>')  # end the row
+            displayname = './'
+            child = '<td><a href="%s">%s</a></td>' % ('javascript:displayFiles(event,\'' + parentdir.replace('\\', '\\\\') + '\')', html.escape(displayname, quote=False))
+            dir_table += '<tr>' + child + '</tr>'
 
-        for name in list:  #this loop is DuetLapse3 specific - different to startDuetLapse3
-            if not name.startswith(pid) and not name.endswith('.jpeg') or name.startswith('_tmpvideo.mp4'): # Ignore temp video file
-                continue  # only display for this instance
 
-            fullname = os.path.join(path, name)
-            fullname = os.path.normpath(fullname) #  no trailing slash will add in later if its a directory
-            action_name = fullname.replace(topdir, '')  # used to force delete and zip and video to be relative to topdir
-            # we do this after above assignment so that we don't have problems with slash direction between OS's
-            # Note: a link to a directory displays with @ and folder  with /
-            linkname = displayname = name
-            if os.path.islink(fullname):
-                displayname = name + "@"
+        # Add actions to files / dirs 
+        for fullname in fullfilenames:          
+            if os.path.islink(fullname):   # A link to a directory displays with @
+                displayname = fullname + "@"
 
+            displayname = os.path.split(fullname)[1]
+ 
             if os.path.isdir(fullname):
-                if win:
-                    displayname = name + "\\"
-                    linkname = name + "\\"
-                    fullname = fullname +'\\'
-                else:
-                    displayname = name + "/"
-                    linkname = name + "/"
-                    fullname = fullname +'/'
+                row = '<td><a href="%s">%s</a></td>' % ('javascript:displayFiles(event,\'' + fullname.replace('\\', '\\\\') + '\')', html.escape(displayname, quote=False))
+            else:
+                row = '<td><a href="%s">%s</a></td>' % ('?getfile=' + urllib.parse.quote(fullname, errors='surrogatepass'), html.escape(displayname, quote=False))
 
-            linkname = subdir + linkname  # make it relative
-            linkname = linkname.replace('\\','/')  #use the html convention
-            displayname = displayname.replace(u'\u02f8', ':')  # make it look nice replace raised colons
-
-            r.append('<tr>')  # start the row
-            r.append('<td><a href="%s">%s</a></td>' % (
-                    urllib.parse.quote(linkname, errors='surrogatepass'), html.escape(displayname, quote=False)))
+            dir_table += '<tr>' + row
 
             deletebutton = zipbutton = vidbutton = ''
-            if fullname in deletelist and fullname != logfilename:  #Different to startDuetLapse3
-                txt = []
-                txt.append('<td>')
-                txt.append('<div class="inline">')
-                txt.append('<form action="http://' + referer + '">')
-                txt.append('<input type="hidden" name="delete" value="' + action_name + '" />')
-                txt.append('<input type="submit" value="Delete" style="background-color:red"/>')
-                txt.append('</form>')
-                txt.append('</div>')
-                txt.append('</td>')
-                deletebutton = ''.join(txt)
 
-                if fullname in jpegfolder: # Only offer if job complete
-                    txt = []
-                    txt.append('<td>')
-                    txt.append('<div class="inline">')
-                    txt.append('<form action="http://' + referer + '">')
-                    txt.append('<input type="hidden" name="zip" value="' + action_name + '" />')
-                    txt.append('<input type="submit" value="Zip" style="background-color:yellow"/>')
-                    txt.append('</form>')
-                    txt.append('</td>')
-                    txt.append('</div>')
-                    zipbutton = ''.join(txt)
+            if fullname in deletelist:
+                deletebutton =  '<td>\
+                                <div class="inline">\
+                                <button class="button" style="background-color:red" onclick="(async () => {\
+                                let fullname_encoded = encodeURIComponent(\'' + fullname.replace('\\', '\\\\') + '\');\
+                                let response = await fetch(`http://' + referer + '?delete=${fullname_encoded}`);\
+                                await displayFiles(event,\'true\');\
+                                })()">Delete</button>\
+                                </div>\
+                                </td>'
 
-                    txt = []  # This is different to startDuetLapse - we do not send fps
-                    txt.append('<td>')
-                    txt.append('<div class="inline">')
-                    txt.append('<form action="http://' + referer + '">')
-                    txt.append('<input type="hidden" name="video" value="' + action_name + '" />')
-                    txt.append('<input type="submit" value="Video" style="background-color:green"/>')
-                    #  txt.append('<input type="text" id="fps" name="fps" value=' + fps +  ' style="background-color:lime; width:30px; border:none"/>')
-                    #  txt.append('fps<br>')
-                    txt.append('</form>')
-                    txt.append('</div>')
-                    txt.append('</td>')
-                    vidbutton = ''.join(txt)
+                if fullname in jpegfolder:
+                    zipbutton = '<td>\
+                                <div class="inline">\
+                                <button class="button" style="background-color:yellow" onclick="(async () => {\
+                                let fullname_encoded = encodeURIComponent(\'' + fullname.replace('\\', '\\\\') + '\');\
+                                let response = await fetch(`http://' + referer + '?zip=${fullname_encoded}`);\
+                                await displayFiles(event,\'true\');\
+                                })()">Zip</button>\
+                                </div>\
+                                </td>'
 
-            action = deletebutton + zipbutton + vidbutton
-            r.append(action)
-            r.append('</tr>')
+                    vidbutton = '<td>\
+                                <div class="inline">\
+                                <button class="button" style="background-color:green" onclick="(async () => {\
+                                let fullname_encoded = encodeURIComponent(\'' + fullname.replace('\\', '\\\\') + '\');\
+                                let promise = await fetch(`http://' + referer + '?video=${fullname_encoded}`);\
+                                let result = await promise.text();\
+                                alert(result);\
+                                await displayFiles(event,\'true\');\
+                                })()">Video</button>\
+                                </div>\
+                                </td>'
+ 
+            dir_table += deletebutton + zipbutton + vidbutton + '</tr>'
 
-        r.append('</table>')
+        dir_table += '</table>'
 
-        response = ''.join(r)
-        return response
+        logger.debug('Finished parsing the files directory')
+        return dir_table
     
-"""
-    end of requesthandler
-"""
+        """
+            end of requesthandler
+        """
+
+def changeFps(thisfps):
+    global fps
+    try:
+        thisfps = int(thisfps)
+        fps = max(1, thisfps)
+        logger.info('-fps changed to: ' + str(fps))
+    except ValueError as e:
+        logger.info('Error changing fps: ' + str(e))
+
+def changeMinvideo(thisminvideo):
+    global minvideo
+    try:
+        thisminvideo = int(thisminvideo)
+        minvideo = max(1,thisminvideo)
+        logger.info('-minvideo changed to: ' + str(minvideo))
+    except ValueError:
+        logger.info('Error changing minvideo: ' + str(e))
+
+def changeMaxvideo(thismaxvideo):
+    global maxvideo
+    try:
+        thismaxvideo = int(thismaxvideo)
+        maxvideo = max(0, thismaxvideo)
+        logger.info('-maxvideo changed to: ' + str(maxvideo))
+    except ValueError:
+        logger.info('Error changing maxvideo: ' + str(e))
+
+def deleteFileFolder(fname):
+    fn = pathlib.Path(fname)  #  fn is a pathlib object
+
+    if fn.exists():
+        def remove_readonly(func, path, exc_info):
+            if func not in (os.unlink, os.rmdir) or exc_info[1].winerror != 5:
+                raise exc_info[1]
+            os.chmod(path, stat.S_IWRITE)
+            func(path)
+
+        if fn.is_file():
+            try:
+                fn.unlink()
+                logger.debug('Deleted file ' + fname)
+            except Exception as e:
+                logger.info('Error deleting file ' + str(e))
+        elif fn.is_dir():
+                shutil.rmtree(fn, onerror=remove_readonly)
+    return
+
 
 def allowedNextAction(thisaction):
-                if thisaction == 'standby':
-                    return ['start']
-                elif thisaction == 'pause':
-                    return ['standby', 'continue', 'snapshot', 'restart']
-                elif thisaction == 'snapshot' and lastaction == 'pause':  # same as pause
-                    return ['standby', 'continue', 'snapshot', 'restart']
-                elif thisaction == 'restart':
-                    if standby:
-                        return ['start']
-                    else:
-                        return ['standby', 'pause', 'snapshot', 'restart']
-                else:
-                    return ['standby', 'pause', 'snapshot', 'restart']
+    if thisaction == 'standby':
+        return ['start']
+    elif thisaction == 'pause':
+        return ['standby', 'continue', 'restart']
+    elif thisaction == 'restart':
+        if standby:
+            return ['start']
+        else:
+            return ['standby', 'pause', 'restart']
+    else:
+        return ['standby', 'pause', 'restart']
 
 
 def startHttpListener():
@@ -2407,10 +2582,12 @@ def startHttpListener():
         logger.info('***** Started http listener *****')
         logger.info('##########################################################\n')
     except Exception as e:
-        logger.info('There was a problem starting the http listener')
-        logger.info(e)
-        logger.info('Is it running from a prior start ?')
-        logger.info('Continuing')
+        if 'Errno 98' in e:
+            logger.debug('http listener is already running')
+        else:
+            logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  There was a problem starting the http listener !!!!!!!!!!!!!!!!!!!!!')
+            logger.info(e)
+            sys.exit(1)
 
 
 def closeHttpListener():
@@ -2424,8 +2601,8 @@ def closeHttpListener():
 
 
 def execRun(displaymessage):
-        cmd = displaymessage.split(execkey)[1]
-        logger.info('!!!!!!!!  Make call to execute !!!!!!!!')
+        cmd = displaymessage.split(execkey)[1].strip()
+        logger.info('!!!!!  Make call to execute !!!!!')
         logger.info(cmd)
         subprocess.Popen(cmd, shell=True, start_new_session=True)  # run the program
         sendDuetGcode(apiModel,'M117 ""')
@@ -2451,13 +2628,18 @@ def stopCaptureLoop():
         captureLoopState = 0  # Signals capture thread to shutdown
 
 def waitforcaptureLoop():
-    #  global captureLoopState
+    global captureLoopState
     if captureLoopState == -1:
         logger.debug('captureLoop is not running')
-    while captureLoopState >= 0:  # only one thread at a time may cause delay in http page update
+        return
+    loopcounter = 0
+    while captureLoopState != -1 and loopcounter < pollcheck*4*3:  # wait for up to 3 poll intervals
+        logger.debug('********* captureLoopState is ' + str(captureLoopState) + ' - Waiting to complete *********')
         time.sleep(pollcheck) # Check 4 times per poll interval
-        logger.debug('********* Waiting for captureLoop to complete *********')
-    logger.debug('Exited captureLoop')
+        loopcounter += 1
+    if captureLoopState != -1:
+        captureLoopState = -1  # Forced
+        logger.debug('Timed out trying to exit captureLoop')
 
 
 def startgcodeLoop():
@@ -2472,14 +2654,18 @@ def stopgcodeLoop():
         gcodeLoopState = 0  # Signals capture thread to shutdown
 
 def waitforgcodeLoop():
+    global gcodeLoopState
     if gcodeLoopState == -1:
         logger.debug('gcodeLoop is not running')
         return
-    while gcodeLoopState >= 0:  # only one thread at a time may cause delay in http page update
-        time.sleep(pollcheck) 
-        logger.debug('********* Waiting for gcodeLoop to complete *********')
-    logger.debug('Exited gcodeLoop')
-
+    loopcounter = 0
+    while gcodeLoopState != -1 and loopcounter < pollcheck*4*3:  # wait for up to 3 poll intervals
+        logger.debug('********* gcodeLoopState is ' + str(gcodeLoopState) + ' - Waiting to complete *********')
+        time.sleep(pollcheck) # Check 4 times per poll interval
+        loopcounter += 1
+    if gcodeLoopState != -1:
+        gcodeLoopState = -1  # Forced
+        logger.debug('Timed out trying to exit gcodeLoop')
 
 
 def startnextAction(command): # Does not run in a loop
@@ -2493,9 +2679,10 @@ def waitforNextAction():
     if nextActionState == -1:
         logger.info('nextAction is available')
         return
-    while nextActionState >= 0:  # Only one thread at a time may cause delay in http page update
+    while nextActionState != -1:  # Only one thread at a time may cause delay in http page update
+        logger.debug('********* nextActionState is ' + str(nextActionState) + ' - Waiting to complete *********')
         time.sleep(1)
-        logger.debug('********* Waiting for nextAction to complete *********')
+
     logger.debug('nextaction is ready')
     
 
@@ -2504,7 +2691,7 @@ def startcheckforConnection():
         return
     threading.Thread(name='checkforConnection', target=checkforConnection, args=(), daemon=False).start()
 
-def terminateThread(): # Can only be run once - but calles as a thread to allow other threads to finish
+def terminateThread(): # Can only be run once - but called as a thread to allow other threads to finish
     if terminateState == 1: #    Already Terminating
         return
     threading.Thread(name='terminate', target=terminate, args=(), daemon=False).start()
@@ -2520,10 +2707,10 @@ def waitforMakeVideo():
 
 def startMakeVideo(directory): # Does not run in a loop - so we block it before running it
     if terminateState == 1: # Block it if terminating
-        return
+        return 'Cannot create video when Terminating'
     waitforMakeVideo()      
-    threading.Thread(name='makeVideo', target=makeVideo, args=(directory,), daemon=False).start()
-
+    #threading.Thread(name='makeVideo', target=makeVideo, args=(directory,), daemon=False).start()
+    return makeVideo(directory)
 
 
 ###################################
@@ -2555,17 +2742,27 @@ def captureLoop():  # Run as a thread
 
     global printState, duetStatus, captureLoopState
     
-    if connectionState is False:
+    if connectionState is False or captureLoopState == 0:
+        captureLoopState = -1
         return
     
     captureLoopState = 1
-    printState = 'Not Capturing'
+    if dontwait:
+        printState = 'Capturing'
+    else:
+        printState = 'Not Capturing'
+
 
     lastDuetStatus = 'idle' # logical state on start of each thread instance
 
     logger.debug('Starting Capture Loop')
 
-    while captureLoopState == 1:  # Set to 0 to stop. e.g  By http listener or SIGINT or CTL+C
+    while True:
+        if captureLoopState == 0: # Set to 0 to stop. e.g  By http listener or SIGINT or end of printjob
+            captureLoopState = -1
+            logger.debug('captureLoop stopped')
+            return                  # drastic measure to avoid race condition
+
         if duetStatus != lastDuetStatus:  # What to do next?
             logger.info('****** Duet status changed to: ' + str(duetStatus) + ' *****')
             # logical states for printer are printing, completed
@@ -2592,7 +2789,8 @@ def captureLoop():  # Run as a thread
             printState = 'Not Capturing'
             # use a thread here as it will allow this thread to close.
             startnextAction('completed')
-            break # Do not want to wait to end
+            logger.info('Exiting captureLoop')
+            captureLoopState = 0  #  Force stop
 
         if captureLoopState == 1 and terminateState != 1 and connectionState:  # If still running then sleep
             lastDuetStatus = duetStatus
@@ -2605,22 +2803,33 @@ def captureLoop():  # Run as a thread
 
 def nextAction(nextaction):  # can be run as a thread
     global action, printState, captureLoopState, lastaction, logger, nextActionState, standby, gcodeLoopState, restart
+    if nextActionState == 0:
+        logger.debug('nextAction exiting because nextActionState = 0')
+        nextActionState = -1
+        return
+
     logger.info('++++++ ' + nextaction + ' state requested ++++++')
     # All nextactions need the capture thread to be shut down
+    logger.debug('nextAction requested stopCaptureLoop')
     stopCaptureLoop()
+    waitforcaptureLoop()
+    logger.debug('nextAction satisfied waitforCaptureLoop')
+
     # This section needs to ge first as it checks for reconnection after network issue
     if nextaction == 'waitforconnection': # Go into connection check loop
+        logger.info('nextAction waiting for lost connection')
         startcheckforConnection() 
         nextActionState = -1
         return
     elif nextaction == 'reconnected':
         startgcodeLoop() # restart the gcode monitor
-        time.sleep(5) # Give the gcodeloop time to get nest status
+        time.sleep(5) # Give the gcodeloop time to get next status
         nextaction = lastaction
-        logger.info('Resuming after reconnect with nextaction = ' + nextaction)
+        logger.info('nextAction resuming after reconnect target = ' + nextaction)
 
     if connectionState is False: #traps any requests during a disconnect
         nextActionState = -1
+        logger.debug('nextaction aborted because connectionState is False')
         return
 
     nextActionState = 1
@@ -2628,11 +2837,11 @@ def nextAction(nextaction):  # can be run as a thread
 
     # This test is positionally sensitive
     if nextaction == 'completed':  # end of a print job
-        printState = 'Completed'  # Update may have come from if came from M117
+        printState = 'Completed'  # Update may have come from M117
         if novideo:
             logger.info('Video creation was skipped')
         else:
-            startMakeVideo(workingdir)
+            if workingDirStatus != -1:  startMakeVideo(workingDir)
         nextaction = 'terminate'
 
     logger.debug('++++++ Determining next logical action ++++++')
@@ -2653,24 +2862,18 @@ def nextAction(nextaction):  # can be run as a thread
         startCaptureLoop()
         action = 'start'
 
-    elif nextaction == 'snapshot':
-        startMakeVideo(workingdir)
-        logger.debug('Snapshot being created, last action was ' + lastaction)
-        if lastaction == 'pause':
-            action = 'pause'
-        else:
-            action = 'start'
-            startCaptureLoop()
-
     elif nextaction == 'restart':
         if novideo:
             logger.info('Video creation was skipped')
         else:
-            startMakeVideo(workingdir)
+            if workingDirStatus != -1:  startMakeVideo(workingDir)
             waitforMakeVideo() # Wait until done before deleting files
+        restartAction()
+        """
         cleanupFiles(nextaction)  # clean up and start again
         setstartvalues()
         startNow()
+        """
         if standby:
             action = 'standby'
         else:
@@ -2685,6 +2888,7 @@ def nextAction(nextaction):  # can be run as a thread
         lastaction = action
     except NameError:
         lastaction = action
+    logger.debug('nextAction exiting normally')
     nextActionState = -1
     return
 
@@ -2701,7 +2905,7 @@ def parseM117(displaymessage):
         sendDuetGcode(apiModel,'M117 ""') #  Clear the display message
 
         logger.info('M117 Command: ' + displaymessage)
-        nextaction = displaymessage.split('DuetLapse3.')[1]
+        nextaction = displaymessage.split('DuetLapse3.')[1].strip()
 
         if nextaction == action: #  Nothing to do
             logger.info('Already in ' + action + ' state')
@@ -2754,10 +2958,10 @@ def changehandling(command):
             updateglobals(variable, value)
         elif variable in ['restart', 'novideo', 'keepfies'] and value in ['True', 'False']:  # Booleans
             updateglobals(variable, value)
-        elif variable == 'movehead' and ',' in value: # Convert to list of floats
+        elif variable == 'movehead' and ',' in value: # Convert to list of integers
             v = value.split(',')
-            v0 = float(v[0])
-            v1 = float(v[1])
+            v0 = int(v[0])
+            v1 = int(v[1])
             value = []
             value = str([v0, v1])
             updateglobals(variable, value)
@@ -2872,34 +3076,40 @@ def startup():
     logger.info('Initiating with action set to ' + action)
     nextAction(action)
 
-
-###########################
-# Program  begins here
-###########################
-if __name__ == "__main__":  # Do not run anything below if the file is imported by another program
-    
+def main():
     # Allow process running in background or foreground to be gracefully
     # shutdown with SIGINT (kill -2 <pid>)
     signal.signal(signal.SIGINT, quit_forcibly) # Ctrl + C
 
     # Globals 
-    global httpListener, win, pid, action, apiModel, workingdir_exists, workingdirs
+    global httpListener, win, pid, action, apiModel, workingDir, workingDirStatus
     global nextActionState, makeVideoState, captureLoopState, gcodeLoopState, terminateState
     global connectionState, restarting, checkforconnectionState
     # Status flag for threads
     nextActionState = captureLoopState = makeVideoState = gcodeLoopState = terminateState = checkforconnectionState =  -1  #  All set as not running
     connectionState = restarting = False
-    commands = ['start','standby','pause','continue', 'snapshot', 'restart', 'terminate']
+    workingDirStatus = -1
+    # Allowed Commands
+    commands = ['start','standby','pause','continue', 'restart', 'terminate']
+ 
     
     httpListener = False  # Indicates if an integral httpListener should be started
     win = False  # Windows OS
     pid = ''  # pid for this instance - used for temp filenames
-    workingdirs = []
-    workingdir_exists = False
+
     apiModel = ''
 
     init()
+    listOptions()
     issue_warnings()
     port_ok = checkforvalidport() # Exits if invalid
     startMessages()
     startup()
+
+###########################
+# Program  begins here
+###########################
+
+if __name__ == "__main__":  # Do not run anything below if the file is imported by another program
+    
+    main()
