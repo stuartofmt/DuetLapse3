@@ -87,7 +87,7 @@ def setstartvalues():
     global zo1, zo2, printState, captureLoopState, gcodeLoopState,  duetStatus, timePriorPhoto1, timePriorPhoto2, frame1, frame2, lastImage
     printState = 'Not Capturing'
     stopCaptureLoop()
-    duetStatus = 'Not yet determined'
+    duetStatus = 'Printer is not connected'
 
     # initialize timers
     timePriorPhoto1 = time.time()
@@ -3064,10 +3064,10 @@ def startup():
 
     setstartvalues()  # Default startup global values
 
-    checkforPrinter()  # Needs to be connected before gcodeloop
-
     if httpListener and restarting is False:
         startHttpListener()
+
+    checkforPrinter()  # Needs to be connected before gcodeloop
 
     startgcodeLoop()
 
