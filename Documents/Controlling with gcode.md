@@ -1,6 +1,5 @@
 ## Controlling DuetLapse3 with gcode
 
-
 The program, among other things, monitors messages generated with the gcode M117 command.
 Two message forms will cause the program to react.
 - [1]  M117 DuetLapse3.(x) where (x) is one of the allowed settings.
