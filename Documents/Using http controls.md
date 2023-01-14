@@ -1,6 +1,5 @@
 ### Using http to control DuetLapse3
 
-
 Basic control can be achieved by sending http messages in the form:
 
 ```
