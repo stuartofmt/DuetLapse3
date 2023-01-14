@@ -64,7 +64,7 @@ The three ways are:
 
 #### Browser based UI
 
-Sameple screen shots of the UI are here: 
+Sameple screen shots of the UI are here:  
 
 #### http messages
 
