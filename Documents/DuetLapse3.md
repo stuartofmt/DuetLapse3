@@ -1,5 +1,6 @@
 ## DuetLapse3 
 
+
 ### Overview
  
 Designed and tested on Raspberry Pi but should work on other linux platform. Supports cameras via
