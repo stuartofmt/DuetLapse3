@@ -22,11 +22,12 @@
 #
 """
 
-duetLapse3Version = '5.0.1'
+duetLapse3Version = '5.0.2'
 
 """
 CHANGES
-#  
+# Fixed snapshot when called from gcode
+# Added second variable to video api --> xtratime 
 """
 
 """
@@ -903,7 +904,7 @@ def createVideo(directory):
             f2 += 1
     
     if C1 is False and C2 is False:
-        msg = 'Cannot create a video\\n\
+        msg = 'Cannot create a video.\n\
               Are there any images captured?'
         logger.info(msg)
         makeVideoState = -1
@@ -1640,13 +1641,13 @@ def sendDuetGcode(model, command):
     return
 
 
-def makeVideo(directory):  #  Adds and extra frame
+def makeVideo(directory, xtratime = False):  #  Adds and extra frame
     global makeVideoState, frame1, frame2
     makeVideoState = 1
     # Get a final frame
     # Make copies if appropriate
 
-    if action in ['terminate', 'restart']: #  Do not add images if called from snapshot or video
+    if xtratime: #  Do not add images if called from snapshot or video
         logger.debug('For Camera1')
         onePhoto('Camera1', camera1, weburl1, camparam1)  # For Camera 1
         if extratime != 0 and frame1/fps > minvideo:
@@ -1915,7 +1916,7 @@ class MyHandler(SimpleHTTPRequestHandler):
         # snapshot
         snapshotbutton =    '<div class="inline">\
                             <button class="button" style="background-color:yellow" onclick="(async () => {\
-                            let promise = await fetch(\'http://' + referer + '?snapshot=snapshot\');\
+                            let promise = await fetch(\'http://' + referer + '?snapshot=true\');\
                             let result = await promise.text();\
                             alert(result);\
                             await displayVideo();\
@@ -2175,7 +2176,10 @@ class MyHandler(SimpleHTTPRequestHandler):
 
             for api, value in query_components.items():
                 queriesProcessed += 1
-                api_args = value[0]
+                if len(value) == 1:
+                    api_args = value[0]
+                else:
+                    api_args = value
 
                 if not api in ['displayStatus', 'displayControls', 'displayVideo', 'displayFiles', 'displayInfo', 'displayTerminate', 'snapshot', 'command', 'delete', 'zip', 'video', 'terminate', 'fps', 'minvideo', 'maxvideo', 'getfile']:
                     msg = 'The API call "' + api + '" with value "' + api_args + '" is not supported\
@@ -2204,7 +2208,11 @@ class MyHandler(SimpleHTTPRequestHandler):
                         result = 'There are no images captured yet.\\n\
                                  Try again later.'
                 elif api == 'video':
-                        result = startMakeVideo(api_args)
+                        if api_args[1] == 'True':
+                            xtratime = True
+                        else:
+                            xtratime = False
+                        result = startMakeVideo(api_args[0], xtratime)
                 if result != '' and queriesProcessed == numQueries:  # return the display
                     self._set_headers()
                     self.wfile.write(result.encode("utf8"))
@@ -2326,7 +2334,7 @@ class MyHandler(SimpleHTTPRequestHandler):
                             alert(\'Graceful Terminate\\nWill attempt to create a video.\\nThis can take some time to complete.\');\
                             let fullname_encoded = encodeURIComponent(\'' + theDir.replace('\\', '\\\\') + '\');\
                             console.log(fullname_encoded);\
-                            let promise = await fetch(`http://' + referer + '?video=${fullname_encoded}`);\
+                            let promise = await fetch(`http://' + referer + '?video=${fullname_encoded}&video=True`);\
                             let result = await promise.text();\
                             alert(result);\
                             } else {\
@@ -2521,7 +2529,7 @@ class MyHandler(SimpleHTTPRequestHandler):
                                 <div class="inline">\
                                 <button class="button" style="background-color:green" onclick="(async () => {\
                                 let fullname_encoded = encodeURIComponent(\'' + fullname.replace('\\', '\\\\') + '\');\
-                                let promise = await fetch(`http://' + referer + '?video=${fullname_encoded}`);\
+                                let promise = await fetch(`http://' + referer + '?video=${fullname_encoded}&video=False`);\
                                 let result = await promise.text();\
                                 alert(result);\
                                 await displayFiles(event,\'true\');\
@@ -2734,12 +2742,12 @@ def waitforMakeVideo():
     logger.debug('makeVideo is not running')
 
 
-def startMakeVideo(directory): # Does not run in a loop - so we block it before running it
+def startMakeVideo(directory, xtratime = False): # Does not run in a loop - so we block it before running it
     if terminateState == 1: # Block it if terminating
         return 'Cannot create video when Terminating'
     waitforMakeVideo()      
     #threading.Thread(name='makeVideo', target=makeVideo, args=(directory,), daemon=False).start()
-    return makeVideo(directory)
+    return makeVideo(directory, xtratime)
 
 
 ###################################
@@ -2870,7 +2878,7 @@ def nextAction(nextaction):  # can be run as a thread
         if novideo:
             logger.info('Video creation was skipped')
         else:
-            if workingDirStatus != -1:  startMakeVideo(workingDir)
+            if workingDirStatus != -1:  startMakeVideo(workingDir, True)  # Add extratime if appropriate
         nextaction = 'terminate'
 
     logger.debug('++++++ Determining next logical action ++++++')
@@ -2895,7 +2903,7 @@ def nextAction(nextaction):  # can be run as a thread
         if novideo:
             logger.info('Video creation was skipped')
         else:
-            if workingDirStatus != -1:  startMakeVideo(workingDir)
+            if workingDirStatus != -1:  startMakeVideo(workingDir, True) # Add extratimeif appropriate
             waitforMakeVideo() # Wait until done before deleting files
         restartAction()
         """
@@ -2947,6 +2955,9 @@ def parseM117(displaymessage):
         elif nextaction in allowedNextAction(action) or nextaction == 'completed':
             logger.debug ('M117 sending to startnextAction: ' + nextaction)
             startnextAction(nextaction)
+        elif nextaction.startswith('snapshot'):
+            if workingDirStatus != -1:
+                startMakeVideo(workingDir)
         elif nextaction.startswith('change.'):
             command = nextaction.split('change.')[1]
             changehandling(command)
