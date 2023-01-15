@@ -22,18 +22,11 @@
 #
 """
 
-duetLapse3Version = '5.0.0'
+duetLapse3Version = '5.0.1'
 
 """
 CHANGES
-#  Completely revised UI
-#  Added display of last captured image to UI
-#  Added ability to specify a config file with -file option
-#  Try to install python modules if not loaded
-#  Added option for maxvideo - varies fps
-#  Added ability to change -minvideo and -maxvideo from UI
-#  UI gives current indication of current video
-#  Misc bug fixes
+#  
 """
 
 """
@@ -1893,7 +1886,7 @@ class MyHandler(SimpleHTTPRequestHandler):
 
     def display_video(self):
 
-        options =  '<form action="http://' + referer + '" onsubmit="setTimeout(function() {displayOptions();}, 1500)">\
+        options =  '<form action="http://' + referer + '" onsubmit="setTimeout(function() {displayVideo();}, 1500)">\
                    <label for="fps">fps:</label>\
                    <input type="text" id="fps" name="fps" value=' + str(fps) + ' style="background-color:lime; width:30px; border:none" />\
                    <label for="minvideo">minvideo:</label>\
@@ -2283,7 +2276,7 @@ class MyHandler(SimpleHTTPRequestHandler):
                 pass
 
         elif command == 'terminate':  #command=terminate - backward compatible
-            self.terminate_process('terminateg')
+            self.terminate_process('terminatehttp')
         return
 
     def log_request(self, code=None, size=None):
@@ -2293,12 +2286,14 @@ class MyHandler(SimpleHTTPRequestHandler):
         pass
 
     def terminate_process(self, ttype):
-        if ttype not in ['terminateg', 'terminatef']:
+        if ttype not in ['terminatehttp','terminateg', 'terminatef']:
            logger.info (ttype + ' invalid terminate requested')
            return
 
-        if ttype == 'terminateg':
+        if ttype == 'terminatehttp':
             startnextAction('completed')
+        elif ttype == 'terminateg':
+            startnextAction('terminate')
         elif ttype == 'terminatef':
             quit_forcibly()
 
@@ -2310,9 +2305,44 @@ class MyHandler(SimpleHTTPRequestHandler):
         else:
             pageAction = "document.body.innerHTML = \'\';"
 
+        """
         graceful_button =   '<td>\
                             <div class="inline">\
                             <button class="button" style="background-color:green" onclick="fetch(\'http://' + referer + '?terminate=terminateg\'); ' + pageAction + ' alert(\'Graceful Terminate\\nWill attempt to create a video.\\nThis can take some time to complete.\');">Graceful Terminate</button>\
+                            </div>\
+                            </td>'
+        """
+        if workingDirStatus != -1:
+            theDir = workingDir
+        else:
+            theDir = 'nodir'
+
+        graceful_button =  '<td>\
+                            <div class="inline">\
+                            <button class="button" style="background-color:green" onclick="(async () => {\
+                            let theDir = \'' + theDir + '\';\
+                            console.log(theDir);\
+                            if (theDir != \'nodir\') {\
+                            alert(\'Graceful Terminate\\nWill attempt to create a video.\\nThis can take some time to complete.\');\
+                            let fullname_encoded = encodeURIComponent(\'' + theDir.replace('\\', '\\\\') + '\');\
+                            console.log(fullname_encoded);\
+                            let promise = await fetch(`http://' + referer + '?video=${fullname_encoded}`);\
+                            let result = await promise.text();\
+                            alert(result);\
+                            } else {\
+                            alert(\'There are no images available.\\nNo video will be created.\');\
+                            }\
+                            console.log(\'Got here\');\
+                            fetch(\'http://' + referer + '?terminate=terminateg\');\
+                            let restart = \'' + str(restart) +'\';\
+                            console.log(restart);\
+                            if (restart == \'True\') {\
+                            alert(\'Restart in Progress\');\
+                            } else {\
+                            alert (\'Shutting Down\');\
+                            }\
+                            ' + pageAction + '\
+                            })()">Graceful Terminate</button>\
                             </div>\
                             </td>'
 
