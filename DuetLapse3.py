@@ -22,7 +22,7 @@
 #
 """
 
-duetLapse3Version = '5.0.2'
+duetLapse3Version = '5.0.3'
 
 """
 CHANGES
@@ -641,8 +641,8 @@ def setuplogfile():  #Called at start and restart
         f_format = logging.Formatter('%(asctime)s - %(threadName)s - %(message)s')
         f_handler.setFormatter(f_format)
         logger.addHandler(f_handler)
-        logger.info('DUETLAPSE3 LOGFILE')
-        logger.info(logfilename)
+        logger.info('DuetLapse3 Logfile  ---  ' + logfilename)
+        logger.info('Process Id  ---  ' + str(pid) )
         logger.info('-------------------------------------------------------------------------------\n')
 
     loggingset = True
@@ -2132,7 +2132,7 @@ class MyHandler(SimpleHTTPRequestHandler):
                         </script>\
                         </head>\
                         <body onload="repeatDisplayStatus()">\
-                        <h3>DuetLapse</h3>\
+                        <h4>DuetLapse</h4>\
                         <div class="tab">\
                         <button class="tablinks"onclick="repeatDisplayStatus(event)">Status</button>\
                         <button class="tablinks"onclick="displayControls(event)">Controls</button>\
