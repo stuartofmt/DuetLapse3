@@ -64,8 +64,8 @@ The three ways are:
 
 #### Browser based UI
 
-Sample screen shots of the UI are here:
-[Controlling with the UI](https://github.com/stuartofmt/DuetLapse3/tree/main/Images)
+The user interface is described here:
+[Controlling with the UI](https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/User%20Interface.md)
 
 #### http messages
 
