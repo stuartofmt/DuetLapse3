@@ -33,13 +33,19 @@ __Start:__  DuetLapse is able to capture images.
 
 __Standby:__  Deletes any current images and places DuetLapse in standby mode.
 
+Popup alert(s) informs of the progress of the Standby process.
+
 __Pause:__  Stops the capture of images until "Continue"
 
 __Continue:__  Continues the capture of Images
 
 __Restart:__  Will attempt to create a video anf then return to either the Start or Standby state ( depends on the -standby option)
 
+Popup alert(s) informs of the progress of the termination process.
+
 __Terminate:__  Displays options to terminate gracefully (i.e. attempt to create a video) or forcefully (shuts down DuetLapse).  If the -restat option is set, DuetLapse will restart after Graceful but will not after Forced.
+
+Popup alert(s) informs of the progress of the termination process.
 
 ### __Video Tab__
 
@@ -48,6 +54,8 @@ The video tab allows changes to the options that affect video creation. These ar
 The tab also provides information on how long the video (for the current print job) would be.  __This information is refreshed shortly after a change is made.__
 
 The __snapshot__ button is used to create a video during the current print job.
+
+Popup alert(s) informs of the progress of the video creation.
 
 Note that these settings also affect the length of a video when using the video button in the files tab (see below). 
 
@@ -72,7 +80,7 @@ Video files can be viewed by clicking on the filename.mp4 link
 
 ![DuetLapse](../Images/3b-Logfile.png "Cannot find Image")
 
-Image folders can be viewed by clicking on the link.  Images can be viewed by clicking on the foldername link.
+Image folders can be viewed by clicking on the foldername link.
 
 ![DuetLapse](../Images/3c-Images.png "Cannot find Image")
 
