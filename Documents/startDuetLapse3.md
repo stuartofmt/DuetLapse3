@@ -1,5 +1,5 @@
 ## startDuetLapse3
- 
+
 This is am optional helper program for use with DuetLapse3.
 It provides a simple http interface for starting and terminating DuetLapse3 instances.
 

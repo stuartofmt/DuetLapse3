@@ -1,108 +1,138 @@
-## Controlling DuetLapse3 with gcode
+# Controlling DuetLapse3 with gcode
 
-The program, among other things, monitors messages generated with the gcode M117 command.
-Two message forms will cause the program to react.
-- [1]  M117 DuetLapse3.(x) where (x) is one of the allowed settings.
-- [2]  M117 (execkey) (command) where (execkey) is a prefix specified by the -execkey option and (command) is an arbitrary command that will be sent to the OS.
+DuetLapse3, among other things, monitors messages generated with the gcode M291.
+Three message forms will cause the program to react.
 
-M117 gcode messages can be embedded in the print file, placed in a macro, or sent from the DWC console.<br>
-**Note that as a practical matter, This functionality assumes a single instance of DuetLapse3 connected to a single printer.**<br>
+- [1]  Control DuetLapse3.
+- [2]  Change a DuetLapse3 option
+- [3]  Have DuetLapse3 execute another program.
 
-DuetLapse3 uses a polling method and checks the printer every 5 seconds for M117 messages.<br>
-To prevent a message being missed, IT IS MANDATORY that a delay (G4) be added after *every* M117 message intended for this program.<br>
-The strong recommendation is that the delay is 10 seconds i.e. **G4 S10**
+M291 gcode messages can be embedded in the print file, placed in a macro as part of a print job, or sent from the DWC console.
 
+**Note that as a practical matter, controlling DuetLapse with M291 messages only works with a single instance of DuetLapse3 connected to a single printer.**
 
-### M117 DuetLapse3.(x)
-In the first form, the following settings are available:<br>
+**Note that M292 messages intended to be processed by DuetLapse3 should not be actioned by a user e.g. from DWC**
+
+## Control DuetLapse3
+
+M291 messages can be used to control DuetLapse3 using the following form:
+
+```text
+M291 P"DuetLapse3.(x)" S2
+```
+
+**Note the mandatory use of P, "", and S2**
+
+The following controls are available:
 start, standby, pause, continue, restart, snapshot, completed, graceful, forced
 
-These correspond to the same actions in the UI.<br>
-Note that **terminate** is not supported instead use **graceful** or **forced** depending on your need.
+These correspond to the same actions in the UI.
+Note that **terminate** is not supported.  Instead use `graceful` or `forced` depending on your need.
 
-There is also a special variant which can be used to change options on-the-fly.<br>
-This is equivalent to setting an option in the command line at startup.
+e.g. Change DuetLapse3 from `standby` to `start`
 
-```
-M117 DuetLapse3.change.(variable)=(value)
-G4 S10
-```
-The following variables are supported:<br>
-verbose, seconds, poll, detect, dontwait, pause, movehead, restart, novideo, keepfiles, minvideo, extratime, fps, rest , execkey
-
-Examples
-```
-M117 DuetLapse3.standby # Will place the program into standby
-G4 S10
+```text
+M291 P"DuetLapse3.start" S2
 ```
 
-```
-M117 DuetLapse3.start # Will start capturing image
-G4 S10
+## Change a DuetLapse3 option
+
+M291 messages can be used to change DuetLapse3 options using the following form:
+
+```text
+M291 P"DuetLapse3.change.(variable)=(value)" S2
 ```
 
-```
-M117 DuetLapse3.change.verbose=False #  will turn of verbose output
-G4 S10
-```
-```
-M117 DuetLapse3.change.seconds=20 # Will capture an image every 20 seconds
-G4 S10
-```
-```
-M117 DuetLapse3.change.movehead=1,200 # move the print head (x=1, Y=200) if pause=yes is used
-G4 S10
+The following variables are supported:
+verbose, seconds, poll, detect, dontwait, pause, movehead, restart, novideo, keepfiles, minvideo, maxvideo, extratime, fps, rest , execkey
+
+e.g. Change -seconds to 60
+
+```text
+M291 P"DuetLapse3.change.seconds=60" S2
 ```
 
-### M117 (execkey) (command)
-This form allows an arbitrary command to be executed by the operating system.
-The character sequence specified by -execkey is used to identify the command.
+## Execute another program
 
-For example if -execkey was :do: the following message will attempt to run test.sh
+M291 messages can be used to have DuetLapse3 execute another program using the following form:
+
+```text
+M291 P"(execkey) (program to run)" S2
 ```
-M117 :do: ./test.sh "hello world"
-G4 S10
+
+The character sequence specified by -execkey is used to identify the command. For example if -execkey was `:do:` the following message will attempt to run `test.sh "hello world"`
+
+```text
+M291 P":do: ./test.sh %22hello world%22" S2
 ```
-Note: There are no additional single or double quotes used in the M117 gcode.<br>
-The command portion is presented as it would be from the command line of the relevant OS.
 
-### Test Example
+Note: Anything that needs to be quoted inside the message i.e. in the command portion, needs to be percent encoded.
 
-This example demonstrates controlling DuetLapse3 using M117 messages.
+%22 --> double quote
+%27 --> single quote
+
+## Test Example
+
+This example demonstrates controlling DuetLapse3 using M291 messages.
 It does not print anything but simulates a small print job.
-DuetLapse3. messages are both inline (in the gcode) and called inside a macro.
+DuetLapse3. Messages are both inline (in the gcode) and called inside a macro.
 
 Copy the following file to your printer job folder:
 
-[M117Test.gcode](https://github.com/stuartofmt/DuetLapse3/blob/main/Examples/M117Test.gcode)
+[M291Test.gcode](https://github.com/stuartofmt/DuetLapse3/blob/main/Examples/M291Test.gcode)
 
 and this file to the macro folder:
 
 [test_job_settings.g](https://github.com/stuartofmt/DuetLapse3/blob/main/Examples/test_job_settings.g)
 
 Optionally (Linux only) create a file **test.sh** in the DuetLapse3 directory.
-```
+
+```bash
 #!/bin/bash
 echo "-----------"
 echo "$1 $2"
 echo "----------"
+```
 
-```
 Don't forget to make the file executable:
-```
+
+```bash
 chmod + x ./test.sh
 ```
 
-Start DuetLapse3 with the following suggested options, in addition to those needed for -duet and -camera:<br>
--restart -verbose -standby -keepfiles 
+Start DuetLapse3 with the following suggested options, in addition to those needed for -duet and -camera:
+-restart -verbose -standby -keepfiles
 
-**Note**
-- [1]  The use of M117 DuetLapse3.standby early in the print job (in the macro) to prepare for capture. 
-- [2]  The use of M117 DuetLapse3.start to control when capture will start.
-- [3]  The use of M117 DuetLapse3.complated to indicate when capture will stop.
+## Note
+
+- [1]  The use of M291 P"DuetLapse3.standby" S2  early in the print job (in the macro) to prepare for capture.
+- [2]  The use of M291 P"DuetLapse3.start" S2 to control when capture will start.
+- [3]  The use of M291 P"DuetLapse3.complated" S2  to indicate when capture will stop.
 
 Placement of these options allows fine control over the timelapse.  This is especially useful if -restart is used and DuetLapse3 is running continuously.
 
-Macros can be especially useful if running DuetLapse3 continuously.<br>
+Macros can be especially useful if running DuetLapse3 continuously.
 You could (for example) having a standard set of options that are called at the end of each print job and specific macros (layer only, layer and time, time only, different -second settings etc.) for certain type of timelapse.
 Embedding these macro calls from your slicer makes easy use of this functionality.
+
+## Further Examples
+
+```text
+M291 P"DuetLapse3.standby" S2   # Will place the program into standby
+```
+
+```text
+M291 P"DuetLapse3.start" S2    # Will start capturing image
+```
+
+```text
+M291 P"DuetLapse3.change.verbose=False" S2   #  will turn of verbose output
+```
+
+```text
+M291 P"DuetLapse3.change.seconds=60" S2   # Will capture an image every 60 seconds
+```
+
+```text
+M291 P"DuetLapse3.change.movehead=1,200" S2   # move the print head (x=1, Y=200) if pause=yes is used
+```
