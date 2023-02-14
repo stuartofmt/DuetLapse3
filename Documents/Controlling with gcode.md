@@ -1,5 +1,6 @@
 # Controlling DuetLapse3 with gcode
 
+
 DuetLapse3, among other things, monitors messages generated with the gcode M291.
 Three message forms will cause the program to react.
 
