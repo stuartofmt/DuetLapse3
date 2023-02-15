@@ -1,27 +1,22 @@
-;  Example macro using DuetLapse3. style messages
+; Example Macro for setting M291 messages to control 
+; DuetLapse3
 ;
-M117 Running jobopen macro
-G4 S10
+;M117 Running test job  macro
 ;
-M117 DuetLapse3.change.verbose=True ; Turn on verbose logging
-G4 S10
+M291 P"DuetLapse3.change.verbose=True" S2 ; Turn on verbose logging
 ;
-M117 DuetLapse3.standby   ; Makes sure there is a clean set of directories. Ignored if -standby used
-G4 S10
+M291 P"DuetLapse3.standby" S2   ; Makes sure there is a clean set of directories. Ignored if -standby used
 ;
-M117 DuetLapse3.change.seconds=12
-G4 S10
+M291 P"DuetLapse3.change.seconds=25" S2
 ;
-M117 DuetLapse3.change.minvideo=1
-G4 S10
+M291 P"DuetLapse3.change.minvideo=1" S2
 ;
-M117 DuetLapse3.change.extratime=4
-G4 S10
+M291 P"DuetLapse3.change.extratime=4" S2
 ;
-M117 DuetLapse3.change.detect=none
-G4 S10
+M291 P"DuetLapse3.change.detect=layer" S2
 ;
-M117 DuetLapse3.change.dontwait=True
+M291 P"DuetLapse3.change.pause=yes" S2 ; Cannot use -pause yes with -detect pause
 ;
-M117 DuetLapse3.change.execkey=:do:
-G4 S10
+M291 P"DuetLapse3.change.execkey=:do:" S2
+;
+M291 P"DuetLapse3.change.movehead=70,70" S2

@@ -1,5 +1,6 @@
 ## User Interface
 
+
 DuetLapse has a browser based, user interface, provided through its internal http server.
 
 ### Accessing the user interface
