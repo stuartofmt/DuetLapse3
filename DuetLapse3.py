@@ -1196,7 +1196,6 @@ def checkForPause(layer):
     loopmax = 10  # sec
     loopinterval = .5  # sec
     loopcount = loopmax / loopinterval
-    print('LOOP COUNT = ' + str(loopcount))
     if pause == 'yes':  # DuetLapse is controlling when to pause
         logger.debug('Requesting pause via M25')
         sendDuetGcode(apiModel, 'M25')  # Ask for a pause
