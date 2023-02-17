@@ -22,7 +22,7 @@
 #
 """
 
-duetLapse3Version = '5.1.0'
+duetLapse3Version = '5.1.1'
 
 """
 CHANGES
@@ -31,7 +31,10 @@ CHANGES
 # Fixed calculation type error on extratime
 # rationalized timers
 # added throttle for status calls
-# changed M117 messages to M291 
+# changed M117 messages to M291
+# 5.1.1
+# Refreshes tab on regaining focus from browser
+# Changed G1 to G0 in movehead
 """
 
 """
@@ -1218,7 +1221,7 @@ def checkForPause(layer):
     if duetStatus == 'paused':
         if not movehead == [0.0, 0.0]:  # optional repositioning of head
             logger.debug('Moving print head to X{0:4.2f} Y{1:4.2f}'.format(movehead[0], movehead[1]))
-            sendDuetGcode(apiModel, 'G1 X{0:4.2f} Y{1:4.2f}'.format(movehead[0], movehead[1]))
+            sendDuetGcode(apiModel, 'G0 X{0:4.2f} Y{1:4.2f}'.format(movehead[0], movehead[1]))
             loop = 0
             while True:
                 time.sleep(loopinterval)  # wait and try again
@@ -2113,7 +2116,32 @@ class MyHandler(SimpleHTTPRequestHandler):
                         }\
                         </style>\
                         <script>\
+                        document.addEventListener("visibilitychange", function() {\
+                        if (!document.hidden){\
+                            console.log("Browser tab is visible");\
+                            location.reload();\
+                        }\
+                        });\
                         let nIntervalId;\
+                        function loadLasttab(evt) {\
+                            clearInterval(nIntervalId);\
+                            nIntervalId = undefined;\
+                            let lastTab =sessionStorage.getItem("lastTab");\
+                            console.log(lastTab);\
+                            if (lastTab == "Status") {\
+                                repeatDisplayStatus(event);\
+                            } else if (lastTab == "Controls") {\
+                                displayControls(event);\
+                            } else if (lastTab == "Video") {\
+                                displayVideo(event);\
+                            } else if (lastTab == "Files") {\
+                                displayFiles(event,\'true\');\
+                            } else if (lastTab == "Info") {\
+                                displayInfo(event);\
+                            } else {\
+                                console.log("Unknown Tab");\
+                            }\
+                        }\
                         function repeatDisplayStatus(evt){\
                             displayStatus();\
                             if (!nIntervalId) {\
@@ -2121,6 +2149,7 @@ class MyHandler(SimpleHTTPRequestHandler):
                             }\
                         }\
                         async function displayStatus(evt){\
+                            sessionStorage.setItem("lastTab", "Status");\
                             let content = document.getElementById("tab-content");\
                             const getUrl = "http://' + referer + '/?displayStatus=true";\
                             let promise = await fetch(getUrl);\
@@ -2128,6 +2157,7 @@ class MyHandler(SimpleHTTPRequestHandler):
                             content.innerHTML = result;\
                         }\
                         async function displayControls(evt){\
+                            sessionStorage.setItem("lastTab", "Controls");\
                             if (nIntervalId) {\
                                 clearInterval(nIntervalId);\
                                 nIntervalId = undefined;\
@@ -2139,6 +2169,7 @@ class MyHandler(SimpleHTTPRequestHandler):
                             content.innerHTML = result;\
                         }\
                         async function displayVideo(evt){\
+                            sessionStorage.setItem("lastTab", "Video");\
                             if (nIntervalId) {\
                                 clearInterval(nIntervalId);\
                                 nIntervalId = undefined;\
@@ -2150,6 +2181,7 @@ class MyHandler(SimpleHTTPRequestHandler):
                             content.innerHTML = result;\
                         }\
                         async function displayFiles(evt, path){\
+                            sessionStorage.setItem("lastTab", "Files");\
                             if (nIntervalId) {\
                                 clearInterval(nIntervalId);\
                                 nIntervalId = undefined;\
@@ -2161,6 +2193,7 @@ class MyHandler(SimpleHTTPRequestHandler):
                             content.innerHTML = result;\
                         }\
                         async function displayInfo(evt){\
+                            sessionStorage.setItem("lastTab", "Info");\
                             if (nIntervalId) {\
                                 clearInterval(nIntervalId);\
                                 nIntervalId = undefined;\
@@ -2184,14 +2217,14 @@ class MyHandler(SimpleHTTPRequestHandler):
                         }\
                         </script>\
                         </head>\
-                        <body onload="repeatDisplayStatus()">\
+                        <body onload="loadLasttab()">\
                         <h4>DuetLapse</h4>\
                         <div class="tab">\
-                        <button class="tablinks"onclick="repeatDisplayStatus(event)">Status</button>\
-                        <button class="tablinks"onclick="displayControls(event)">Controls</button>\
-                        <button class="tablinks"onclick="displayVideo(event)">Video</button>\
-                        <button class="tablinks"onclick="displayFiles(event,\'true\')">Files</button>\
-                        <button class="tablinks"onclick="displayInfo(event)">Info</button>\
+                        <button class="tablinks" onclick="repeatDisplayStatus(event)">Status</button>\
+                        <button class="tablinks" onclick="displayControls(event)">Controls</button>\
+                        <button class="tablinks" onclick="displayVideo(event)">Video</button>\
+                        <button class="tablinks" onclick="displayFiles(event,\'true\')">Files</button>\
+                        <button class="tablinks" onclick="displayInfo(event)">Info</button>\
                         </div>\
                         <div id="tab-content" class="tabcontent" style="width:inherit; max-height:200px; overflow-y:auto"></div>\
                         </body>\
@@ -2369,7 +2402,7 @@ class MyHandler(SimpleHTTPRequestHandler):
         """
         graceful_button =   '<td>\
                             <div class="inline">\
-                            <button class="button" style="background-color:green" onclick="fetch(\'http://' + referer + '?terminate=terminateg\'); ' + pageAction + ' alert(\'Graceful Terminate\\nWill attempt to create a video.\\nThis can take some time to complete.\');">Graceful Terminate</button>\
+                            <button class="button" style="background-color:green" onclick="fetch(\'http://' + referer + '?terminate=terminateg\'); ' + pageAction + ' alert(\'Graceful Terminate in progress.\\nWill attempt to create a video.\\nThis can take some time to complete.\');">Graceful Terminate</button>\
                             </div>\
                             </td>'
         """
@@ -2409,7 +2442,7 @@ class MyHandler(SimpleHTTPRequestHandler):
 
         forced_button =     '<td>\
                             <div class="inline">\
-                            <button class="button" style="background-color:red" onclick="fetch(\'http://' + referer + '?terminate=terminatef\'); document.body.innerHTML = \'\';  alert(\'Forced Terminate\\nA video will NOT be created.\');">Forced Terminate</button>\
+                            <button class="button" style="background-color:red" onclick="fetch(\'http://' + referer + '?terminate=terminatef\'); document.body.innerHTML = \'\';  alert(\'Forced Terminate in Progress\\nA video will NOT be created.\');">Forced Terminate</button>\
                             </div>\
                             </td>'
 

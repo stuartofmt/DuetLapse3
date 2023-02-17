@@ -34,7 +34,7 @@ G4 S5
 ;LAYER_CHANGE
 ;Z:11
 G91
-G1 Z1 ; move Z down 1mm - simulates a new layer
+G0 Z1 ; move Z down 1mm - simulates a new layer
 G90
 G4 S10
 ;
@@ -51,7 +51,7 @@ G4 S2
 ;LAYER_CHANGE
 ;Z:12
 G91
-G1 Z1 ; move Z down 1mm - simulates a new layer
+G0 Z1 ; move Z down 1mm - simulates a new layer
 G90
 G4 S10
 ;
@@ -68,7 +68,7 @@ G4 S5
 ;LAYER_CHANGE
 ;Z:13
 G91
-G1 Z1 ; move Z down 1mm - simulates a new layer
+G0 Z1 ; move Z down 1mm - simulates a new layer
 G90
 G4 S10
 ;
@@ -85,7 +85,7 @@ G4 S4
 ;LAYER_CHANGE
 ;Z:14
 G91
-G1 Z1 ; move Z down 1mm - simulates a new layer
+G0 Z1 ; move Z down 1mm - simulates a new layer
 G90
 G4 S10
 ;
@@ -102,7 +102,7 @@ G4 S5
 ;LAYER_CHANGE
 ;Z:15
 G91
-G1 Z1 ; move Z down 1mm - simulates a new layer
+G0 Z1 ; move Z down 1mm - simulates a new layer
 G90
 G4 S10
 ;
@@ -119,7 +119,7 @@ G4 S5
 ;LAYER_CHANGE
 ;Z:16
 G91
-G1 Z1 ; move Z down 1mm - simulates a new layer
+G0 Z1 ; move Z down 1mm - simulates a new layer
 G90
 G4 S10
 ;
