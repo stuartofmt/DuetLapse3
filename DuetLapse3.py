@@ -22,7 +22,7 @@
 #
 """
 
-duetLapse3Version = '5.1.1'
+duetLapse3Version = '5.1.2'
 
 """
 CHANGES
@@ -35,6 +35,8 @@ CHANGES
 # 5.1.1
 # Refreshes tab on regaining focus from browser
 # Changed G1 to G0 in movehead
+# 5.1.2
+# Process all M291 messages without delay
 """
 
 """
@@ -1568,43 +1570,53 @@ def Status():
     status = display = ''
     if apiModel == 'rr_model':
         URL = ('http://' + duet + '/rr_model?key=state')
-        r = urlCall(URL, 3, False)
-        if r.ok:
-            try:
-                j = json.loads(r.text)
-                status = j['result']['status']
-                logger.debug('Status is ' + status)
-                message = ''
-                if j['result'].get('messageBox') != None:
-                    if j['result']['messageBox'].get('message') != None:
-                        message = j['result']['messageBox']['message']
-                        seq = j['result']['messageBox']['seq']
-                if message != '':
-                    parseM291(message,seq)
-                return status, message
-            except Exception as e:
-                logger.debug('Could not get Message')
-                logger.debug(e)
+        recheckM291 = True
+        while recheckM291: #  The max queue depth is 8 so we clear as many as we can in one go
+            r = urlCall(URL, 3, False)
+            if r.ok:
+                try:
+                    j = json.loads(r.text)
+                    status = j['result']['status']
+                    logger.debug('Status is ' + status)
+                    message = ''
+                    if j['result'].get('messageBox') != None:
+                        if j['result']['messageBox'].get('message') != None:
+                            message = j['result']['messageBox']['message']
+                            seq = j['result']['messageBox']['seq']
+                    if message != '':
+                        parseM291(message,seq)
+                    else:
+                        recheckM291 = False    
+                except Exception as e:
+                    logger.debug('Could not get Status')
+                    logger.debug(e)
+
+        return status, message        
 
     elif apiModel == 'SBC':
         URL = ('http://' + duet + '/machine/status/')
-        r = urlCall(URL, 3, False)
-        if r.ok:
-            try:
-                j = json.loads(r.text)
-                status = j['state']['status']
-                logger.debug('Status is ' + status)
-                message = ''
-                if j['state'].get('messageBox') != None:
-                    if j['state']['messageBox'].get('message') != None: 
-                        message = j['state']['messageBox']['message']
-                        seq = j['state']['messageBox']['seq']
-                if message != '':
-                    parseM291(message,seq)
-                return status, message
-            except Exception as e:
-                logger.debug('Could not get Message')
-                logger.debug(e)
+        recheckM291 = True
+        while recheckM291: #  The max queue depth is 8 so we clear as many as we can in one go
+            r = urlCall(URL, 3, False)
+            if r.ok:
+                try:
+                    j = json.loads(r.text)
+                    status = j['state']['status']
+                    logger.debug('Status is ' + status)
+                    message = ''
+                    if j['state'].get('messageBox') != None:
+                        if j['state']['messageBox'].get('message') != None: 
+                            message = j['state']['messageBox']['message']
+                            seq = j['state']['messageBox']['seq']
+                    if message != '':
+                        parseM291(message,seq)
+                    else:
+                        recheckM291 = False
+                except Exception as e:
+                    logger.debug('Could not get Message')
+                    logger.debug(e)
+
+        return status, message
 
     return 'disconnected', ''
 
@@ -2139,7 +2151,8 @@ class MyHandler(SimpleHTTPRequestHandler):
                             } else if (lastTab == "Info") {\
                                 displayInfo(event);\
                             } else {\
-                                console.log("Unknown Tab");\
+                                console.log("Default Tab");\
+                                repeatDisplayStatus(event);\
                             }\
                         }\
                         function repeatDisplayStatus(evt){\
