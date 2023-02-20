@@ -1,6 +1,5 @@
 # Controlling DuetLapse3 with gcode
 
-
 DuetLapse3, among other things, monitors messages generated with the gcode M291.
 Three message forms will cause the program to react.
 
@@ -10,9 +9,11 @@ Three message forms will cause the program to react.
 
 M291 gcode messages can be embedded in the print file, placed in a macro as part of a print job, or sent from the DWC console.
 
-**Note that as a practical matter, controlling DuetLapse with M291 messages only works with a single instance of DuetLapse3 connected to a single printer.**
-
-**Note that M292 messages intended to be processed by DuetLapse3 should not be actioned by a user e.g. from DWC**
+**Note: If using M291 messages to control DuetLapse3:**
+**(1) - There should only be one instance of DuetLapse3 connected to the printer.**
+**(2) - M291 message (requiring acknowledgement) should NOT be used for other purposes.**
+**(3) - M292 messages should not be actioned by a user e.g. from DWC.**
+The constraints abaove are due to the current (Feb '23) mechanism used by the firmware for M291 messages.
 
 ## Control DuetLapse3
 
