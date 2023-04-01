@@ -21,7 +21,6 @@ Download the DuetLapse3.zip file from here - to a local directory
 
 <https://github.com/stuartofmt/DuetLapse3/raw/main/plugin/DuetLapse3.zip>
 
-
 ## 2 -- Setup the configuraton file
 
 Using DWC, go to the system directory.
