@@ -12,7 +12,9 @@ Follow the steps in the getting started guide and create a minimal configuration
 
 ## 1 -- Install DuetLapse 3
 
-Verify DuetLapse3 is installed correctly by running the following command from the installation folder.  Depending on how you have installed `python`  the command may be `py, python, or python3`
+Verify DuetLapse3 is installed correctly by running the following command from the installation folder.
+
+Depending on how you have installed `python`  the command may be `py, python, or python3`
 
 ```bash
 python ./DuetLapse3.py -h
@@ -31,7 +33,10 @@ python3 ./DuetLapse3.py -file ./DuetLapse3.config
 The console output will alert you to any issues.
 
 The user interface will be accessible by :
-<http://localhost:[port]> (e.g. `http://localhost:8081`) or <http://[ip]:[port]> (e.g. `http://192.168.1.10:8081`)
+
+<http://localhost:[port]> (e.g. `http://localhost:8081`) or
+
+ <http://[ip]:[port]> (e.g. `http://192.168.1.10:8081`)
 
 If you are running the browser on the same computer that is running DuetLapse: localhost will likely work.
 

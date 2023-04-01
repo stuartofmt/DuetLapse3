@@ -10,7 +10,8 @@ Follow the steps in the getting started guide and create a minimal configuration
 
 <https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/Getting%20Started.md>
 
-Be especially careful to use: 
+Be especially careful to use:
+
 ```text
 -basedir /opt/dsf/sd/DuetLapse3
 ```
@@ -24,9 +25,13 @@ Download the DuetLapse3.zip file from here - to a local directory
 ## 2 -- Setup the configuraton file
 
 Using DWC, go to the system directory.
+
 Using New Directory, create a directoty named `DuetLapse3` (the name and capitalization is important)
+
 Open the newly created `DuetLapse3` directory.
+
 Using New File, create a file named `DuetLapse3.config` (the name and capitalization is important)
+
 Copy the contents of your configuration into the file and Save
 
 
@@ -40,11 +45,13 @@ Keep the terminal open during installation to check for any errors.
 ## 4 -- Install DuetLapse3 plugin
 
 Using DWC, go to plugins --> EXTERNAL PLUGINS
+
 Click Install Plugin, select the DuetLapse3.zip file and follow the installation steps.
 
 ## 4 -- Start the plugin
 
 Using DWC, go to plugins --> EXTERNAL PLUGINS
+
 Click on Start for the DuetLapse3 entry
 
 The plugin should now have a status of started
