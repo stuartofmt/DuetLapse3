@@ -1,22 +1,32 @@
 # Getting Started
 
-This is a brief guide to getting started with DuetLapse3. It will provide a set of options sufficient to test for correct operation.
+This is a brief guide to undertand the configuration options sufficient to test for correct operation.
+It is strongly recommended that these steps be performed **BEFORE** installing DuetLapse3.
 
-**All these actions should be performed on the computer that has DuetLapse3 installed** This is so that any network issues are discoverd.
+DuetLapse3 can be installed as a self-contained, stand alone program (see here)
+
+<http://>
+
+or as a plugin on an SBC Duet (see instructions here):
+
+<http://>
+
+**All these actions should be performed on the computer that DuetLapse3 WILL BE installed** This is so that any network or camera connectivity issues are discovered.
 
 **Perform these steps in sequence and do not continue to the next step until everything is validated.**
 
-## 1 -- Install DuetLapse 3
+## 0 -- Ensure there are sufficient resources on your computer
 
-Verify DuetLapse3 is installed correctly by running the following command from the installation folder.  Depending on how you have installed `python`  the command may be `py, python, or python3`
+Before installing DuetLapse3 is STRONGLY RECOMENDED that:
+1 -- A minimum of 5GB of memory is available.
+For example on a Pi 3B+ this would be 1GB of RAM and 4GB Swap
+2 -- On a Pi 128MB be allocated to GPU
 
-```bash
-python ./DuetLapse3.py -h
-```
+See notes here:
 
-if there are dependencies that need to be installed, this command will identify them.
+<https://github.com/stuartofmt/Pi-Notes/blob/master/General-Setup.md>
 
-## 2 -- Identify the ip address of your printer
+## 1 -- Identify the ip address of your printer
 
 This is the ip used in the url you use to access DWC.  It should be a static IP addess i.e. does NOT change when the printer restarts.  This ip address is used in the -duet option.
 
@@ -24,6 +34,16 @@ This is the ip used in the url you use to access DWC.  It should be a static IP 
 
 ```text
 -duet 192.168.1.30
+```
+
+## 2 - Know your computers ip address and select an unused port
+
+Know the ip address of the computer running DuetLapse3 and select an unused port number.  A port number greater then 8080 is suggested,  e.g. 8084.  This port number cannot be used by any other process on your computer.
+
+**Example option settings**
+
+```text
+-port 8084
 ```
 
 ## 3 -- Prove that your camera is working
@@ -123,50 +143,45 @@ At this time(start 2023), the recommended approach is to use streaming software 
 -camera1 stream
 ```
 
-## 4 - Know your computers ip address and select an unused port
+## 4 - setting -basedir
 
-Know the ip address of the computer running DuetLapse3 and select an unused port number.  A port number greater then 8080 is suggested,  e.g. 8084.  This port number cannot be used by any other process on your computer.
+The -basedir option determines where the working files for DuetLapse will be placed.
 
-**Example option settings**
+For initial testing the following are STRONGLY recommended:
+
+1. For standalone, use the same directory where DuetLapse3 will be installed. i.e. use a period.
 
 ```text
--port 8084
+-basedir .
+```
+
+2. For SBC, it is especially important that -basedir IS NOT in the same directory as DuetLapse3 as this can cause issues when installing / uninstalling.  The following entry is recomended:
+
+```text
+-basedir /opt/dsf/sd/DuetLapse3
 ```
 
 ## 5 - Create a configuration file
 
-From the results of sections 1 - 4 above, create a configuration file in the same folder as DuetLapse3. The configuration file can have any name e.g. DuetLapse3.config.  Additional options given in this example are for initial testing and can be modified according to your needs.
+From the results of sections 1 - 4 above, create a configuration file by substituting your values into the example below.
+Additional options given in this example are for initial testing and can be modified according to your needs.
 
 **Example configuration file for streaming camera**
 
 ```text
--duet 
--port
--camera1
--weburl1
+-duet 192.168.1.30
+-port 8084
+-basedir /opt/dsf/sd/DuetLapse3
+-camera1 stream
+-weburl1 http://camera-url
 -seconds 20
--dontwait
 -verbose
 -keepfiles
+-restart
 ```
 
 ## 5 - Run DuetLapse3
 
 Test Duetlapse 3 using the configuration file created in step 4.
 
-The options provided in the example will cause DuetLapse to capture images once every 15 seconds and DOES NOT require a print job to be running.
-
-**Example**
-
-```bash
-python ./DuetLapse3.py -file ./DuetLapse3.config
-```
-
-The console output will alert you to any issues.
-
-The user interface will be accessible by :
-<http://localhost:[port]> (e.g. `http://localhost:8081`) or <http://[ip]:[port]> (e.g. `http://192.168.1.10:8081`)
-
-If you are running the browser on the same computer that is running DuetLapse: localhost will likely work.
-
-If the browser is running on a remote computer then `[ip]` is the address of the computer that is running DuetLapse
+The options provided in the example will cause DuetLapse to capture images once every 20 seconds and DOES NOT require a print job to be running.

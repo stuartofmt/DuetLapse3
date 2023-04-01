@@ -113,7 +113,7 @@ Start DuetLapse3 with the following suggested options, in addition to those need
 
 - [1]  The use of M291 P"DuetLapse3.standby" S2  early in the print job (in the macro) to prepare for capture.
 - [2]  The use of M291 P"DuetLapse3.start" S2 to control when capture will start.
-- [3]  The use of M291 P"DuetLapse3.complated" S2  to indicate when capture will stop.
+- [3]  **The use of M291 P"DuetLapse3.complated" S2  to indicate when capture will stop.**
 
 Placement of these options allows fine control over the timelapse.  This is especially useful if -restart is used and DuetLapse3 is running continuously.
 
@@ -140,5 +140,5 @@ M291 P"DuetLapse3.change.seconds=60" S2   # Will capture an image every 60 secon
 ```
 
 ```text
-M291 P"DuetLapse3.change.movehead=1,200" S2   # move the print head (x=1, Y=200) if pause=yes is used
+M291 P"DuetLapse3.change.movehead=1,200" S2   # move the print head to (x=1, Y=200) if pause=yes is used
 ```
