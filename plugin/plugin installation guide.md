@@ -17,7 +17,9 @@ Be especially careful to use:
 
 ## 1 -- Download the plugin
 
-Download the DuetLapse3.zip file to a local directory
+Download the DuetLapse3.zip file from here - to a local directory
+
+<https://github.com/stuartofmt/DuetLapse3/raw/main/plugin/DuetLapse3.zip>
 
 ## 2 -- Setup the configuraton file
 
