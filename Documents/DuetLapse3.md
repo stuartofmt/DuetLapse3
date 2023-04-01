@@ -247,8 +247,8 @@ If omitted - the default is False
 **example**
 
 ```text
--dontwait    #Images will be captured immediately (without first waiting for a
-             # layer change) if -seconds > 0.
+-dontwait    #Images will be captured immediately (without first waiting for a layer change)
+             # if -seconds > 0.
              #Otherise images will first start being captured on the first
              #layer change or pause (see -detect).
              # The -pause option is not used untill the first layer is printed
@@ -260,12 +260,13 @@ ___
 
 #### -seconds [seconds]
 
-If omitted the default is 0 seconds (i.e. ignored). Can be any positive number greater then or equal to 12.
+If omitted the default is 0 seconds (i.e. ignored). Can be any positive number greater then or equal to 20.
+The number of seconds is adjusted in the program to be a multiple of the default polling interval. 
 
 **example**
 
 ```text
--seconds 20  #Images will be captures at least every 20 seconds
+-seconds 40  #Images will be captures approximately every 40 seconds
 ```
 
 ***Note:** If used with -pause be careful not to set -seconds too low.  Doing this can lead to a lot of non-printing head repositioning which can result in poor print quality.* 
@@ -309,8 +310,10 @@ The print job can be manually paused / resumed in the normal manner.
 ***Notes on the use of -pause yes**
 DuetLapse3 will pause the printer each time an image is to be captured.
 The head position during pauses is controlled by the pause.g macro on the duet,
-and by specifying "-movehead Xposition Yposition". If both are specified pause.g will run first then -movehead will reposition the heads. **You may want to edit pause.g to remove the head park gcode (see example below).**
+and by specifying "-movehead Xposition Yposition". If both are specified pause.g will run first then -movehead will reposition the heads. **You may want to edit pause.g to remove the head park gcode (see example below) if you want to use movehead**
 If you use -detect layer as well, be careful with prints that have areas with quick layer changes as frequent pauses can cause poor print quality.*
+
+**See also -rest**
 
 Example pause.g
 
@@ -351,7 +354,7 @@ ___
 #### -rest [seconds]
 
 If omitted the default is 1 second. Can be 0 or any positive number.
-Delays image capture after a pause to allow for any latency (e.g. web camera) where the feed is delayed relative to the actual position of the print head. if -rest is too short, the print head may not appear to be stationary in the video.
+Delays image capture after a pause to allow the image source (e.g. web camera) to "catch up". There is usually some delay in image availability relative to the actual position of the print head. if -rest is too short, the print head may not appear to be stationary (or in the correct position) in the video.
 
 **example**
 
