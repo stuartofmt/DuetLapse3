@@ -5,11 +5,11 @@ It is strongly recommended that these steps be performed **BEFORE** installing D
 
 DuetLapse3 can be installed as a self-contained, stand alone program (see here)
 
-<http://>
+https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/Standalone%20quick%20installation%20guide.md
 
 or as a plugin on an SBC Duet (see instructions here):
 
-<http://>
+https://github.com/stuartofmt/DuetLapse3/blob/main/plugin/plugin%20installation%20guide.md
 
 **All these actions should be performed on the computer that DuetLapse3 WILL BE installed** This is so that any network or camera connectivity issues are discovered.
 
