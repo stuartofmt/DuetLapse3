@@ -1,6 +1,7 @@
 # Getting Started
 
 This is a brief guide to undertand the configuration options sufficient to test for correct operation.
+
 It is strongly recommended that these steps be performed **BEFORE** installing DuetLapse3.
 
 DuetLapse3 can be installed as a self-contained, stand alone program (see here)
@@ -11,15 +12,20 @@ or as a plugin on an SBC Duet (see instructions here):
 
 https://github.com/stuartofmt/DuetLapse3/blob/main/plugin/plugin%20installation%20guide.md
 
-**All these actions should be performed on the computer that DuetLapse3 WILL BE installed** This is so that any network or camera connectivity issues are discovered.
+**All these actions should be performed on the computer that DuetLapse3 WILL BE installed**
+
+This is so that any network or camera connectivity issues are discovered.
 
 **Perform these steps in sequence and do not continue to the next step until everything is validated.**
 
 ## 0 -- Ensure there are sufficient resources on your computer
 
 Before installing DuetLapse3 is STRONGLY RECOMENDED that:
+
 1 -- A minimum of 5GB of memory is available.
+
 For example on a Pi 3B+ this would be 1GB of RAM and 4GB Swap
+
 2 -- On a Pi 128MB be allocated to GPU
 
 See notes here:
@@ -38,7 +44,11 @@ This is the ip used in the url you use to access DWC.  It should be a static IP 
 
 ## 2 - Know your computers ip address and select an unused port
 
-Know the ip address of the computer running DuetLapse3 and select an unused port number.  A port number greater then 8080 is suggested,  e.g. 8084.  This port number cannot be used by any other process on your computer.
+Know the ip address of the computer running DuetLapse3 and select an unused port number.
+
+A port number greater then 8080 is suggested,  e.g. 8084.
+
+This port number cannot be used by any other process on your computer.
 
 **Example option settings**
 
@@ -51,8 +61,11 @@ Know the ip address of the computer running DuetLapse3 and select an unused port
 Broadly, there are four types of camera commonly used with DuetLapse3
 
 - A camera that delivers still images via a url
+
 - A camera that steams video via a url
+
 - A USB camera
+
 - A Pi camera connected to a Raspberry Pi via a ribbon cable.
 
 Depending on your type of cammera, verify that it is working correctly and is accessible to the computer that will run DuetLapse3, by following the applicable steps below.
@@ -60,6 +73,7 @@ Depending on your type of cammera, verify that it is working correctly and is ac
 ### Still image camera
 
 DuetLapse3 uses `wget` to access still image cameras.
+
 ** Note:  If your software also streams images, then using the streaming function will usually be preferable.
 
 Verify that it is installed correctly by running the following command.
@@ -87,13 +101,19 @@ wget --auth-no-challenge -nv -O ./test.jpeg http://camera-url
 
 ### Streaming camera
 
-DuetLapse3 uses `ffmpeg` to access streamed cameras.  Verify that it is installed correctly by running the following command.
+DuetLapse3 uses `ffmpeg` to access streamed cameras.
+
+Verify that it is installed correctly by running the following command.
 
 ```bash
 ffmpeg -version
 ```
 
-Consult your camera setup instructions to determine the url for accessing the camera.  Typically, this will involve some third party software e.g. [videostream](https://github.com/stuartofmt/videostream)
+Consult your camera setup instructions to determine the url for accessing the camera.
+
+Typically, this will involve some third party software
+
+e.g. [videostream](https://github.com/stuartofmt/videostream)
 
 Verify that using `http://camera-url` (in a browser on the same machine that is running DuetLapse) displays a video.
 
@@ -112,7 +132,9 @@ ffmpeg -y -i http://camera-url -vframes 1 ./test.jpeg
 
 ### USB camera
 
-DuetLapse3 uses `fswebcam` to access USB cameras.  Verify that it is installed correctly by running the following command.
+DuetLapse3 uses `fswebcam` to access USB cameras.
+
+Verify that it is installed correctly by running the following command.
 
 ```bash
 fswebcam --version
@@ -134,7 +156,9 @@ fswebcam --quiet --no-banner ./test.jpeg
 
 For a directly connected (ribbon cable) Pi camera, there are several possible approaches.  The standard software used for the Pi camera changed with the Debian Bullseye release. Follow the instructions for setting up and testing the pi camera according to the level of your operating system.
 
-At this time(start 2023), the recommended approach is to use streaming software stream. [videostream](https://github.com/stuartofmt/videostream) with the -size 2 option works as a good starting point.  
+At this time(start 2023), the recommended approach is to use streaming software stream.
+
+[videostream](https://github.com/stuartofmt/videostream) with the -size 5 option works as a good starting point.  
 
 **Example option settings**
 
@@ -155,7 +179,9 @@ For initial testing the following are STRONGLY recommended:
 -basedir .
 ```
 
-2. For SBC, it is especially important that -basedir IS NOT in the same directory as DuetLapse3 as this can cause issues when installing / uninstalling.  The following entry is recomended:
+2. For SBC, it is especially important that -basedir IS NOT in the same directory as DuetLapse3 as this can cause issues when installing / uninstalling.
+
+The following entry is recomended:
 
 ```text
 -basedir /opt/dsf/sd/DuetLapse3
@@ -164,6 +190,7 @@ For initial testing the following are STRONGLY recommended:
 ## 5 - Create a configuration file
 
 From the results of sections 1 - 4 above, create a configuration file by substituting your values into the example below.
+
 Additional options given in this example are for initial testing and can be modified according to your needs.
 
 **Example configuration file for streaming camera**
