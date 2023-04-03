@@ -44,7 +44,13 @@ This is the ip used in the url you use to access DWC.  It should be a static IP 
 
 ## 2 - Know your computers ip address and select an unused port
 
-Know the ip address of the computer running DuetLapse3 and select an unused port number.
+Select an unused port number.
+
+Current, in use port numbers can usually be discoved with this conmand
+
+```bash
+sudo ss -tulw | grep -i listen
+```
 
 A port number greater then 8080 is suggested,  e.g. 8084.
 
