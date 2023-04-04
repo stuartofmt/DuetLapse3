@@ -4,13 +4,13 @@ This is a brief guide to undertand the configuration options sufficient to test 
 
 It is strongly recommended that these steps be performed **BEFORE** installing DuetLapse3.
 
-DuetLapse3 can be installed as a self-contained, stand alone program (see here)
+DuetLapse3 can be installed as a self-contained, stand alone program (see instructions here)
 
-https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/Standalone%20quick%20installation%20guide.md
+<https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/Standalone%20quick%20installation%20guide.md>
 
 or as a plugin on an SBC Duet (see instructions here):
 
-https://github.com/stuartofmt/DuetLapse3/blob/main/plugin/plugin%20installation%20guide.md
+<https://github.com/stuartofmt/DuetLapse3/blob/main/plugin/plugin%20installation%20guide.md>
 
 **All these actions should be performed on the computer that DuetLapse3 WILL BE installed**
 
@@ -213,8 +213,8 @@ Additional options given in this example are for initial testing and can be modi
 -restart
 ```
 
-## 5 - Run DuetLapse3
+## 6 - Run DuetLapse3
 
-Test Duetlapse 3 using the configuration file created in step 4.
+Test Duetlapse3 using the configuration file created in step 5.
 
-The options provided in the example will cause DuetLapse to capture images once every 20 seconds and DOES NOT require a print job to be running.
+The options provided in the example will cause DuetLapse3 to capture images once every 20 seconds and DOES NOT require a print job to be running.
