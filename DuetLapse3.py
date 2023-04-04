@@ -22,7 +22,7 @@
 #
 """
 
-duetLapse3Version = '5.2.0'
+duetLapse3Version = '5.2.1'
 
 """
 CHANGES
@@ -40,6 +40,8 @@ CHANGES
 # Refactored loop control to prevent thread blocking
 # Prevent first layer capture if -pause yes
 # Added -password
+# 5.2.1
+# Changed nackground tab color - better for dark theme
 """
 
 """
@@ -2186,6 +2188,7 @@ class MyHandler(SimpleHTTPRequestHandler):
                         .tabcontent{\
                         padding:6px 12px;\
                         border:1px solid #ccc;\
+                        background-color:lightblue;\
                         border-top:none;\
                         font-size:12px;\
                         }\
