@@ -34,8 +34,8 @@ Using New File, create a file named `DuetLapse3.config` (the name and capitaliza
 
 Copy the contents of your configuration into the file and Save
 
-
 ## 3 -- (optional but recommended) monitor the installation process
+
 Open a terminal on the SBC and enter this command.
 
 `sudo journalctl -b -o cat --no-pager -f | grep DuetLapse3`

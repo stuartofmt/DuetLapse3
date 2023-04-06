@@ -235,7 +235,7 @@ If omitted - the default is False
              # if -seconds > 0.
              #Otherise images will first start being captured on the first
              #layer change or pause (see -detect).
-             # The -pause option is not used untill the first layer is printed
+             # The -pause option is not be used until the first layer is printed
 ```
 
 ***Note:** If -pause yes is used with dontwait, the program will capture images (based on -seconds) before printing starts.
