@@ -36,6 +36,12 @@ See notes here:
 
 This is the ip used in the url you use to access DWC.  It should be a static IP addess i.e. does NOT change when the printer restarts.  This ip address is used in the -duet option.
 
+On linux this can usually be determined with:
+
+```text
+hostname -I 
+```
+
 **Example option setting**
 
 ```text
