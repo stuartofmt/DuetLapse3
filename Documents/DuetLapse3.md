@@ -478,15 +478,17 @@ ___
 
 #### -vidparam1="[command]"
 
-If omitted has no default. Defines an alternate video capture command.  If provided - is used instead of the standard capture command.
+If omitted has no default. Defines an alternate video capture command.  If provided - it is used instead of the standard capture command.
 
-***Note the use of = and quoting of the command string.**  Single quotes should be used in the command string when needed.
-There are 3 internal variables that can be used basedir (has the same meaning as -basedir), cameraname (is the literal "Camera1"), extratime (is the value of -extratime), fn (which is the output file for -camera1) , debug (which controls verbose logging)*
+***Note the use of quoting of the command string.**  Single quotes should be used in the command string when needed.
+There are 3 internal variables that MUST BE USED  Do not substitute actual values for these. basedir (has the same meaning as -basedir), cameraname signifies the first camera, tmpfn (which is the temporary output file) and optionally, debug (which controls verbose logging).
+
+In the following example, the elements that you would change are:  **-r 10** and **-vcodec libx264 -y**  the rest would be used without change.
 
 **example**
 
 ```text
--vidparam1="'ffmpeg -r 1 -i '+basedir+'/'+duetname+'/tmp/'+cameraname+'-%08d.jpeg -c:v libx264 -vf tpad=stop_mode=clone:stop_duration='+extratime+',fps=10 '+fn+debug"
+-vidparam1="'ffmpeg -r 10 -i '+basedir+'/'+duetname+'/tmp/'+cameraname+'-%08d.jpeg -vcodec libx264 -y'+tmpfn+debug"
 ```
 
 This example is the same as the standard video creation.

@@ -2138,7 +2138,7 @@ class MyHandler(SimpleHTTPRequestHandler):
                     </div>\
                     <div class="column">'
         if lastImage != '':
-            status += '<p><img src=' + lastImage + ' alt="No image available" width="400"></p>'
+            status += '<p><a href=' + lastImage + ' target="_blank"> <img src=' + lastImage + ' alt="No image available" width="400""></a></p>'
         else:
             status += 'Waiting for first image to be captured'
 
@@ -2342,6 +2342,9 @@ class MyHandler(SimpleHTTPRequestHandler):
                             let promise = await fetch(getUrl);\
                             let result = await promise.text();\
                             content.innerHTML = result;\
+                        }\
+                        function imgTab(evt, src){\
+                            window.open(src);\
                         }\
                         </script>\
                         </head>\
