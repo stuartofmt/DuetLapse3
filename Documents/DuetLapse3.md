@@ -1,4 +1,4 @@
-# DuetLapse3
+# DuetLapse3 Options
 
 ## Overview
 
