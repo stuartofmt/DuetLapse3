@@ -1,4 +1,4 @@
-# DuetLapse3
+# DuetLapse3 Options
 
 ## Overview
 
@@ -481,9 +481,19 @@ ___
 If omitted has no default. Defines an alternate video capture command.  If provided - it is used instead of the standard capture command.
 
 ***Note the use of quoting of the command string.**  Single quotes should be used in the command string when needed.
-There are 3 internal variables that MUST BE USED  Do not substitute actual values for these. basedir (has the same meaning as -basedir), cameraname signifies the first camera, tmpfn (which is the temporary output file) and optionally, debug (which controls verbose logging).
+There are 3 placeholder variables that MUST BE USED  **Do not substitute actual values for these.**
 
-In the following example, the elements that you would change are:  **-r 10** and **-vcodec libx264 -y**  the rest would be used without change.
+basedir (has the same meaning as -basedir),
+
+cameraname signifies the first camera,
+
+tmpfn (which is the temporary output file) and optionally,
+
+debug (which controls verbose logging).
+
+In the following example (which uses ffmpeg) , the elements that you would change are:  **-r 10** and **-vcodec libx264 -y**  the rest would be used without change.
+
+You can use another video creation application if you wish.
 
 **example**
 

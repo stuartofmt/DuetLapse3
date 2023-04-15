@@ -86,7 +86,7 @@ Depending on your type of cammera, verify that it is working correctly and is ac
 
 DuetLapse3 uses `wget` to access still image cameras.
 
-** Note:  If your software also streams images, then using the streaming function will usually be preferable.
+**Note:  If your software also streams images, then using the streaming function will usually be preferable.**
 
 Verify that it is installed correctly by running the following command.
 
@@ -95,6 +95,8 @@ wget --version
 ```
 
 Consult your camera setup instructions to determine the url for accessing the camera.
+
+**In these instructions `http://camera-url` is a placeholder and needs to be changed to the actual url to your camera**
 
 Verify that using `http://camera-url` (in a browser on the same machine that is running DuetLapse) displays an image.
 

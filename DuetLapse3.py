@@ -45,7 +45,7 @@ CHANGES
 # 5.2.2
 # Fixed bug in -pause layer detection
 # Added wait loop before restart to ensure previous job had finished
-# a timing thing dependent on when "Complete" sent and finish gcode
+# fixed a timing thing dependent on when "Complete" sent from finish gcode
 """
 
 """
