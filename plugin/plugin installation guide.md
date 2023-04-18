@@ -2,6 +2,8 @@
 
 This is a brief guide to installing DuetLapse3 plugin for SBC.
 
+There plugin may rely on specific versions os DSF.  Select and install from the appropriate folder.
+
 **All the actions in the getting started guide should be performed on the SBC BEFORE proceeding.**
 
 ## 0 -- Create a configuration File
@@ -18,9 +20,7 @@ Be especially careful to use:
 
 ## 1 -- Download the plugin
 
-Download the DuetLapse3.zip file from here - to a local directory
-
-<https://github.com/stuartofmt/DuetLapse3/raw/main/plugin/DuetLapse3.zip>
+Download the DuetLapse3.zip file from the folder applicable to your version of DSF
 
 ## 2 -- Setup the configuraton file
 
