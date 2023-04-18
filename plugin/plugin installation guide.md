@@ -2,7 +2,7 @@
 
 This is a brief guide to installing DuetLapse3 plugin for SBC.
 
-There plugin may rely on specific versions os DSF.  Select and install from the appropriate folder.
+The plugin may rely on specific versions os DSF.  Select and install from the appropriate folder.
 
 **All the actions in the getting started guide should be performed on the SBC BEFORE proceeding.**
 
