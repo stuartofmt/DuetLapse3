@@ -22,7 +22,7 @@
 #
 """
 
-duetLapse3Version = '5.2.0'
+duetLapse3Version = '5.2.2'
 
 """
 CHANGES
@@ -40,6 +40,12 @@ CHANGES
 # Refactored loop control to prevent thread blocking
 # Prevent first layer capture if -pause yes
 # Added -password
+# 5.2.1
+# Changed background tab color - better for dark theme
+# 5.2.2
+# Fixed bug in -pause layer detection
+# Added wait loop before restart to ensure previous job had finished
+# fixed a timing thing dependent on when "Complete" sent from finish gcode
 """
 
 """
@@ -1079,12 +1085,17 @@ def renameworkingDir(thisDir):
     if connectionState is False or jobname == '':
         logger.debug('jobname was not available')
         return thisDir
-
+    #  Create a safe form of jobname
     _, jobname = os.path.split(jobname)  # get the filename less any path
     jobname = jobname.replace(' ', '_')  # prevents quoting of file names
     jobname = jobname.replace('.gcode', '')  # get rid of the extension
     jobname = jobname.replace(':', '_')  # replace any colons because Win does not like
-    
+    jobname = jobname.replace('(', '_')  # replace any ( because ffmpeg does not like    
+    jobname = jobname.replace(')', '_')  # replace any ) because ffmpeg does not like
+    jobname = jobname.replace('__', '_')  # replace and ugly double _ with single _
+    if jobname.endswith('_'):
+        jobname = jobname[:-1]           # get rid of the last character
+
     if thisDir.endswith(jobname): # No change
         workingDirStatus = 1
         return thisDir
@@ -1211,7 +1222,7 @@ def checkForPause(layer):
     # Before or After layer change
     # As well as timed during print start-up
 
-    if (layer < 3):  # Do not try to pause
+    if (layer < 1):  # Do not try to pause
         return
     
     duetStatus, _ = getDuet('Status from Check for Pause', Status)
@@ -1366,8 +1377,9 @@ def onePhoto(cameraname, camera, weburl, camparam):
             timePriorPhoto2 = time.time()
             return
 
-def oneInterval(cameraname, camera, weburl, camparam):
+def oneInterval(cameraname, camera, weburl, camparam, finalframe = False):
     if connectionState is False:
+        logger.debug('Bypassing oneInterval because of connectionState')
         return
     global frame1, frame2
     global timePriorPhoto1, timePriorPhoto2
@@ -1388,8 +1400,8 @@ def oneInterval(cameraname, camera, weburl, camparam):
     else:
         layer = str(zn)
 
-    if pause == 'yes' and zn < 3:  #Dont capture anything until first 2 layers are done
-        pass
+    if pause == 'yes' and zn < 1:  #Dont capture anything until first layers is done
+        logger.debug('Bypassing onePhoto from oneInterval because -pause = ' + pause + ' and layer = ' +str(zn))
     else:    
         if 'layer' in detect:
             if (not zn == zo1 and cameraname == 'Camera1') or (not zn == zo2 and cameraname == 'Camera2'):
@@ -1402,6 +1414,12 @@ def oneInterval(cameraname, camera, weburl, camparam):
             checkForPause(zn)
             logger.info('Pause - ' + cameraname + ': capturing frame ' + str(frame) + ' at layer ' + layer + ' at pause in print gcode')
             onePhoto(cameraname, camera, weburl, camparam)
+        elif finalframe:
+            # get a final frame
+            checkForPause(zn)
+            logger.info('finalframe - ' + cameraname + ': capturing frame ' + str(frame) + ' at layer ' + layer + ' after layer change')
+            onePhoto(cameraname, camera, weburl, camparam)
+
 
     # update the layer counter
     if cameraname == 'Camera1':
@@ -1711,6 +1729,7 @@ def Layer():
                 layer = j['result']
                 if layer is None:
                     layer = -1
+                logger.debug('Current Layer is ' + str(layer))
                 return layer
             except Exception as e:
                 logger.debug('Could not get Layer Info')
@@ -1725,6 +1744,7 @@ def Layer():
                 layer = j['job']['layer']
                 if layer is None:
                     layer = -1
+                logger.debug('Current Layer is ' + str(layer))    
                 return layer
             except Exception as e:
                 logger.debug('Could not get Layer Info')
@@ -1790,14 +1810,14 @@ def makeVideo(directory, xtratime = False):  #  Adds and extra frame
 
         if xtratime and extratime >= 1: #  Do not add images if called from snapshot or video
             logger.debug('For Camera1')
-            oneInterval('Camera1', camera1, weburl1, camparam1)  # For Camera 1
+            oneInterval('Camera1', camera1, weburl1, camparam1, True)  # For Camera 1
             ## if extratime != 0 and frame1/fps > minvideo:
             if frame1 > 0:
                 frame1 = copyLastFrame(camfile1, frame1)
 
             if camera2 != '':   #  Camera 2
                 logger.debug('For Camera2')
-                oneInterval('Camera2', camera2, weburl2, camparam2)
+                oneInterval('Camera2', camera2, weburl2, camparam2, True)
                 ## if extratime != 0 and frame2/fps > minvideo:
                 if frame2 > 0:
                     frame2 = copyLastFrame(camfile2, frame2)
@@ -1857,11 +1877,24 @@ def terminate():
     cleanupFiles('terminate')
 
     if restart:
-        setdebug(verbose)
-        restarting = True
+        # wait for jobname to be reset
+        jobname = getDuet('Jobname from terminate', Jobname)
+        loopcounter = 0
+        if jobname != '':
+            logger.info('Waiting for printjob to complete')
+        while jobname !='' and loopcounter < 30:  # Don't wait more than a minute
+            time.sleep(2)
+            loopcounter += 1
+            jobname = getDuet('Jobname from terminate', Jobname)
+        if loopcounter >= 30:
+            logger.info('jobname was not reset')
+        # ready to restart
+        setdebug(verbose)        
+        restarting = True    
         logger.info('----------')
-        logger.info('RESTARTING\n\n')
+        logger.info('RESTARTING')
         logger.info('----------')
+
         terminateState = -1
         restartAction()
     else:
@@ -1869,16 +1902,13 @@ def terminate():
         waitformainLoop()
         closeHttpListener()
         logger.info('Program Terminated')
-        os.kill(int(pid), 9)
+        os.kill(os.getpid(), signal.SIGTERM)  # Brutal but effective
 
 def quit_forcibly(*args):
     global restart 
     restart = False
     logger.info('!!!!! Forced Termination !!!!!')
     os.kill(os.getpid(), signal.SIGTERM)  # Brutal but effective
-    ## os._exit(1)
-    ## terminateThread() 
-
 
 ###########################
 # Integral Web Server
@@ -2108,7 +2138,7 @@ class MyHandler(SimpleHTTPRequestHandler):
                     </div>\
                     <div class="column">'
         if lastImage != '':
-            status += '<p><img src=' + lastImage + ' alt="No image available" width="400"></p>'
+            status += '<p><a href=' + lastImage + ' target="_blank"> <img src=' + lastImage + ' alt="No image available" width="400""></a></p>'
         else:
             status += 'Waiting for first image to be captured'
 
@@ -2186,6 +2216,7 @@ class MyHandler(SimpleHTTPRequestHandler):
                         .tabcontent{\
                         padding:6px 12px;\
                         border:1px solid #ccc;\
+                        background-color:lightblue;\
                         border-top:none;\
                         font-size:12px;\
                         }\
@@ -2311,6 +2342,9 @@ class MyHandler(SimpleHTTPRequestHandler):
                             let promise = await fetch(getUrl);\
                             let result = await promise.text();\
                             content.innerHTML = result;\
+                        }\
+                        function imgTab(evt, src){\
+                            window.open(src);\
                         }\
                         </script>\
                         </head>\

@@ -1,4 +1,4 @@
-# DuetLapse3
+# DuetLapse3 Options
 
 ## Overview
 
@@ -18,51 +18,33 @@ Feedback via issues on Duet forum <https://forum.duet3d.com/topic/20932/duetlaps
 ## Requirements
 
 - Python3  V3.7 or greater
-- Duet printer must be RRF V3 or later (i.e. support either the  rr_model or /machine calls)
-  The following instructions may help <https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/ffmpeg.md>
+- As standalone Duet printer must be RRF V3 or later (i.e. support either the  rr_model or /machine calls)
+- As plugin Duet printer must be RRF V3.4 or later (i.e. /machine calls)
 - Python dependencies that are missing will be called out by the program
-- Duet printer must be reachable via network
-- Depending on camera type, one or more of the following may be required:
-  - fswebcam (for USB cameras that provide still images)
-  - raspistill or libcamera-still (for Pi cam or Ardu cam)
-  - wget (for Web cameras)
+- Duet printer must be reachable via the network
+- Depending on camera type, one or more programs may need to be available on your computer.
 
-## Installation
-
-For Linux:
-
-- mkdir DuetLapse  - or other directory of your choice
-- cd DuetLapse
-- wget <https://github.com/stuartofmt/DuetLapse3/raw/main/DuetLapse3.py>
-- chmod 744 DuetLapse3.py
-
-For windows:
-Follow the instructions from one of the web sources - for example:
-<https://docs.python.org/3/using/windows.html>
-
-***Note:** Make sure to edit the path variable(s) so that python3 and /libraries/modules can be found.*
-  
 ## Usage
 
-The python program can be started from the command line, from the companion program startDuetLapse3 or using operating system utilities (such as systemctl).  Although there are defaults for many of the options - it's unlikely that the program will do exactly what you want with just the defaults.
-Options can be specified on the command line, in a configuration file ( see -file below) or using a combination.  If both a configuration file is used and command line options are provided, the command line options that duplicate those in the configration file take precidence.
+Although there are defaults for many of the options - it's unlikely that the program will do exactly what you want.
+
+Options can be specified on the command line, in a configuration file ( see -file below) or using a combination.  If both a configuration file is used and command line options are provided, the configration file take precidence over any duplicate entries.
 
 Examples of command line options are shown here:
 
-The program will usually be started just before you starting a printing - but this is not critical.  Depending on options (e.g. dontwait) it will either immediately start creating still images or wait until the printer changes status from "Idle" to "Processing".
+<https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/DuetLapse3%20Useage%20Examples.md>
+
+The program will usually be started just before you starting printing job - but this is not critical.  Depending on options (e.g. dontwait) it will either immediately start creating still images or wait until the printer starts printing.
+
 At the end of the print job the program combines the still images into a mp4 video to create the time-lapse.
-If the program is run in foreground it can be stopped at any time, using CTRL+C (on linux) or CTRL+Break(on Windows). The best approach, when running on linux, is to use systemctl.
 
 ### Controlling DuetLapse3
 
-There are three ways to control DuetLapse.  All three require that its integrated http server is activated by using the -port option (see below).  THIS IS HIGHLY RECOMMENDED.
-The three ways are:
+There are three ways to control DuetLapse.  All three require that its integrated http server is activated by using the -port option (see below).  THIS IS HIGHLY RECOMMENDED. The three ways are:
 
 1) Browser based UI
 2) Sending http messages e.g. froma browser or using curl
-3) From a gcode print using a specific form of M117 messages
-
-***Note:*** *The http server will stop responding if DuetLapse3 is run from a command console that is then closed.
+3) From a gcode print (or DWC UI) using a specific form of M291 messages
 
 #### Browser based UI
 
@@ -81,23 +63,25 @@ DuetLapse3 can be controlled directly from gcode using M117 messages
 
 [Controlling with gcode.md](https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/Controlling%20with%20gcode.md)
 
-### Options
+## Options
 
-Options can be viewed with
+DuetLapse3 has many options that control its behavior.  Each option is preceded by a dash -
+
+Some options have parameters described in square brackets. The square brackets are NOT used in entering the options. If an option is not specified the default is used.
+
+Comments in the example (preceded by #) must not be included in the command line or configuration file.
+
+Options can be viewed in the UI on the "Info" tab or from a console using:
 
 ```bash
 python3 DuetLapse3.py -h
 ```
 
-The response will give the version number at the top.
-
-The options are described here.  Each option is preceded by a dash -. Some options have parameters described in the square brackets. The square brackets are NOT used in entering the options. If an option is not specified the default is used.
-
 ___
 
 #### -file [filename]
 
-Optional (but highly recommended).  A text file with one option per line.
+Optional (but highly recommended).  A configuration file (text format) with one option per line.  The path to the configuration file (relative or absolute) must be given.
   
 **example**
 
@@ -251,7 +235,7 @@ If omitted - the default is False
              # if -seconds > 0.
              #Otherise images will first start being captured on the first
              #layer change or pause (see -detect).
-             # The -pause option is not used untill the first layer is printed
+             # The -pause option is not be used until the first layer is printed
 ```
 
 ***Note:** If -pause yes is used with dontwait, the program will capture images (based on -seconds) before printing starts.
@@ -494,15 +478,27 @@ ___
 
 #### -vidparam1="[command]"
 
-If omitted has no default. Defines an alternate video capture command.  If provided - is used instead of the standard capture command.
+If omitted has no default. Defines an alternate video capture command.  If provided - it is used instead of the standard capture command.
 
-***Note the use of = and quoting of the command string.**  Single quotes should be used in the command string when needed.
-There are 3 internal variables that can be used basedir (has the same meaning as -basedir), cameraname (is the literal "Camera1"), extratime (is the value of -extratime), fn (which is the output file for -camera1) , debug (which controls verbose logging)*
+***Note the use of quoting of the command string.**  Single quotes should be used in the command string when needed.
+There are 3 placeholder variables that MUST BE USED  **Do not substitute actual values for these.**
+
+basedir (has the same meaning as -basedir),
+
+cameraname signifies the first camera,
+
+tmpfn (which is the temporary output file) and optionally,
+
+debug (which controls verbose logging).
+
+In the following example (which uses ffmpeg) , the elements that you would change are:  **-r 10** and **-vcodec libx264 -y**  the rest would be used without change.
+
+You can use another video creation application if you wish.
 
 **example**
 
 ```text
--vidparam1="'ffmpeg -r 1 -i '+basedir+'/'+duetname+'/tmp/'+cameraname+'-%08d.jpeg -c:v libx264 -vf tpad=stop_mode=clone:stop_duration='+extratime+',fps=10 '+fn+debug"
+-vidparam1="'ffmpeg -r 10 -i '+basedir+'/'+duetname+'/tmp/'+cameraname+'-%08d.jpeg -vcodec libx264 -y'+tmpfn+debug"
 ```
 
 This example is the same as the standard video creation.
@@ -621,6 +617,18 @@ See the following document for more details:
 ```text
 -execkey :do: # M117 messages starting with :do: will treated as an OS command.
 ```
+
+#### -password [string]
+
+If you have a password set on your Duet3D you will need to use this option.
+  
+**example**
+
+```bash
+-password mypassword
+```
+
+___
 
 ### Directory Structure
 

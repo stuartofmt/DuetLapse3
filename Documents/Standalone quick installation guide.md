@@ -12,6 +12,19 @@ Follow the steps in the getting started guide and create a minimal configuration
 
 ## 1 -- Install DuetLapse 3
 
+For Linux:
+
+- mkdir DuetLapse  - or other directory of your choice
+- cd DuetLapse
+- wget <https://github.com/stuartofmt/DuetLapse3/raw/main/DuetLapse3.py>
+- chmod 744 DuetLapse3.py
+
+For windows:
+Follow the instructions from one of the web sources - for example:
+<https://docs.python.org/3/using/windows.html>
+
+***Note:** Make sure to edit the path variable(s) so that python3 and /libraries/modules can be found.*
+  
 Verify DuetLapse3 is installed correctly by running the following command from the installation folder.
 
 Depending on how you have installed `python`  the command may be `py, python, or python3`
@@ -20,7 +33,7 @@ Depending on how you have installed `python`  the command may be `py, python, or
 python ./DuetLapse3.py -h
 ```
 
-if there are dependencies that need to be installed, this command will identify them.
+If there are dependencies that need to be installed, this command will identify them.
 
 **Make sure your configuration file is in the same directry as DuetLapse3.py**
 
@@ -41,3 +54,7 @@ The user interface will be accessible by :
 If you are running the browser on the same computer that is running DuetLapse: localhost will likely work.
 
 If the browser is running on a remote computer then `[ip]` is the address of the computer that is running DuetLapse
+
+If the program is run in foreground it can be stopped at any time, using CTRL+C (on linux) or CTRL+Break(on Windows). The best approach, when running on linux, is to use systemctl.
+
+***Note:*** *The http server will stop responding if DuetLapse3 is run from a command console that is then closed.

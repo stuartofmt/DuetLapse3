@@ -4,13 +4,13 @@ This is a brief guide to undertand the configuration options sufficient to test 
 
 It is strongly recommended that these steps be performed **BEFORE** installing DuetLapse3.
 
-DuetLapse3 can be installed as a self-contained, stand alone program (see here)
+DuetLapse3 can be installed as a self-contained, stand alone program (see instructions here)
 
-https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/Standalone%20quick%20installation%20guide.md
+<https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/Standalone%20quick%20installation%20guide.md>
 
 or as a plugin on an SBC Duet (see instructions here):
 
-https://github.com/stuartofmt/DuetLapse3/blob/main/plugin/plugin%20installation%20guide.md
+<https://github.com/stuartofmt/DuetLapse3/blob/main/plugin/plugin%20installation%20guide.md>
 
 **All these actions should be performed on the computer that DuetLapse3 WILL BE installed**
 
@@ -35,6 +35,12 @@ See notes here:
 ## 1 -- Identify the ip address of your printer
 
 This is the ip used in the url you use to access DWC.  It should be a static IP addess i.e. does NOT change when the printer restarts.  This ip address is used in the -duet option.
+
+On linux this can usually be determined with:
+
+```text
+hostname -I 
+```
 
 **Example option setting**
 
@@ -80,7 +86,7 @@ Depending on your type of cammera, verify that it is working correctly and is ac
 
 DuetLapse3 uses `wget` to access still image cameras.
 
-** Note:  If your software also streams images, then using the streaming function will usually be preferable.
+**Note:  If your software also streams images, then using the streaming function will usually be preferable.**
 
 Verify that it is installed correctly by running the following command.
 
@@ -89,6 +95,8 @@ wget --version
 ```
 
 Consult your camera setup instructions to determine the url for accessing the camera.
+
+**In these instructions `http://camera-url` is a placeholder and needs to be changed to the actual url to your camera**
 
 Verify that using `http://camera-url` (in a browser on the same machine that is running DuetLapse) displays an image.
 
@@ -213,8 +221,8 @@ Additional options given in this example are for initial testing and can be modi
 -restart
 ```
 
-## 5 - Run DuetLapse3
+## 6 - Run DuetLapse3
 
-Test Duetlapse 3 using the configuration file created in step 4.
+Test Duetlapse3 using the configuration file created in step 5.
 
-The options provided in the example will cause DuetLapse to capture images once every 20 seconds and DOES NOT require a print job to be running.
+The options provided in the example will cause DuetLapse3 to capture images once every 20 seconds and DOES NOT require a print job to be running.
