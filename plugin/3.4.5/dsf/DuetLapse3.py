@@ -22,7 +22,7 @@
 #
 """
 
-duetLapse3Version = '5.2.2'
+duetLapse3Version = '5.2.3'
 
 """
 CHANGES
@@ -46,6 +46,8 @@ CHANGES
 # Fixed bug in -pause layer detection
 # Added wait loop before restart to ensure previous job had finished
 # fixed a timing thing dependent on when "Complete" sent from finish gcode
+# 5.2.3
+# Fixed bug caused by calling unpause inappropriately
 """
 
 """
@@ -1327,7 +1329,6 @@ def onePhoto(cameraname, camera, weburl, camparam):
         frame2 += 1
         s = str(frame2).zfill(8)
         fn = camfile2 + s + '.jpeg'
-
     if 'usb' in camera:
         cmd = 'fswebcam --quiet --no-banner ' + fn + debug
 
@@ -3028,7 +3029,7 @@ def captureLoop():  # Single instance only
                 oneInterval('Camera2', camera2, weburl2, camparam2)
             duetStatus, _ = getDuet('Capture Loop pause check', Status)
 
-            if duetStatus == 'paused':
+            if duetStatus == 'paused' and (pause == 'yes' or detect == pause): # will be ignored is manual pause
                 unPause()  # Nothing should be paused at this point
 
             # Check for latest state to avoid polling delay

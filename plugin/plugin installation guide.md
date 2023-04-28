@@ -20,7 +20,7 @@ Be especially careful to use:
 
 ## 1 -- Download the plugin
 
-Download the DuetLapse3.zip file from the folder applicable to your version of DSF
+Download the x.y.z.DuetLapse3.zip file from the folder applicable to your version of DSF.
 
 ## 2 -- Setup the configuraton file
 
@@ -38,7 +38,7 @@ Copy the contents of your configuration into the file and Save
 
 Open a terminal on the SBC and enter this command.
 
-`sudo journalctl -b -o cat --no-pager -f | grep DuetLapse3`
+`sudo journalctl -f`
 
 Keep the terminal open during installation to check for any errors.
 
