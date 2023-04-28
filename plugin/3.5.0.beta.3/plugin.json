@@ -1,0 +1,17 @@
+{
+    "id": "DuetLapse3",
+    "name": "DuetLapse3",
+    "author": "Stuartofmt",
+    "version": "5.2.3",
+    "license": "GPL-2.0-or-later",
+    "homepage": "https://github.com/stuartofmt/DuetLapse3",
+    "dwcVersion": "3.5",
+	"sbcRequired": true,
+	"sbcDsfVersion": "3.5",
+	"sbcExecutable": "DuetLapse3.py",
+	"sbcExecutableArguments": "-file /opt/dsf/sd/sys/DuetLapse3/DuetLapse3.config",
+	"sbcOutputRedirected": false,
+	"sbcPermissions": ["commandExecution", "objectModelReadWrite", "networkAccess", "webcamAccess", "readSystem", "writeSystem", "fileSystemAccess","launchProcesses"],
+	"sbcPythonDependencies": ["sys", "subprocess", "platform", "argparse", "shlex", "time", "requests", "json", "os", "socket", "threading", "psutil", "shutil", "stat", "pathlib", "signal", "logging"]
+ }
+ 
