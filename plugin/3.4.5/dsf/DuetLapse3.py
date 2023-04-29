@@ -22,7 +22,7 @@
 #
 """
 
-duetLapse3Version = '5.2.3'
+duetLapse3Version = '5.2.4'
 
 """
 CHANGES
@@ -48,6 +48,8 @@ CHANGES
 # fixed a timing thing dependent on when "Complete" sent from finish gcode
 # 5.2.3
 # Fixed bug caused by calling unpause inappropriately
+# 5.2.4
+# Added emulation mode check to support V3.5
 """
 
 """
@@ -1555,8 +1557,15 @@ def loginPrinter(model = ''):
             j=json.loads(r.text)
             err = j['err']
             if err == 0:
-                logger.debug('!!!!! Connected to printer Standalone !!!!!')
-                model = 'rr_model'
+                if j['apiLevel'] != None: # Check to see if in SBC emulation mode
+                    if j['apiLevel'] == 1:
+                        logger.debug('Connected but in emulation mode')
+                    else: # in case standalone returns apiLevel: False in future
+                        logger.debug('!!!!! Connected to printer Standalone !!!!!')
+                        model = 'rr_model'
+                else:
+                    logger.debug('!!!!! Connected to printer Standalone !!!!!')
+                    model = 'rr_model'
             elif err == 1:
                 logger.info('!!!!! Standalone Password is invalid !!!!!')
                 code = 403 # mimic SBC codes
@@ -3397,6 +3406,4 @@ def main():
 # Program  begins here
 ###########################
 
-if __name__ == "__main__":  # Do not run anything below if the file is imported by another program
-    
-    main()
+if __name__ == "__main__":  # Do not run anything below if t
