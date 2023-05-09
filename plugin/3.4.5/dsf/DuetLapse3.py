@@ -50,6 +50,7 @@ CHANGES
 # Fixed bug caused by calling unpause inappropriately
 # 5.2.4
 # Added emulation mode check to support V3.5
+# Added stopPlugin call to plugin manager
 """
 
 """
@@ -96,6 +97,7 @@ import pathlib
 import stat
 import signal
 import logging
+# from systemd.journal import JournalHandler
 
 
 def setstartvalues():
@@ -1807,9 +1809,38 @@ def sendDuetGcode(model, command):
     if r.ok:
         return
 
-    logger.info('sendDuetGCode failed with code: ' + str(r.status_code) + ' and reason: ' + str(r.reason))
+def isPlugin(model):
+    if model == 'rr_model':
+        logger.debug('isPlugin ignored - shoud never be called')
+    else:
+        URL = ('http://' + duet + '/machine/status')
+        r = urlCall(URL,  False)
+        if r.ok:
+            try:
+                j = json.loads(r.text)
+                if j['plugins'] != None:
+                    if j['plugins']['DuetLapse3'] != None: # DuetLapse3 is registered plugin
+                        if str(j['plugins']['DuetLapse3']['pid']) == pid: # Running as a plugin
+                            logger.info('Running as a plugin')
+                            return True
+                logger.info('Not Running as a plugin')
+            except Exception as e:
+                logger.debug('Could not get plugin information')
+                logger.debug(e)
+    return False
+            
+def stopPlugin(model, command):
+    # Used to send a command to Duet
+    if model == 'rr_model':
+        logger.info('Stop Plugin ignored - should never be called')
+    else:
+        URL = 'http://' + duet + '/machine/stopPlugin'
+        r = urlCall(URL,  command)
+        if r.ok:
+            logger.info('Sent stopPlugin to plugin manager')
+        else:    
+            logger.info('stopPlugin failed with code: ' + str(r.status_code) + ' and reason: ' + str(r.reason))
     return
-
 
 def makeVideo(directory, xtratime = False):  #  Adds and extra frame
     global makeVideoState, frame1, frame2
@@ -1912,13 +1943,24 @@ def terminate():
         waitformainLoop()
         closeHttpListener()
         logger.info('Program Terminated')
-        os.kill(os.getpid(), signal.SIGTERM)  # Brutal but effective
+        if isPlugin(apiModel):
+            stopPlugin(apiModel, 'DuetLapse3')
+        else:
+            quit_forcibly()
 
-def quit_forcibly(*args):
+def quit_sigint(*args):
+    logger.info('Terminating because of Ctl + C (SIGINT)')
+    quit_forcibly()
+
+def quit_sigterm(*args):
+    logger.info('Terminating because of SIGTERM')
+    quit_forcibly()  
+
+def quit_forcibly():
     global restart 
     restart = False
     logger.info('!!!!! Forced Termination !!!!!')
-    os.kill(os.getpid(), signal.SIGTERM)  # Brutal but effective
+    os.kill(os.getpid(), 9)  # Brutal but effective
 
 ###########################
 # Integral Web Server
@@ -2528,7 +2570,10 @@ class MyHandler(SimpleHTTPRequestHandler):
         elif ttype == 'terminateg':
             startnextAction('terminate')
         elif ttype == 'terminatef':
-            quit_forcibly()
+            if isPlugin(apiModel):
+                stopPlugin(apiModel, 'DuetLapse3')
+            else:
+                quit_forcibly()
 
         return
 
@@ -3345,10 +3390,10 @@ def startup():
     nextAction(action)
 
 def main():
-    # Allow process running in background or foreground to be gracefully
+    # Allow process running in background or foreground to be forcibly
     # shutdown with SIGINT (kill -2 <pid>)
-    signal.signal(signal.SIGINT, quit_forcibly) # Ctrl + C
-
+    signal.signal(signal.SIGINT, quit_sigint) # Ctrl + C
+    signal.signal(signal.SIGTERM, quit_sigterm)
     # Globals
     # Set in startup code
     global httpListener, win, pid, action, apiModel, workingDir, workingDirStatus
@@ -3406,4 +3451,6 @@ def main():
 # Program  begins here
 ###########################
 
-if __name__ == "__main__":  # Do not run anything below if t
+if __name__ == "__main__":  # Do not run anything below if the file is imported by another program
+    
+    main()
