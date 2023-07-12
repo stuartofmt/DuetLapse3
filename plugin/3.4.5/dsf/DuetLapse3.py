@@ -22,7 +22,7 @@
 #
 """
 
-duetLapse3Version = '5.2.4'
+duetLapse3Version = '5.3.0'
 
 """
 CHANGES
@@ -51,6 +51,11 @@ CHANGES
 # 5.2.4
 # Added emulation mode check to support V3.5
 # Added stopPlugin call to plugin manager
+# 5.3.0
+# Added capture every nth layer
+# Fixed incorrect POST on M292
+# Changed firmware version to use ['boards'][0]['firmwareVersion']
+# Displayed password as 'Default' or '*******'
 """
 
 """
@@ -195,6 +200,8 @@ def whitelist(parser):
                         help='Trigger for capturing images. Default = layer')
     parser.add_argument('-pause', type=str, nargs=1, choices=['yes', 'no'], default=['no'],
                         help='Park head before image capture.  Default = no')
+    parser.add_argument('-numlayers', type=int, nargs=1, default=[1],
+                        help='Number of layers before capture.  Default = 1')
     parser.add_argument('-movehead', type=int, nargs=2, default=[0, 0],
                         help='Where to park head on pause, Default = 0,0')
     parser.add_argument('-rest', type=int, nargs=1, default=[1],
@@ -278,8 +285,13 @@ def init():
     duet = args['duet'][0]
     inputs.update({'duet': str(duet)})
 
-    password = args['password'][0]
+    password = args['password'][0]  
     #  password is not displayed
+    if password == 'reprap':
+        inputs.update({'password': 'Default'})
+    else:
+        inputs.update({'password': '*******'})
+
         
     basedir = args['basedir'][0]
     inputs.update({'basedir': str(basedir)})
@@ -326,7 +338,7 @@ def init():
     inputs.update({'keepfiles': str(keepfiles)})
 
     # Execution
-    global dontwait, seconds, detect, pause, movehead, rest, standby, restart
+    global dontwait, seconds, detect, pause, numlayers, movehead, rest, standby, restart
     inputs.update({'# Execution' : ''})
 
     dontwait = args['dontwait']
@@ -342,6 +354,11 @@ def init():
 
     pause = args['pause'][0]
     inputs.update({'pause': str(pause)})
+
+    numlayers = args['numlayers'][0]
+    if numlayers < 1:
+        numlayers = 1
+    inputs.update({'numlayers': int(numlayers)})
 
     movehead = args['movehead']
     inputs.update({'movehead': str(movehead)})
@@ -1405,10 +1422,10 @@ def oneInterval(cameraname, camera, weburl, camparam, finalframe = False):
     else:
         layer = str(zn)
 
-    if pause == 'yes' and zn < 1:  #Dont capture anything until first layers is done
+    if pause == 'yes' and zn < 1:  # Dont capture anything until first layers is done
         logger.debug('Bypassing onePhoto from oneInterval because -pause = ' + pause + ' and layer = ' +str(zn))
     else:    
-        if 'layer' in detect:
+        if 'layer' in detect and zn%numlayers == 0: #  Every numlayers layer
             if (not zn == zo1 and cameraname == 'Camera1') or (not zn == zo2 and cameraname == 'Camera2'):
                 # Layer changed, take a picture.
                 checkForPause(zn)
@@ -1624,7 +1641,7 @@ def getDuetVersion(model):
         if r.status_code == 200:
             try:
                 j = json.loads(r.text)
-                version = j['state']['dsfVersion']
+                version = j['boards'][0]['firmwareVersion']
                 return version
             except:
                 logger.info('!!!!! Could not get SBC firmware version !!!!!')
@@ -3212,7 +3229,8 @@ def parseM291(displaymessage,seq):
     displaymessage = displaymessage.strip() # get rid of leading / trailing blanks
 
     if displaymessage.startswith('DuetLapse3.'):
-        sendDuetGcode(apiModel,'M292%20P0%20S' + str(seq)) #  Clear the message
+        #  sendDuetGcode(apiModel,'M292%20P0%20S' + str(seq)) #  Clear the message
+        sendDuetGcode(apiModel,'M292 P0 S' + str(seq)) #  Clear the message
         logger.debug('Cleared M291 Command: ' + displaymessage + ' seq ' + str(seq))
 
         nextaction = displaymessage.split('DuetLapse3.')[1].strip()
@@ -3239,7 +3257,8 @@ def parseM291(displaymessage,seq):
             logger.info('The current state is: ' + action)
 
     elif execkey != '' and displaymessage.startswith(execkey):
-        sendDuetGcode(apiModel,'M292%20P0%20S' + str(seq)) #  Clear the message
+        # sendDuetGcode(apiModel,'M292%20P0%20S' + str(seq)) #  Clear the message
+        sendDuetGcode(apiModel,'M292 P0 S' + str(seq)) #  Clear the message
         logger.debug('Cleared M291 execkey: ' + displaymessage + ' seq ' + str(seq))
         displaymessage = urllib.parse.unquote(displaymessage)
         execRun(displaymessage) # Run the command 
@@ -3391,7 +3410,7 @@ def startup():
 
 def main():
     # Allow process running in background or foreground to be forcibly
-    # shutdown with SIGINT (kill -2 <pid>)
+    # shutdown with SIGINT (kill -2 <pid> or SIGTERM)
     signal.signal(signal.SIGINT, quit_sigint) # Ctrl + C
     signal.signal(signal.SIGTERM, quit_sigterm)
     # Globals
