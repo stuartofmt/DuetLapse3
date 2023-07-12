@@ -55,7 +55,6 @@ CHANGES
 # Added capture every nth layer
 # Fixed incorrect POST on M292
 # Changed firmware version to use ['boards'][0]['firmwareVersion']
-# Displayed password as 'Default' or '*******'
 """
 
 """
@@ -285,13 +284,8 @@ def init():
     duet = args['duet'][0]
     inputs.update({'duet': str(duet)})
 
-    password = args['password'][0]  
+    password = args['password'][0]
     #  password is not displayed
-    if password == 'reprap':
-        inputs.update({'password': 'Default'})
-    else:
-        inputs.update({'password': '*******'})
-
         
     basedir = args['basedir'][0]
     inputs.update({'basedir': str(basedir)})
