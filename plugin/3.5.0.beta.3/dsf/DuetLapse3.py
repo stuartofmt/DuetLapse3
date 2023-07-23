@@ -22,7 +22,8 @@
 #
 """
 
-duetLapse3Version = '5.3.0'
+duetLapse3Version = '5.3.0.1'
+duet3DVersion = '3.5.0.beta.3'
 
 """
 CHANGES
@@ -53,9 +54,6 @@ CHANGES
 # Added stopPlugin call to plugin manager
 # 5.3.0
 # Added capture every nth layer
-# Fixed incorrect POST on M292
-# Changed firmware version to use ['boards'][0]['firmwareVersion']
-# Displayed password as 'Default' or '*******'
 """
 
 """
@@ -285,13 +283,8 @@ def init():
     duet = args['duet'][0]
     inputs.update({'duet': str(duet)})
 
-    password = args['password'][0]  
+    password = args['password'][0]
     #  password is not displayed
-    if password == 'reprap':
-        inputs.update({'password': 'Default'})
-    else:
-        inputs.update({'password': '*******'})
-
         
     basedir = args['basedir'][0]
     inputs.update({'basedir': str(basedir)})
@@ -846,9 +839,10 @@ def checkforPrinter():
         except NameError:
             firstConnect = False
             printerVersion = getDuetVersion(Model)
-            majorVersion = int(printerVersion[:1]) # use slicing
+            #  majorVersion = int(printerVersion[:1]) # use slicing
 
-            if majorVersion >= 3:
+            #  if majorVersion >= 3:
+            if printerVersion.startswith(duet3DVersion):
                 connectionState = True
                 apiModel = Model # We have a good connection
                 logger.info('###############################################################')
@@ -859,7 +853,7 @@ def checkforPrinter():
                 return
             else:
                 logger.info('###############################################################')
-                logger.info('The printer at ' + duet + ' needs to be at version 3 or above')
+                logger.info('The printer at ' + duet + ' needs to be at version ' + duet3DVersion)
                 logger.info('The version on this printer is ' + printerVersion)
                 logger.info('###############################################################\n')
                 sys.exit(5)
@@ -1622,6 +1616,7 @@ def loginPrinter(model = ''):
 
 def getDuetVersion(model):
     # Get the firmware
+    logger.info('!!!!! Checking for firmware version ' + duet3DVersion + ' !!!!!')
     if model == 'rr_model':
         URL = ('http://' + duet + '/rr_model?key=boards')
         r = urlCall(URL,  False)
@@ -1641,7 +1636,7 @@ def getDuetVersion(model):
         if r.status_code == 200:
             try:
                 j = json.loads(r.text)
-                version = j['boards'][0]['firmwareVersion']
+                version = j['state']['dsfVersion']
                 return version
             except:
                 logger.info('!!!!! Could not get SBC firmware version !!!!!')
