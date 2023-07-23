@@ -1689,16 +1689,14 @@ def getDuetVersion(model):
                 logger.info("j['boards'][0]['firmwareVersion'] does not exist")
                 logger.info(j)
                 logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                return "3.5.0"
             except:
                 logger.info('!!!!! Could not get SBC firmware version !!!!!')
-                return "3.5.0"
         else:
             logger.info('!!!!! Error getting /machine/status code = ' + str(r.status_code) + '!!!!!')
     else:
         logger.info('!!!!! Could not get version for installation type =  ' + model +  '  !!!!!')
         logger.info('!!!!! THIS SHOULD NEVER HAPPEN !!!!!')
-        return 0  # Failed to determine API and firmware version
+        return ''  # Failed to determine API and firmware version
 
 def Jobname():
     # Used to get the print jobname from Duet
