@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 """
-# Python program to take Time Lapse photographs during a print on
+#Python program to take Time Lapse photographs during a print on
 #   a Duet based 3D printer and convert them into a video.
 #
 # From the original work of Danal Estes
@@ -22,7 +22,7 @@
 #
 """
 
-duetLapse3Version = '5.3.0'
+duetLapse3Version = '5.3.1.1'
 duet3DVersion = '3.5.0.beta.4'
 
 """
@@ -54,6 +54,14 @@ CHANGES
 # Added stopPlugin call to plugin manager
 # 5.3.0
 # Added capture every nth layer
+# Fixed incorrect POST on M292
+# Changed firmware version to use ['boards'][0]['firmwareVersion']
+# Displayed password as 'Default' or '*******'
+# 5.3.1.1
+# removed port number from connection status in UI
+# forced disconnect if emulation mode detected.
+# instrumented code in getduetVersion
+# added explicit version check
 """
 
 """
@@ -283,8 +291,13 @@ def init():
     duet = args['duet'][0]
     inputs.update({'duet': str(duet)})
 
-    password = args['password'][0]
+    password = args['password'][0]  
     #  password is not displayed
+    if password == 'reprap':
+        inputs.update({'password': 'Default'})
+    else:
+        inputs.update({'password': '*******'})
+
         
     basedir = args['basedir'][0]
     inputs.update({'basedir': str(basedir)})
@@ -532,6 +545,18 @@ def init():
     #########################################################################
 
     # Invalid Combinations that will abort program
+
+    if (camera1 == 'stream' or camera1 == 'web') and (not weburl1.startswith('http://')):
+        logger.info('************************************************************************************')
+        logger.info('Invalid Combination: Camera type ' + camera1 + ' cannot be used without a url')
+        logger.info('************************************************************************************\n')
+        sys.exit(2)
+
+    if (camera2 == 'stream' or camera2 == 'web') and (not weburl1.startswith('http://')):
+        logger.info('************************************************************************************')
+        logger.info('Invalid Combination: Camera type ' + camera2 + ' cannot be used without a url')
+        logger.info('************************************************************************************\n')
+        sys.exit(2)
 
     if (camera1 != 'other') and (camparam1 != ''):
         logger.info('************************************************************************************')
@@ -1572,7 +1597,9 @@ def loginPrinter(model = ''):
             if err == 0:
                 if j['apiLevel'] != None: # Check to see if in SBC emulation mode
                     if j['apiLevel'] == 1:
-                        logger.debug('Connected but in emulation mode')
+                        logger.debug('Emulation mode detected - Disconnect and try SBC')
+                        URL = ('http://' + duet + '/rr_disconnect') # Close any open session
+                        r = urlCall(URL,  False)
                     else: # in case standalone returns apiLevel: False in future
                         logger.debug('!!!!! Connected to printer Standalone !!!!!')
                         model = 'rr_model'
@@ -1621,29 +1648,57 @@ def getDuetVersion(model):
         URL = ('http://' + duet + '/rr_model?key=boards')
         r = urlCall(URL,  False)
         if r.status_code == 200:
+            j = {}
             try:
                 j = json.loads(r.text)
+            except:
+                logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                logger.info("json.loads(r.text) could not be parsed")
+                logger.info(j)
+                logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            try:
                 version = j['result'][0]['firmwareVersion']
                 return version
+            except KeyError:
+                logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                logger.info("j['result'][0]['firmwareVersion'] does not exist")
+                logger.info(j)
+                logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
             except:
                 logger.info('!!!!! Could not get standalone firmware version !!!!!')
         else:
             logger.info('!!!!! Error getting rr_model?key=boards code = ' + str(r.status_code) + '!!!!!') 
 
-    if model == 'SBC':       
+    elif model == 'SBC':       
         URL = ('http://' + duet + '/machine/status')
         r = urlCall(URL,  False)
         if r.status_code == 200:
+            j = {}
             try:
                 j = json.loads(r.text)
-                version = j['state']['dsfVersion']
+            except:
+                logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                logger.info("json.loads(r.text) could not be parsed")
+                logger.info(j)
+                logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            try:
+                version = j['boards'][0]['firmwareVersion']
                 return version
+            except KeyError:
+                logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                logger.info("j['boards'][0]['firmwareVersion'] does not exist")
+                logger.info(j)
+                logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                return "3.5.0"
             except:
                 logger.info('!!!!! Could not get SBC firmware version !!!!!')
+                return "3.5.0"
         else:
             logger.info('!!!!! Error getting /machine/status code = ' + str(r.status_code) + '!!!!!')
-
-    return 0  # Failed to determine API and firmware version
+    else:
+        logger.info('!!!!! Could not get version for installation type =  ' + model +  '  !!!!!')
+        logger.info('!!!!! THIS SHOULD NEVER HAPPEN !!!!!')
+        return 0  # Failed to determine API and firmware version
 
 def Jobname():
     # Used to get the print jobname from Duet
@@ -2191,7 +2246,8 @@ class MyHandler(SimpleHTTPRequestHandler):
         status +=   '<div class="row">\
                     <div class="column">\
                     DuetLapse3 Version ' + str(duetLapse3Version) + '<br>\
-                    Connected to printer at:  ' + str(duet) + ':' + str(port) + '<br><br>\
+                    //Connected to printer at:  ' + str(duet) + ':' + str(port) + '<br><br>\
+                    Connected to printer at:  ' + str(duet) + '<br><br>\
                     Process Id:  ' + str(pid) + '<br>\
                     Last Update:    ' + str(localtime) + '<br>\
                     Capture Status:= ' + str(printState) + '<br>\
