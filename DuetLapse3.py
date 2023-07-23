@@ -22,7 +22,8 @@
 #
 """
 
-duetLapse3Version = '5.3.0'
+duetLapse3Version = '5.2.2.1'
+duet3DVersion = '3.4.5'
 
 """
 CHANGES
@@ -45,17 +46,7 @@ CHANGES
 # 5.2.2
 # Fixed bug in -pause layer detection
 # Added wait loop before restart to ensure previous job had finished
-# fixed a timing thing dependent on when "Complete" sent from finish gcode
-# 5.2.3
-# Fixed bug caused by calling unpause inappropriately
-# 5.2.4
-# Added emulation mode check to support V3.5
-# Added stopPlugin call to plugin manager
-# 5.3.0
-# Added capture every nth layer
-# Fixed incorrect POST on M292
-# Changed firmware version to use ['boards'][0]['firmwareVersion']
-# Displayed password as 'Default' or '*******'
+# a timing thing dependent on when "Complete" sent and finish gcode
 """
 
 """
@@ -102,7 +93,6 @@ import pathlib
 import stat
 import signal
 import logging
-# from systemd.journal import JournalHandler
 
 
 def setstartvalues():
@@ -200,8 +190,6 @@ def whitelist(parser):
                         help='Trigger for capturing images. Default = layer')
     parser.add_argument('-pause', type=str, nargs=1, choices=['yes', 'no'], default=['no'],
                         help='Park head before image capture.  Default = no')
-    parser.add_argument('-numlayers', type=int, nargs=1, default=[1],
-                        help='Number of layers before capture.  Default = 1')
     parser.add_argument('-movehead', type=int, nargs=2, default=[0, 0],
                         help='Where to park head on pause, Default = 0,0')
     parser.add_argument('-rest', type=int, nargs=1, default=[1],
@@ -285,13 +273,8 @@ def init():
     duet = args['duet'][0]
     inputs.update({'duet': str(duet)})
 
-    password = args['password'][0]  
+    password = args['password'][0]
     #  password is not displayed
-    if password == 'reprap':
-        inputs.update({'password': 'Default'})
-    else:
-        inputs.update({'password': '*******'})
-
         
     basedir = args['basedir'][0]
     inputs.update({'basedir': str(basedir)})
@@ -338,7 +321,7 @@ def init():
     inputs.update({'keepfiles': str(keepfiles)})
 
     # Execution
-    global dontwait, seconds, detect, pause, numlayers, movehead, rest, standby, restart
+    global dontwait, seconds, detect, pause, movehead, rest, standby, restart
     inputs.update({'# Execution' : ''})
 
     dontwait = args['dontwait']
@@ -354,11 +337,6 @@ def init():
 
     pause = args['pause'][0]
     inputs.update({'pause': str(pause)})
-
-    numlayers = args['numlayers'][0]
-    if numlayers < 1:
-        numlayers = 1
-    inputs.update({'numlayers': int(numlayers)})
 
     movehead = args['movehead']
     inputs.update({'movehead': str(movehead)})
@@ -846,9 +824,10 @@ def checkforPrinter():
         except NameError:
             firstConnect = False
             printerVersion = getDuetVersion(Model)
-            majorVersion = int(printerVersion[:1]) # use slicing
+            # majorVersion = int(printerVersion[:1]) # use slicing
 
-            if majorVersion >= 3:
+            #  if majorVersion >= 3:
+            if printerVersion.startswith(duet3DVersion):
                 connectionState = True
                 apiModel = Model # We have a good connection
                 logger.info('###############################################################')
@@ -859,7 +838,7 @@ def checkforPrinter():
                 return
             else:
                 logger.info('###############################################################')
-                logger.info('The printer at ' + duet + ' needs to be at version 3 or above')
+                logger.info('The printer at ' + duet + ' needs to be at version ' + duet3DVersion)
                 logger.info('The version on this printer is ' + printerVersion)
                 logger.info('###############################################################\n')
                 sys.exit(5)
@@ -1350,6 +1329,7 @@ def onePhoto(cameraname, camera, weburl, camparam):
         frame2 += 1
         s = str(frame2).zfill(8)
         fn = camfile2 + s + '.jpeg'
+
     if 'usb' in camera:
         cmd = 'fswebcam --quiet --no-banner ' + fn + debug
 
@@ -1422,10 +1402,10 @@ def oneInterval(cameraname, camera, weburl, camparam, finalframe = False):
     else:
         layer = str(zn)
 
-    if pause == 'yes' and zn < 1:  # Dont capture anything until first layers is done
+    if pause == 'yes' and zn < 1:  #Dont capture anything until first layers is done
         logger.debug('Bypassing onePhoto from oneInterval because -pause = ' + pause + ' and layer = ' +str(zn))
     else:    
-        if 'layer' in detect and zn%numlayers == 0: #  Every numlayers layer
+        if 'layer' in detect:
             if (not zn == zo1 and cameraname == 'Camera1') or (not zn == zo2 and cameraname == 'Camera2'):
                 # Layer changed, take a picture.
                 checkForPause(zn)
@@ -1576,15 +1556,8 @@ def loginPrinter(model = ''):
             j=json.loads(r.text)
             err = j['err']
             if err == 0:
-                if j['apiLevel'] != None: # Check to see if in SBC emulation mode
-                    if j['apiLevel'] == 1:
-                        logger.debug('Connected but in emulation mode')
-                    else: # in case standalone returns apiLevel: False in future
-                        logger.debug('!!!!! Connected to printer Standalone !!!!!')
-                        model = 'rr_model'
-                else:
-                    logger.debug('!!!!! Connected to printer Standalone !!!!!')
-                    model = 'rr_model'
+                logger.debug('!!!!! Connected to printer Standalone !!!!!')
+                model = 'rr_model'
             elif err == 1:
                 logger.info('!!!!! Standalone Password is invalid !!!!!')
                 code = 403 # mimic SBC codes
@@ -1621,7 +1594,8 @@ def loginPrinter(model = ''):
     return model, code    
 
 def getDuetVersion(model):
-    # Get the firmware
+    # Get the firmware version
+    logger.info('!!!!! Checking for firmware version ' + duet3DVersion + ' !!!!!')
     if model == 'rr_model':
         URL = ('http://' + duet + '/rr_model?key=boards')
         r = urlCall(URL,  False)
@@ -1641,7 +1615,7 @@ def getDuetVersion(model):
         if r.status_code == 200:
             try:
                 j = json.loads(r.text)
-                version = j['boards'][0]['firmwareVersion']
+                version = j['state']['dsfVersion']
                 return version
             except:
                 logger.info('!!!!! Could not get SBC firmware version !!!!!')
@@ -1826,38 +1800,9 @@ def sendDuetGcode(model, command):
     if r.ok:
         return
 
-def isPlugin(model):
-    if model == 'rr_model':
-        logger.debug('isPlugin ignored - shoud never be called')
-    else:
-        URL = ('http://' + duet + '/machine/status')
-        r = urlCall(URL,  False)
-        if r.ok:
-            try:
-                j = json.loads(r.text)
-                if j['plugins'] != None:
-                    if j['plugins']['DuetLapse3'] != None: # DuetLapse3 is registered plugin
-                        if str(j['plugins']['DuetLapse3']['pid']) == pid: # Running as a plugin
-                            logger.info('Running as a plugin')
-                            return True
-                logger.info('Not Running as a plugin')
-            except Exception as e:
-                logger.debug('Could not get plugin information')
-                logger.debug(e)
-    return False
-            
-def stopPlugin(model, command):
-    # Used to send a command to Duet
-    if model == 'rr_model':
-        logger.info('Stop Plugin ignored - should never be called')
-    else:
-        URL = 'http://' + duet + '/machine/stopPlugin'
-        r = urlCall(URL,  command)
-        if r.ok:
-            logger.info('Sent stopPlugin to plugin manager')
-        else:    
-            logger.info('stopPlugin failed with code: ' + str(r.status_code) + ' and reason: ' + str(r.reason))
+    logger.info('sendDuetGCode failed with code: ' + str(r.status_code) + ' and reason: ' + str(r.reason))
     return
+
 
 def makeVideo(directory, xtratime = False):  #  Adds and extra frame
     global makeVideoState, frame1, frame2
@@ -1960,24 +1905,13 @@ def terminate():
         waitformainLoop()
         closeHttpListener()
         logger.info('Program Terminated')
-        if isPlugin(apiModel):
-            stopPlugin(apiModel, 'DuetLapse3')
-        else:
-            quit_forcibly()
+        os.kill(os.getpid(), signal.SIGTERM)  # Brutal but effective
 
-def quit_sigint(*args):
-    logger.info('Terminating because of Ctl + C (SIGINT)')
-    quit_forcibly()
-
-def quit_sigterm(*args):
-    logger.info('Terminating because of SIGTERM')
-    quit_forcibly()  
-
-def quit_forcibly():
+def quit_forcibly(*args):
     global restart 
     restart = False
     logger.info('!!!!! Forced Termination !!!!!')
-    os.kill(os.getpid(), 9)  # Brutal but effective
+    os.kill(os.getpid(), signal.SIGTERM)  # Brutal but effective
 
 ###########################
 # Integral Web Server
@@ -2587,10 +2521,7 @@ class MyHandler(SimpleHTTPRequestHandler):
         elif ttype == 'terminateg':
             startnextAction('terminate')
         elif ttype == 'terminatef':
-            if isPlugin(apiModel):
-                stopPlugin(apiModel, 'DuetLapse3')
-            else:
-                quit_forcibly()
+            quit_forcibly()
 
         return
 
@@ -3100,7 +3031,7 @@ def captureLoop():  # Single instance only
                 oneInterval('Camera2', camera2, weburl2, camparam2)
             duetStatus, _ = getDuet('Capture Loop pause check', Status)
 
-            if duetStatus == 'paused' and (pause == 'yes' or detect == pause): # will be ignored is manual pause
+            if duetStatus == 'paused':
                 unPause()  # Nothing should be paused at this point
 
             # Check for latest state to avoid polling delay
@@ -3229,8 +3160,7 @@ def parseM291(displaymessage,seq):
     displaymessage = displaymessage.strip() # get rid of leading / trailing blanks
 
     if displaymessage.startswith('DuetLapse3.'):
-        #  sendDuetGcode(apiModel,'M292%20P0%20S' + str(seq)) #  Clear the message
-        sendDuetGcode(apiModel,'M292 P0 S' + str(seq)) #  Clear the message
+        sendDuetGcode(apiModel,'M292%20P0%20S' + str(seq)) #  Clear the message
         logger.debug('Cleared M291 Command: ' + displaymessage + ' seq ' + str(seq))
 
         nextaction = displaymessage.split('DuetLapse3.')[1].strip()
@@ -3257,8 +3187,7 @@ def parseM291(displaymessage,seq):
             logger.info('The current state is: ' + action)
 
     elif execkey != '' and displaymessage.startswith(execkey):
-        # sendDuetGcode(apiModel,'M292%20P0%20S' + str(seq)) #  Clear the message
-        sendDuetGcode(apiModel,'M292 P0 S' + str(seq)) #  Clear the message
+        sendDuetGcode(apiModel,'M292%20P0%20S' + str(seq)) #  Clear the message
         logger.debug('Cleared M291 execkey: ' + displaymessage + ' seq ' + str(seq))
         displaymessage = urllib.parse.unquote(displaymessage)
         execRun(displaymessage) # Run the command 
@@ -3409,10 +3338,10 @@ def startup():
     nextAction(action)
 
 def main():
-    # Allow process running in background or foreground to be forcibly
-    # shutdown with SIGINT (kill -2 <pid> or SIGTERM)
-    signal.signal(signal.SIGINT, quit_sigint) # Ctrl + C
-    signal.signal(signal.SIGTERM, quit_sigterm)
+    # Allow process running in background or foreground to be gracefully
+    # shutdown with SIGINT (kill -2 <pid>)
+    signal.signal(signal.SIGINT, quit_forcibly) # Ctrl + C
+
     # Globals
     # Set in startup code
     global httpListener, win, pid, action, apiModel, workingDir, workingDirStatus
