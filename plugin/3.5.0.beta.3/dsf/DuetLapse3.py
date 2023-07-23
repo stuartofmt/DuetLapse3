@@ -1643,7 +1643,7 @@ def getDuetVersion(model):
         else:
             logger.info('!!!!! Error getting /machine/status code = ' + str(r.status_code) + '!!!!!')
 
-    return 0  # Failed to determine API and firmware version
+    return ''  # Failed to determine API and firmware version
 
 def Jobname():
     # Used to get the print jobname from Duet
