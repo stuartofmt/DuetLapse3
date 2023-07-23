@@ -23,7 +23,6 @@
 """
 
 duetLapse3Version = '5.2.2.1'
-
 duet3DVersion = '3.4.5'
 
 """
@@ -44,10 +43,11 @@ CHANGES
 # Added -password
 # 5.2.1
 # Changed background tab color - better for dark theme
-# 5.2.2
+# 5.2.2.1
 # Fixed bug in -pause layer detection
 # Added wait loop before restart to ensure previous job had finished
 # a timing thing dependent on when "Complete" sent and finish gcode
+# Added more specific check for version number of dsf 
 """
 
 """
