@@ -23,7 +23,6 @@
 """
 
 duetLapse3Version = '5.3.0.1'
-
 duet3DVersion = '3.5.0.beta.3'
 
 """
