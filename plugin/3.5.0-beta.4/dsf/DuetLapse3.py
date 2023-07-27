@@ -22,8 +22,8 @@
 #
 """
 
-duetLapse3Version = '5.2.2.1'
-duet3DVersion = '3.4.5'
+duetLapse3Version = '5.3.1.1'
+duet3DVersion = '3.5.0-beta.4'
 
 """
 CHANGES
@@ -43,11 +43,27 @@ CHANGES
 # Added -password
 # 5.2.1
 # Changed background tab color - better for dark theme
-# 5.2.2.1
+# 5.2.2
 # Fixed bug in -pause layer detection
 # Added wait loop before restart to ensure previous job had finished
-# a timing thing dependent on when "Complete" sent and finish gcode
-# Added more specific check for version number of dsf 
+# fixed a timing thing dependent on when "Complete" sent from finish gcode
+# 5.2.3
+# Fixed bug caused by calling unpause inappropriately
+# 5.2.4
+# Added emulation mode check to support V3.5
+# Added stopPlugin call to plugin manager
+# 5.3.0
+# Added capture every nth layer
+# Fixed incorrect POST on M292
+# Changed firmware version to use ['boards'][0]['firmwareVersion']
+# Displayed password as 'Default' or '*******'
+# 5.3.1.1
+# removed port number from connection status in UI
+# forced disconnect if emulation mode detected.
+# instrumented code in getduetVersion
+# added explicit version check
+# 5.3.2
+# Added -simulate mode for testing
 """
 
 """
@@ -56,7 +72,7 @@ import pathlib
 import subprocess
 import sys
 
-modules = {'platform', 'argparse', 'shlex', 'time', 'requests', 'json', 'os', 'socket', 'threading', 'psutil', 'shutil', 'stat', 'pathlib', 'signal', 'logging'}
+modules = {'platform', 'argparse', 'shlex', 'time', 'requests', 'json', 'os', 'socket', 'threading', 'psutil', 'shutil', 'stat', 'pathlib', 'signal', 'logging',base64}
 
 for m in modules:
     try:
@@ -94,6 +110,14 @@ import pathlib
 import stat
 import signal
 import logging
+import base64
+# from systemd.journal import JournalHandler
+
+#  Used for debugging by calling currenFuncName(x)
+# for current func name, specify 0 or no argument.
+# for name of caller of current func, specify 1.
+# for name of caller of caller of current func, specify 2. etc.
+currentFuncName = lambda n=0: sys._getframe(n + 1).f_code.co_name
 
 
 def setstartvalues():
@@ -191,6 +215,8 @@ def whitelist(parser):
                         help='Trigger for capturing images. Default = layer')
     parser.add_argument('-pause', type=str, nargs=1, choices=['yes', 'no'], default=['no'],
                         help='Park head before image capture.  Default = no')
+    parser.add_argument('-numlayers', type=int, nargs=1, default=[1],
+                        help='Number of layers before capture.  Default = 1')
     parser.add_argument('-movehead', type=int, nargs=2, default=[0, 0],
                         help='Where to park head on pause, Default = 0,0')
     parser.add_argument('-rest', type=int, nargs=1, default=[1],
@@ -221,7 +247,8 @@ def whitelist(parser):
     parser.add_argument('-hidebuttons', action='store_true', help='Hides buttons not logically available.')
     #Special Functions
     parser.add_argument('-execkey', type=str, nargs=1, default=[''],help='string to identify executable command')
-
+    parser.add_argument('-simulate', type=str, nargs=1, choices=['all', 'printer', 'camera'], default=['off'],
+                        help='Default is off')
     return parser
 
 ################################################
@@ -267,15 +294,28 @@ def init():
     global keeplogs, novideo, deletepics, maxffmpeg, keepfiles
     # Derived  globals
     global duetname, debug, ffmpegquiet, httpListener
+    
+    # Simulate
+    global simulate
+    inputs.update({'# Simulate': ''})
+    simulate = args['simulate'][0]
+    inputs.update({'simulate': str(simulate)})
 
     # Environment
     inputs.update({'# Environment':''})
     
     duet = args['duet'][0]
+    if simulate in ['all','printer']:
+        duet = 'SIMULATED'
     inputs.update({'duet': str(duet)})
 
-    password = args['password'][0]
+    password = args['password'][0]  
     #  password is not displayed
+    if password == 'reprap':
+        inputs.update({'password': 'Default'})
+    else:
+        inputs.update({'password': '*******'})
+
         
     basedir = args['basedir'][0]
     inputs.update({'basedir': str(basedir)})
@@ -322,7 +362,7 @@ def init():
     inputs.update({'keepfiles': str(keepfiles)})
 
     # Execution
-    global dontwait, seconds, detect, pause, movehead, rest, standby, restart
+    global dontwait, seconds, detect, pause, numlayers, movehead, rest, standby, restart
     inputs.update({'# Execution' : ''})
 
     dontwait = args['dontwait']
@@ -338,6 +378,11 @@ def init():
 
     pause = args['pause'][0]
     inputs.update({'pause': str(pause)})
+
+    numlayers = args['numlayers'][0]
+    if numlayers < 1:
+        numlayers = 1
+    inputs.update({'numlayers': int(numlayers)})
 
     movehead = args['movehead']
     inputs.update({'movehead': str(movehead)})
@@ -518,6 +563,18 @@ def init():
     #########################################################################
 
     # Invalid Combinations that will abort program
+
+    if (camera1 == 'stream' or camera1 == 'web') and (not weburl1.startswith('http://')):
+        logger.info('************************************************************************************')
+        logger.info('Invalid Combination: Camera type ' + camera1 + ' cannot be used without a url')
+        logger.info('************************************************************************************\n')
+        sys.exit(2)
+
+    if (camera2 == 'stream' or camera2 == 'web') and (not weburl1.startswith('http://')):
+        logger.info('************************************************************************************')
+        logger.info('Invalid Combination: Camera type ' + camera2 + ' cannot be used without a url')
+        logger.info('************************************************************************************\n')
+        sys.exit(2)
 
     if (camera1 != 'other') and (camparam1 != ''):
         logger.info('************************************************************************************')
@@ -825,7 +882,7 @@ def checkforPrinter():
         except NameError:
             firstConnect = False
             printerVersion = getDuetVersion(Model)
-            # majorVersion = int(printerVersion[:1]) # use slicing
+            #  majorVersion = int(printerVersion[:1]) # use slicing
 
             #  if majorVersion >= 3:
             if printerVersion.startswith(duet3DVersion):
@@ -834,7 +891,7 @@ def checkforPrinter():
                 logger.info('###############################################################')
                 logger.info('Connected to printer at ' + duet)
                 logger.info('Using Duet version ' + printerVersion)
-                logger.info('Using  API interface ' + apiModel)
+                logger.info('Using API interface ' + apiModel)
                 logger.info('###############################################################\n')
                 return
             else:
@@ -1083,7 +1140,7 @@ def createworkingDir():
 
 def renameworkingDir(thisDir):
     global workingDirStatus
-    jobname = getDuet('Jobname from renameworkingDir', Jobname)
+    jobname = getDuet('renameworkingDir', Jobname)
 
     if connectionState is False or jobname == '':
         logger.debug('jobname was not available')
@@ -1228,7 +1285,7 @@ def checkForPause(layer):
     if (layer < 1):  # Do not try to pause
         return
     
-    duetStatus, _ = getDuet('Status from Check for Pause', Status)
+    duetStatus, _ = getDuet('Check for Pause', Status)
     if connectionState is False or duetStatus == 'idle':
         return
     
@@ -1241,7 +1298,7 @@ def checkForPause(layer):
         loop = 0
         while True:
             time.sleep(loopinterval)  # wait and try again    
-            duetStatus, _ = getDuet('Status check for pause = yes', Status)
+            duetStatus, _ = getDuet('check for pause = yes', Status)
             if connectionState is False:
                 return
             if duetStatus == 'paused':
@@ -1295,7 +1352,7 @@ def unPause():  # Only gets called if duetStatus = paused
         loop = 0
         while True:
             time.sleep(loopinterval)  # wait a short time so as to not miss transition on short layer            
-            duetStatus, _ = getDuet('Status from loop unPause', Status)
+            duetStatus, _ = getDuet('unPause loop', Status)
             if connectionState is False:
                 return
             if duetStatus in ['idle', 'processing']:
@@ -1353,7 +1410,10 @@ def onePhoto(cameraname, camera, weburl, camparam):
 
     global timePriorPhoto1, timePriorPhoto2
 
-    if runsubprocess(cmd) is False:
+    if simulate in ['all','camera']:
+        with open(fn, 'wb') as outputfile:
+            outputfile.write(simulatedImage)
+    elif runsubprocess(cmd) is False: #  order is important
         logger.info('!!!!!  There was a problem capturing an image !!!!!')
         # Decrement the frame counter because we did not capture anything
         if cameraname == 'Camera1':
@@ -1366,19 +1426,19 @@ def onePhoto(cameraname, camera, weburl, camparam):
             if frame2 < 0:
                 frame2 = 0
             return
-    else:   #  Success
-        try:
-           referer  # May not be defined yet
-        except NameError:
-            pass
-        else:
-            lastImage = 'http://' + referer + '?getfile=' + fn
-        if cameraname == 'Camera1':
-            timePriorPhoto1 = time.time()
-            return
-        else:
-            timePriorPhoto2 = time.time()
-            return
+    #  Success
+    try:
+        referer  # May not be defined yet
+    except NameError:
+        pass
+    else:
+        lastImage = 'http://' + referer + '?getfile=' + fn
+    if cameraname == 'Camera1':
+        timePriorPhoto1 = time.time()
+        return
+    else:
+        timePriorPhoto2 = time.time()
+        return
 
 def oneInterval(cameraname, camera, weburl, camparam, finalframe = False):
     if connectionState is False:
@@ -1403,10 +1463,10 @@ def oneInterval(cameraname, camera, weburl, camparam, finalframe = False):
     else:
         layer = str(zn)
 
-    if pause == 'yes' and zn < 1:  #Dont capture anything until first layers is done
+    if pause == 'yes' and zn < 1:  # Dont capture anything until first layers is done
         logger.debug('Bypassing onePhoto from oneInterval because -pause = ' + pause + ' and layer = ' +str(zn))
     else:    
-        if 'layer' in detect:
+        if 'layer' in detect and zn%numlayers == 0: #  Every numlayers layer
             if (not zn == zo1 and cameraname == 'Camera1') or (not zn == zo2 and cameraname == 'Camera2'):
                 # Layer changed, take a picture.
                 checkForPause(zn)
@@ -1449,7 +1509,7 @@ def oneInterval(cameraname, camera, weburl, camparam, finalframe = False):
 #############################################################################
 
 
-def getDuet(name, function): #  Helper function to call other specific getDuet(x) calls
+def getDuet(calledfrom, function): #  Helper function to call other specific getDuet(x) calls
     # Retries if there is a network problem
     # Relies on called functions to return 'disconnected' if they cannot get the requested info
     # Changes connectionState to False if there is a persistent fault
@@ -1458,7 +1518,8 @@ def getDuet(name, function): #  Helper function to call other specific getDuet(x
     getstatus = False
     while getstatus is False:
         #  The working code gets executed here
-        logger.debug('Calling function ' + name + ' with ' + apiModel)
+        
+        logger.debug('Calling ' + function.__name__ + ' from ' + currentFuncName(2) + ' --> '  + currentFuncName(1) + ' --> '  + currentFuncName(0))
 
         if 'NoneType' in str(type(function)):
             result = function  # Function with variables
@@ -1543,6 +1604,9 @@ def urlCall(url, post):
     return r
 
 def loginPrinter(model = ''):
+    if simulate in ['all','printer']:
+        logger.info('Simulated success - loginPrinter')
+        return 'simulated_API', 200
     global urlHeaders
     urlHeaders = {}
     logger.info('Logging in to Printer')
@@ -1557,8 +1621,17 @@ def loginPrinter(model = ''):
             j=json.loads(r.text)
             err = j['err']
             if err == 0:
-                logger.debug('!!!!! Connected to printer Standalone !!!!!')
-                model = 'rr_model'
+                if j['apiLevel'] != None: # Check to see if in SBC emulation mode
+                    if j['apiLevel'] == 1:
+                        logger.debug('Emulation mode detected - Disconnect and try SBC')
+                        URL = ('http://' + duet + '/rr_disconnect') # Close any open session
+                        r = urlCall(URL,  False)
+                    else: # in case standalone returns apiLevel: False in future
+                        logger.debug('!!!!! Connected to printer Standalone !!!!!')
+                        model = 'rr_model'
+                else:
+                    logger.debug('!!!!! Connected to printer Standalone !!!!!')
+                    model = 'rr_model'
             elif err == 1:
                 logger.info('!!!!! Standalone Password is invalid !!!!!')
                 code = 403 # mimic SBC codes
@@ -1595,38 +1668,69 @@ def loginPrinter(model = ''):
     return model, code    
 
 def getDuetVersion(model):
+    if simulate in ['all','printer']:
+        logger.info('Simulated success - getDuetVersion')
+        return duet3DVersion
     # Get the firmware version
     logger.info('!!!!! Checking for firmware version ' + duet3DVersion + ' !!!!!')
     if model == 'rr_model':
         URL = ('http://' + duet + '/rr_model?key=boards')
         r = urlCall(URL,  False)
         if r.status_code == 200:
+            j = {}
             try:
                 j = json.loads(r.text)
+            except:
+                logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                logger.info("json.loads(r.text) could not be parsed")
+                logger.info(j)
+                logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            try:
                 version = j['result'][0]['firmwareVersion']
                 return version
+            except KeyError:
+                logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                logger.info("j['result'][0]['firmwareVersion'] does not exist")
+                logger.info(j)
+                logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
             except:
                 logger.info('!!!!! Could not get standalone firmware version !!!!!')
         else:
             logger.info('!!!!! Error getting rr_model?key=boards code = ' + str(r.status_code) + '!!!!!') 
 
-    if model == 'SBC':       
+    elif model == 'SBC':       
         URL = ('http://' + duet + '/machine/status')
         r = urlCall(URL,  False)
         if r.status_code == 200:
+            j = {}
             try:
                 j = json.loads(r.text)
-                version = j['state']['dsfVersion']
+            except:
+                logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                logger.info("json.loads(r.text) could not be parsed")
+                logger.info(j)
+                logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            try:
+                version = j['boards'][0]['firmwareVersion']
                 return version
+            except KeyError:
+                logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                logger.info("j['boards'][0]['firmwareVersion'] does not exist")
+                logger.info(j)
+                logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
             except:
                 logger.info('!!!!! Could not get SBC firmware version !!!!!')
         else:
             logger.info('!!!!! Error getting /machine/status code = ' + str(r.status_code) + '!!!!!')
-
-    return ''  # Failed to determine API and firmware version
+    else:
+        logger.info('!!!!! Could not get version for installation type =  ' + model +  '  !!!!!')
+        logger.info('!!!!! THIS SHOULD NEVER HAPPEN !!!!!')
+        return ''  # Failed to determine API and firmware version
 
 def Jobname():
     # Used to get the print jobname from Duet
+    if simulate in ['all','printer']:
+        return 'simulated_job'
     if apiModel == 'rr_model':
         URL = ('http://' + duet + '/rr_model?key=job.file.fileName')
         r = urlCall(URL,  False)
@@ -1662,6 +1766,10 @@ def Status():
     lastStatusCall = time.time()
     # Used to get the status information from Duet
     status = display = ''
+    if simulate in ['all','printer']:
+        logger.info('Simulated status is Idle')
+        return 'idle', ''
+
     if apiModel == 'rr_model':
         URL = ('http://' + duet + '/rr_model?key=state')
         while True: #  The max queue depth is 8 so we clear as many as we can in one go
@@ -1724,6 +1832,8 @@ def Status():
 
 def Layer():
     # Used to get the the current layer
+    if simulate in ['all','printer']:
+        return 999999
     if apiModel == 'rr_model':
         URL = ('http://' + duet + '/rr_model?key=job.layer')
         r = urlCall(URL,  False)
@@ -1759,6 +1869,8 @@ def Layer():
 
 def Position():
     # Used to get the current head position from Duet
+    if simulate in ['all', 'printer']:
+        return 0,0,0
     if apiModel == 'rr_model':
         URL = ('http://' + duet + '/rr_model?key=move.axes')
         r = urlCall(URL,  False)
@@ -1791,6 +1903,8 @@ def Position():
 
 def sendDuetGcode(model, command):
     # Used to send a command to Duet
+    if simulate in ['all','printer']:
+        return
     if model == 'rr_model':
         URL = 'http://' + duet + '/rr_gcode?gcode=' + command
         r = urlCall(URL,  False)
@@ -1801,9 +1915,38 @@ def sendDuetGcode(model, command):
     if r.ok:
         return
 
-    logger.info('sendDuetGCode failed with code: ' + str(r.status_code) + ' and reason: ' + str(r.reason))
+def isPlugin(model):
+    if model == 'SBC':
+        URL = ('http://' + duet + '/machine/status')
+        r = urlCall(URL,  False)
+        if r.ok:
+            try:
+                j = json.loads(r.text)
+                if j['plugins'] != None:
+                    if j['plugins']['DuetLapse3'] != None: # DuetLapse3 is registered plugin
+                        if str(j['plugins']['DuetLapse3']['pid']) == pid: # Running as a plugin
+                            logger.info('Running as a plugin')
+                            return True
+                logger.info('Not Running as a plugin')
+            except Exception as e:
+                logger.debug('Could not get plugin information')
+                logger.debug(e)
+    else:
+        logger.debug('isPlugin ignored - only valid for SBC')
+        return False
+            
+def stopPlugin(model, command):
+    # Used to send a command to Duet
+    if model == 'SBC':
+        URL = 'http://' + duet + '/machine/stopPlugin'
+        r = urlCall(URL,  command)
+        if r.ok:
+            logger.info('Sent stopPlugin to plugin manager')
+        else:    
+            logger.info('stopPlugin failed with code: ' + str(r.status_code) + ' and reason: ' + str(r.reason))
+    else:
+        logger.info('Stop Plugin ignored - only valid for SBC')
     return
-
 
 def makeVideo(directory, xtratime = False):  #  Adds and extra frame
     global makeVideoState, frame1, frame2
@@ -1882,14 +2025,16 @@ def terminate():
 
     if restart:
         # wait for jobname to be reset
-        jobname = getDuet('Jobname from terminate', Jobname)
+        jobname = getDuet('terminate', Jobname)
         loopcounter = 0
         if jobname != '':
             logger.info('Waiting for printjob to complete')
         while jobname !='' and loopcounter < 30:  # Don't wait more than a minute
             time.sleep(2)
             loopcounter += 1
-            jobname = getDuet('Jobname from terminate', Jobname)
+            jobname = getDuet('terminate loop', Jobname)
+            if simulate in ['all','printer']: # forces a reset
+                jobname = ''
         if loopcounter >= 30:
             logger.info('jobname was not reset')
         # ready to restart
@@ -1906,13 +2051,24 @@ def terminate():
         waitformainLoop()
         closeHttpListener()
         logger.info('Program Terminated')
-        os.kill(os.getpid(), signal.SIGTERM)  # Brutal but effective
+        if isPlugin(apiModel):
+            stopPlugin(apiModel, 'DuetLapse3')
+        else:
+            quit_forcibly()
 
-def quit_forcibly(*args):
+def quit_sigint(*args):
+    logger.info('Terminating because of Ctl + C (SIGINT)')
+    quit_forcibly()
+
+def quit_sigterm(*args):
+    logger.info('Terminating because of SIGTERM')
+    quit_forcibly()  
+
+def quit_forcibly():
     global restart 
     restart = False
     logger.info('!!!!! Forced Termination !!!!!')
-    os.kill(os.getpid(), signal.SIGTERM)  # Brutal but effective
+    os.kill(os.getpid(), 9)  # Brutal but effective
 
 ###########################
 # Integral Web Server
@@ -2131,7 +2287,8 @@ class MyHandler(SimpleHTTPRequestHandler):
         status +=   '<div class="row">\
                     <div class="column">\
                     DuetLapse3 Version ' + str(duetLapse3Version) + '<br>\
-                    Connected to printer at:  ' + str(duet) + ':' + str(port) + '<br><br>\
+                    Requires Duet3D Version ' + str(duet3DVersion) + '<br>\
+                    Connected to printer at:  ' + str(duet) + '<br><br>\
                     Process Id:  ' + str(pid) + '<br>\
                     Last Update:    ' + str(localtime) + '<br>\
                     Capture Status:= ' + str(printState) + '<br>\
@@ -2522,7 +2679,10 @@ class MyHandler(SimpleHTTPRequestHandler):
         elif ttype == 'terminateg':
             startnextAction('terminate')
         elif ttype == 'terminatef':
-            quit_forcibly()
+            if isPlugin(apiModel):
+                stopPlugin(apiModel, 'DuetLapse3')
+            else:
+                quit_forcibly()
 
         return
 
@@ -2981,8 +3141,8 @@ def mainLoop():
         logger.info('Starting mainLoop')
         logger.info('###########################\n')
         while mainLoopState == 1 and terminateState != 1 and connectionState:  # Setting to 0 stops
-            if time.time() >= lastStatusCall + mainLoopPoll:  # within 30 seconds
-                duetStatus, _ = getDuet('Status from mainLoop', Status)
+            if time.time() >= lastStatusCall + mainLoopPoll:  # within 30 seconds   
+                duetStatus, _ = getDuet('mainLoop', Status)
             if time.time() >= lastCaptureLoop + poll:
                 captureLoop()
             if mainLoopState == 1:
@@ -3030,9 +3190,9 @@ def captureLoop():  # Single instance only
             if camera2 != '':
                 logger.debug('Calling oneInterval for Camera 2')
                 oneInterval('Camera2', camera2, weburl2, camparam2)
-            duetStatus, _ = getDuet('Capture Loop pause check', Status)
+                duetStatus, _ = getDuet('pause check loop', Status)
 
-            if duetStatus == 'paused':
+            if duetStatus == 'paused' and (pause == 'yes' or detect == pause): # will be ignored is manual pause
                 unPause()  # Nothing should be paused at this point
 
             # Check for latest state to avoid polling delay
@@ -3161,7 +3321,8 @@ def parseM291(displaymessage,seq):
     displaymessage = displaymessage.strip() # get rid of leading / trailing blanks
 
     if displaymessage.startswith('DuetLapse3.'):
-        sendDuetGcode(apiModel,'M292%20P0%20S' + str(seq)) #  Clear the message
+        #  sendDuetGcode(apiModel,'M292%20P0%20S' + str(seq)) #  Clear the message
+        sendDuetGcode(apiModel,'M292 P0 S' + str(seq)) #  Clear the message
         logger.debug('Cleared M291 Command: ' + displaymessage + ' seq ' + str(seq))
 
         nextaction = displaymessage.split('DuetLapse3.')[1].strip()
@@ -3188,7 +3349,8 @@ def parseM291(displaymessage,seq):
             logger.info('The current state is: ' + action)
 
     elif execkey != '' and displaymessage.startswith(execkey):
-        sendDuetGcode(apiModel,'M292%20P0%20S' + str(seq)) #  Clear the message
+        # sendDuetGcode(apiModel,'M292%20P0%20S' + str(seq)) #  Clear the message
+        sendDuetGcode(apiModel,'M292 P0 S' + str(seq)) #  Clear the message
         logger.debug('Cleared M291 execkey: ' + displaymessage + ' seq ' + str(seq))
         displaymessage = urllib.parse.unquote(displaymessage)
         execRun(displaymessage) # Run the command 
@@ -3339,10 +3501,10 @@ def startup():
     nextAction(action)
 
 def main():
-    # Allow process running in background or foreground to be gracefully
-    # shutdown with SIGINT (kill -2 <pid>)
-    signal.signal(signal.SIGINT, quit_forcibly) # Ctrl + C
-
+    # Allow process running in background or foreground to be forcibly
+    # shutdown with SIGINT (kill -2 <pid> or SIGTERM)
+    signal.signal(signal.SIGINT, quit_sigint) # Ctrl + C
+    signal.signal(signal.SIGTERM, quit_sigterm)
     # Globals
     # Set in startup code
     global httpListener, win, pid, action, apiModel, workingDir, workingDirStatus
@@ -3390,6 +3552,10 @@ def main():
     apiModel = ''
 
     init()
+    # Simulated Image
+    global simulatedImage
+    simulatedImage = base64.b64decode('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')
+
     listOptions()
     issue_warnings()
     port_ok = checkforvalidport() # Exits if invalid
