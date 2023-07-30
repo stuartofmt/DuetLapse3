@@ -11,7 +11,9 @@ It can be run as a one-of or continuously in the background.
 
 It is also available as a plugin for Duet3D SBC
 
-A companion program startDuetLapse3 provides administration capabilities and is especially useful if multiple instances of DuetLapse3 are running and connected to multiple printers. Over time, the UI and external control of DuatLapse has improved.  In most use cases, startDuetLapse3 will not be used.
+A companion program startDuetLapse3 provides administration capabilities and is especially useful if multiple instances of DuetLapse3 are running and connected to multiple printers.
+
+For most users, startDuetLapse3 will not be used.
 
 **In addition to a browser interface DuetLapse3 can be controlled directly from gcode.**
 
@@ -35,10 +37,15 @@ A companion program startDuetLapse3 provides administration capabilities and is 
 
 [DuetLapse3 Useage Examples.md](https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/DuetLapse3%20Useage%20Examples.md)
 
-
 ## Version History
 
 Deleted verion history prior to 5.0
+
+### Version 5.2.2
+
+- [1]  Fixed bug in -pause layer detection
+- [2]  Added wait loop before restart to ensure previous job had finished - a timing thing dependent on when "Complete" sent and the finish of gcode
+- [3]  Added more specific check for version number of dsf
 
 ### Version 5.2.1
 

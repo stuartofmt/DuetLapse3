@@ -22,7 +22,7 @@
 #
 """
 
-duetLapse3Version = '5.3.1.1'
+duetLapse3Version = '5.3.2'
 duet3DVersion = '3.5.0-beta.4'
 
 """
@@ -57,13 +57,15 @@ CHANGES
 # Fixed incorrect POST on M292
 # Changed firmware version to use ['boards'][0]['firmwareVersion']
 # Displayed password as 'Default' or '*******'
-# 5.3.1.1
+# 5.3.2
 # removed port number from connection status in UI
 # forced disconnect if emulation mode detected.
 # instrumented code in getduetVersion
 # added explicit version check
 # 5.3.2
 # Added -simulate mode for testing
+# Fixed race condition in graceful_termination
+# Fixed problem in statemachine
 """
 
 """
@@ -735,6 +737,7 @@ def setuplogfile():  #Called at start and restart
 
 def renamelogfile(thisDir): # called from createworkingDir 
     global logname, logfilename
+    logger.debug('Calling stack ' + currentFuncName(2) + ' --> '  + currentFuncName(1) + ' --> '  + currentFuncName(0))
 
     if nolog is False:
         filehandler = None
@@ -800,15 +803,15 @@ def poll_seconds():
     
     # Seconds needs to be an integer multiple of mainLoopPoll       
     if seconds != 0:
-        if seconds < minseconds:
-            seconds = minseconds
-        multiplier,remainder = divmod(seconds, mainLoopPoll)    
-        if remainder == 0: # No need to change
-            pass
-        else:
-            seconds = mainLoopPoll * multiplier # round down  
+        multiplier,remainder = divmod(max(seconds,minseconds), mainLoopPoll)    
+        if remainder == 0: # use the max
+            updateglobals('seconds', str(max(seconds,minseconds))) 
+        else:  # round down
+            updateglobals('seconds', str(mainLoopPoll * multiplier))     
+        
         # poll needs to be lesser of poll and seconds.
-        poll = min(poll, seconds) 
+        updateglobals('poll', str(min(poll, seconds))) 
+        
         # Check for dontwait
         if seconds > 0 and 'none' in detect:
             updateglobals('dontwait', 'True')       
@@ -1127,7 +1130,7 @@ def getPidDirs():
 
 def createworkingDir():
     global workingDirStatus, nextWorkingDir, pidIncrement
- 
+    logger.debug('Calling stack ' + currentFuncName(2) + ' --> '  + currentFuncName(1) + ' --> '  + currentFuncName(0))
     try:
         os.mkdir(nextWorkingDir)
         logger.debug('Created working directory: ' + nextWorkingDir)
@@ -1466,12 +1469,13 @@ def oneInterval(cameraname, camera, weburl, camparam, finalframe = False):
     if pause == 'yes' and zn < 1:  # Dont capture anything until first layers is done
         logger.debug('Bypassing onePhoto from oneInterval because -pause = ' + pause + ' and layer = ' +str(zn))
     else:    
-        if 'layer' in detect and zn%numlayers == 0: #  Every numlayers layer
-            if (not zn == zo1 and cameraname == 'Camera1') or (not zn == zo2 and cameraname == 'Camera2'):
-                # Layer changed, take a picture.
-                checkForPause(zn)
-                logger.info('Layer - ' + cameraname + ': capturing frame ' + str(frame) + ' at layer ' + layer + ' after layer change')
-                onePhoto(cameraname, camera, weburl, camparam)
+        if 'layer' in detect:
+            checkForPause(zn)
+            if zn%numlayers == 0: #  Every numlayers layer
+                if (not zn == zo1 and cameraname == 'Camera1') or (not zn == zo2 and cameraname == 'Camera2'):
+                    # Layer changed, take a picture.
+                    logger.info('Layer - ' + cameraname + ': capturing frame ' + str(frame) + ' at layer ' + layer + ' after layer change')
+                    onePhoto(cameraname, camera, weburl, camparam)
 
         elif ('pause' in detect) and (duetStatus == 'paused'):
             checkForPause(zn)
@@ -1490,7 +1494,7 @@ def oneInterval(cameraname, camera, weburl, camparam, finalframe = False):
     else:
         zo2 = zn
 
-        # Note that onePhoto() updates timePriorPhoto1 and timePriorPhoto2
+    # Note that onePhoto() updates timePriorPhoto1 and timePriorPhoto2
     if cameraname == 'Camera1':
         elap = (time.time() - timePriorPhoto1)
     else:
@@ -1833,7 +1837,7 @@ def Status():
 def Layer():
     # Used to get the the current layer
     if simulate in ['all','printer']:
-        return 999999
+        return -1
     if apiModel == 'rr_model':
         URL = ('http://' + duet + '/rr_model?key=job.layer')
         r = urlCall(URL,  False)
@@ -1947,6 +1951,21 @@ def stopPlugin(model, command):
     else:
         logger.info('Stop Plugin ignored - only valid for SBC')
     return
+
+def getVideoMsg():
+    if maxvideo > 0:
+        if frame1 > maxvideo:
+            videolength = 'Video will be ' + str(maxvideo) + ' seconds long'
+        elif frame1 > minvideo:
+            videolength = 'Video will be ' + str(frame1) + ' seconds long'
+        else:
+            videolength = 'Not enough images for video to be created'
+    else:
+        if frame1/fps > minvideo:
+            videolength = 'Video will be ' + str(frame1/fps) + ' seconds long'
+        else:
+            videolength = 'Insufficient images for video to be created'
+    return videolength        
 
 def makeVideo(directory, xtratime = False):  #  Adds and extra frame
     global makeVideoState, frame1, frame2
@@ -2139,10 +2158,10 @@ class MyHandler(SimpleHTTPRequestHandler):
 
 
         startbutton =   '<div class="inline">\
-                        <button class="button" style="background-color:yellow" onclick="\
-                        fetch(\'http://' + referer + '?command=start\');\
-                        repeatDisplayStatus();\
-                        " ' + disable + ' >Start</button>\
+                        <button class="button" style="background-color:yellow" onclick="(async () =>{\
+                        let response = await fetch(\'http://' + referer + '?command=start\');\
+                        await repeatDisplayStatus();\
+                        })()" ' + disable + ' >Start</button>\
                         </div>'
 
         # standby
@@ -2238,20 +2257,9 @@ class MyHandler(SimpleHTTPRequestHandler):
                    <input type="submit" value="Update">\
                    </form>'
 
-        if maxvideo > 0:
-            if frame1 > maxvideo:
-                videolength = 'Video will be ' + str(maxvideo) + ' seconds long'
-            elif frame1 > minvideo:
-                videolength = 'Video will be ' + str(frame1) + ' seconds long'
-            else:
-                videolength = 'Not enough images for video to be created'
-        else:
-            if frame1/fps > minvideo:
-                videolength = 'Video will be ' + str(frame1/fps) + ' seconds long'
-            else:
-                videolength = 'Insufficient images for video to be created'
+        videomsg = getVideoMsg() #  Just want the message
 
-        options += '<br><b>' + videolength + '&nbsp;&nbsp;&nbsp;&nbsp;'
+        options += '<br><b>' + videomsg + '&nbsp;&nbsp;&nbsp;&nbsp;'
 
         # snapshot
         snapshotbutton =    '<div class="inline">\
@@ -2677,7 +2685,8 @@ class MyHandler(SimpleHTTPRequestHandler):
         if ttype == 'terminatehttp':
             startnextAction('completed')
         elif ttype == 'terminateg':
-            startnextAction('terminate')
+            startnextAction('completed')
+            #  startnextAction('terminate')
         elif ttype == 'terminatef':
             if isPlugin(apiModel):
                 stopPlugin(apiModel, 'DuetLapse3')
@@ -2688,45 +2697,51 @@ class MyHandler(SimpleHTTPRequestHandler):
 
     def display_terminate_buttons(self):
         if restart:
-           pageAction = 'repeatDisplayStatus();'
+            restartmsg = '\\nA restart will occur after the Terminate'
+            pageaction = "repeatDisplayStatus();"
         else:
-            pageAction = "document.body.innerHTML = \'\';"
+            restartmsg = ''
+            pageaction = "document.body.innerHTML = '';"
 
         if workingDirStatus != -1:
-            theDir = workingDir
+            vidmsg = getVideoMsg()
         else:
-            theDir = 'nodir'
+            vidmsg = 'There are no images available'
+
+        btnaction = "if (confirm('Press OK to Gracefully Terminate\\n"\
+                + vidmsg\
+                + restartmsg\
+                + "')) {"\
+                + "console.log('Graceful Terminate');"\
+                + "fetch('http://" + referer + "?terminate=terminateg');"\
+                + pageaction\
+                + "} else {"\
+                + "console.log('Abort Graceful Terminate.');"\
+                + "repeatDisplayStatus();\
+                };"
 
         graceful_button =  '<td>\
                             <div class="inline">\
                             <button class="button" style="background-color:green" onclick="(async () => {\
-                            let theDir = \'' + theDir + '\';\
-                            console.log(theDir);\
-                            if (theDir != \'nodir\') {\
-                            alert(\'Graceful Terminate\\nWill attempt to create a video.\\nThis can take some time to complete.\');\
-                            let fullname_encoded = encodeURIComponent(\'' + theDir.replace('\\', '\\\\') + '\');\
-                            console.log(fullname_encoded);\
-                            let promise = await fetch(`http://' + referer + '?video=${fullname_encoded}&video=True`);\
-                            let result = await promise.text();\
-                            alert(result);\
-                            } else {\
-                            alert(\'There are no images available.\\nNo video will be created.\');\
-                            }\
-                            fetch(\'http://' + referer + '?terminate=terminateg\');\
-                            let restart = \'' + str(restart) +'\';\
-                            if (restart == \'True\') {\
-                            alert(\'Restart in Progress\');\
-                            } else {\
-                            alert (\'Shutting Down\');\
-                            }\
-                            ' + pageAction + '\
+                            ' + btnaction + '\
                             })()">Graceful Terminate</button>\
                             </div>\
                             </td>'
+        #  Use this style from now on (no need for escapes).  Newline whenever quotes needed.
+        btnaction = "if (confirm('Press OK to Forcefully Terminate\\nA video will NOT be created.')) {\
+                    console.log('Forced Terminate');"\
+                    + "fetch('http://" + referer + "\?terminate=terminatef');"\
+                    + "document.body.innerHTML = '';"\
+                    + "} else {"\
+                    + "console.log('Abort Forced Terminate.');"\
+                    + "repeatDisplayStatus();\
+                    };"
 
         forced_button =     '<td>\
                             <div class="inline">\
-                            <button class="button" style="background-color:red" onclick="fetch(\'http://' + referer + '?terminate=terminatef\'); document.body.innerHTML = \'\';  alert(\'Forced Terminate in Progress\\nA video will NOT be created.\');">Forced Terminate</button>\
+                            <button class="button" style="background-color:red" onclick="(async () => {\
+                            ' + btnaction + '\
+                            })()">Forced Terminate</button>\
                             </div>\
                             </td>'
 
@@ -3156,14 +3171,42 @@ def mainLoop():
 def stateMachine(currentState):
     newState = currentState
     if currentState == 'Waiting':
-        if duetStatus == 'processing' or dontwait or (duetStatus == 'paused' and detect != 'none'):
+        if duetStatus == 'processing' or dontwait or (duetStatus in ['paused','pausing'] and detect != 'none'):
             newState = 'Capturing'
-    elif currentState == 'Capturing':
-        if duetStatus == ('idle' and lastDuetStatus == 'processing') or terminateState == 1:
+        elif duetStatus == 'cancelling':
             newState = 'Completed'
+    elif currentState == 'Capturing':
+        if duetStatus == 'processing':
+            pass
+        elif (duetStatus == 'idle' and lastDuetStatus in ['processing','cancelling']) or terminateState == 1:
+            newState = 'Completed'
+        elif duetStatus == 'cancelling':
+            newState = 'Completed'
+        elif duetStatus in ['pausing','paused'] and lastDuetStatus in ['processing','paused','pausing','resuming']:
+            pass
+        elif duetStatus == 'resuming' and lastDuetStatus in ['processing','paused','pausing','resuming']:
+            pass
+        elif duetStatus == 'busy':
+            pass
+        else:
+            newState = 'Waiting'
+    elif currentState == 'Completed':
+        pass
+    else:
+        logger.info('GROSS LOGIC ERROR IN STATE MACHINE')
+
+    logger.debug('****** stateMachine:')
+    logger.debug('newstate = ' + newState)
+    logger.debug('currentState = ' + currentState)
+    logger.debug('duetStatus = ' + duetStatus)
+    logger.debug('lastDuetStatus = ' + lastDuetStatus)
+    logger.debug('dontwait = ' + str(dontwait))
+    logger.debug('detect = ' + detect)
+    logger.debug('terminateState = ' + str(terminateState))
+    logger.debug('******')
 
     if newState != currentState:
-        logger.info('****** Print State changed to: ' + newState + ' *****')
+        logger.info('****** Print State changed to: ' + newState + ' from ' + currentState + '*****')
     return newState        
 
 def captureLoop():  # Single instance only
@@ -3180,10 +3223,10 @@ def captureLoop():  # Single instance only
         captureLoopState = 1
 
         if duetStatus != lastDuetStatus:
-            logger.info('****** Duet status changed to: ' + str(duetStatus) + ' *****')
+            logger.info('****** Duet status changed to: ' + str(duetStatus) + ' from ' + str(lastDuetStatus) + ' *****')
 
         printState = stateMachine(printState)
-        
+
         if printState == 'Capturing':
             logger.debug('Calling oneInterval for Camera 1')
             oneInterval('Camera1', camera1, weburl1, camparam1)
@@ -3191,16 +3234,14 @@ def captureLoop():  # Single instance only
                 logger.debug('Calling oneInterval for Camera 2')
                 oneInterval('Camera2', camera2, weburl2, camparam2)
                 duetStatus, _ = getDuet('pause check loop', Status)
-
-            if duetStatus == 'paused' and (pause == 'yes' or detect == pause): # will be ignored is manual pause
+            if duetStatus == 'paused' and (pause == 'yes' or detect == pause): # will be ignored if a manual pause
                 unPause()  # Nothing should be paused at this point
-
-            # Check for latest state to avoid polling delay
+            #  latest state to avoid polling delay
             printState = stateMachine(printState)
 
         if printState == 'Completed':
             logger.info('Print Job Completed')
-            printState = 'Waiting'
+            # printState = 'Waiting'
             # use a thread here as it will allow this thread to close.
             startnextAction('completed')
             logger.info('Exiting captureLoop')  
@@ -3215,6 +3256,9 @@ def captureLoop():  # Single instance only
 
 def nextAction(nextaction):  # can be run as a thread
     global action, printState, captureLoopState, lastaction, logger, nextActionState, standby, mainLoopState, restart
+    
+    logger.debug('Calling nextaction ' + nextaction + ' from ' + currentFuncName(2) + ' --> '  + currentFuncName(1) + ' --> '  + currentFuncName(0))
+
     if nextActionState == 0:
         logger.debug('nextAction stopped')
         nextActionState = -1
@@ -3250,7 +3294,7 @@ def nextAction(nextaction):  # can be run as a thread
 
         # This test is positionally sensitive
         if nextaction == 'completed':  # end of a print job
-            printState = 'Completed'  # Update may have come from M117
+            printState = 'Completed'  # Update may have come from M291
             if novideo:
                 logger.info('Video creation was skipped')
             else:
@@ -3541,8 +3585,8 @@ def main():
     global lastMessageSeq
     lastMessageSeq = 0
 
-    # Allowed Commands
-    commands = ['start','standby','pause','continue', 'restart', 'terminate']
+    # Allowed Commands 
+    # commands = ['start','standby','pause','continue', 'restart', 'terminate']
  
     
     httpListener = False  # Indicates if an integral httpListener should be started
@@ -3558,7 +3602,7 @@ def main():
 
     listOptions()
     issue_warnings()
-    port_ok = checkforvalidport() # Exits if invalid
+    checkforvalidport() # Exits if invalid
     startMessages()
     startup()
 
