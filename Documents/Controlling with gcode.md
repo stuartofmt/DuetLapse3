@@ -24,10 +24,12 @@ The constraints abaove are due to the current (Feb '23) mechanism used by the fi
 M291 messages can be used to control DuetLapse3 using the following form:
 
 ```text
-M291 P"DuetLapse3.(x)" S2
+M291 P"DuetLapse3.(x)" S0 T15
 ```
 
-**Note the mandatory use of P, "", and S2**
+**Note the mandatory use of P, "", and use of S0 and T15 (non blocking with a timeout)**
+
+The use of S0 is to prevent the M291 message blocking execution of the print job in the event that DuetLapse3 is not running.  T15 will clear the message (after 15 seconds) unless it is cleared sooner by DuetLapse3.
 
 The following controls are available:
 start, standby, pause, continue, restart, snapshot, completed, graceful, forced
@@ -38,7 +40,7 @@ Note that **terminate** is not supported.  Instead use `graceful` or `forced` de
 e.g. Change DuetLapse3 from `standby` to `start`
 
 ```text
-M291 P"DuetLapse3.start" S2
+M291 P"DuetLapse3.start" S0 T15
 ```
 
 ## Change a DuetLapse3 option
@@ -46,7 +48,7 @@ M291 P"DuetLapse3.start" S2
 M291 messages can be used to change DuetLapse3 options using the following form:
 
 ```text
-M291 P"DuetLapse3.change.(variable)=(value)" S2
+M291 P"DuetLapse3.change.(variable)=(value)" S0 T15
 ```
 
 The following variables are supported:
@@ -55,7 +57,7 @@ verbose, seconds, poll, detect, dontwait, pause, movehead, restart, novideo, kee
 e.g. Change -seconds to 60
 
 ```text
-M291 P"DuetLapse3.change.seconds=60" S2
+M291 P"DuetLapse3.change.seconds=60" S0 T15
 ```
 
 ## Execute another program
@@ -63,13 +65,13 @@ M291 P"DuetLapse3.change.seconds=60" S2
 M291 messages can be used to have DuetLapse3 execute another program using the following form:
 
 ```text
-M291 P"(execkey) (program to run)" S2
+M291 P"(execkey) (program to run)" S0 T15
 ```
 
 The character sequence specified by -execkey is used to identify the command. For example if -execkey was `:do:` the following message will attempt to run `test.sh "hello world"`
 
 ```text
-M291 P":do: ./test.sh %22hello world%22" S2
+M291 P":do: ./test.sh %22hello world%22" S0 T15
 ```
 
 Note: Anything that needs to be quoted inside the message i.e. in the command portion, needs to be percent encoded.
@@ -111,9 +113,9 @@ Start DuetLapse3 with the following suggested options, in addition to those need
 
 ## Note
 
-- [1]  The use of M291 P"DuetLapse3.standby" S2  early in the print job (in the macro) to prepare for capture.
-- [2]  The use of M291 P"DuetLapse3.start" S2 to control when capture will start.
-- [3]  **The use of M291 P"DuetLapse3.complated" S2  to indicate when capture will stop.**
+- [1]  The use of M291 P"DuetLapse3.standby" S0 T15  early in the print job (in the macro) to prepare for capture.
+- [2]  The use of M291 P"DuetLapse3.start" S0 T15 to control when capture will start.
+- [3]  **The use of M291 P"DuetLapse3.complated" S0 T15  to indicate when capture will stop.**
 
 Placement of these options allows fine control over the timelapse.  This is especially useful if -restart is used and DuetLapse3 is running continuously.
 
@@ -124,21 +126,21 @@ Embedding these macro calls from your slicer makes easy use of this functionalit
 ## Further Examples
 
 ```text
-M291 P"DuetLapse3.standby" S2   # Will place the program into standby
+M291 P"DuetLapse3.standby" S0 T15   # Will place the program into standby
 ```
 
 ```text
-M291 P"DuetLapse3.start" S2    # Will start capturing image
+M291 P"DuetLapse3.start" S0 T15    # Will start capturing image
 ```
 
 ```text
-M291 P"DuetLapse3.change.verbose=False" S2   #  will turn of verbose output
+M291 P"DuetLapse3.change.verbose=False" S0 T15   #  will turn of verbose output
 ```
 
 ```text
-M291 P"DuetLapse3.change.seconds=60" S2   # Will capture an image every 60 seconds
+M291 P"DuetLapse3.change.seconds=60" S0 T15   # Will capture an image every 60 seconds
 ```
 
 ```text
-M291 P"DuetLapse3.change.movehead=1,200" S2   # move the print head to (x=1, Y=200) if pause=yes is used
+M291 P"DuetLapse3.change.movehead=1,200" S0 T15   # move the print head to (x=1, Y=200) if pause=yes is used
 ```
