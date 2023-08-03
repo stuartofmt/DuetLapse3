@@ -1,4 +1,5 @@
 ; Version 3.4
+;
 ; Test gcode file for demonstrating DuetLapse3. style messages
 ; Note the use of layer change comments required since 3.3RC2
 ; For tracking layer changes
