@@ -1,21 +1,24 @@
-; Version 3.4
+: Version 3.5+ 
 ; Test gcode file for demonstrating DuetLapse3. style messages
 ; Note the use of layer change comments required since 3.3RC2
 ; For tracking layer changes
 ;
-M98 P"/macros/M291_test_job_settings.g"
+M98 P"/macros/M3291_test_job_settings.g"
 ;
 T0             ; turn on the tool
 M561           ; Remove any Bed Compensation
 G90 ; use absolute coordinates
 M83 ; extruder relative mode
 ;
+M3291 B":do: ./test.sh %22Test Job1%22"
+;
 G28 ; home all
 ;
+M3291 B":do: ./test.sh %22Home Completed%22"
 ;
 G0 Z50 ; move the print head to where it can be seen by camera
 ;
-M291 P"DuetLapse3.start" S0 T15   ; start
+M3291 B"DuetLapse3.start"    ; start
 ;
 ; 30 sec 1 layer simulation
 ;LAYER_CHANGE
@@ -45,7 +48,7 @@ G4 S5
 G0 X120 Y120
 G4 S5
 G0 X80 Y120
-G4 S0 T15
+G4 
 ;LAYER_CHANGE
 ;Z:12
 G91
@@ -121,9 +124,9 @@ G0 Z1 ; move Z down 1mm - simulates a new layer
 G90
 G4 S10
 ;
-M291 P"DuetLapse3.seconds=0" S0 T15   ; stops any timed capture (avoids follow on capture if -restart)
+M3291 B"DuetLapse3.seconds=0"    ; stops any timed capture (avoids follow on capture if -restart
 ;
-M291 P"DuetLapse3.completed" S0 T15   ; Stop capturing images at this point
+M3291 B"DuetLapse3.completed"    ; Stop capturing images at this point
 ;
 ; Simulate post completion moves
 G91           ;relative mode
