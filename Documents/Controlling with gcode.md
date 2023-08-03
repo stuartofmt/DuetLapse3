@@ -103,20 +103,20 @@ It simulates a small print job (no heating , no filament use).
 ### For Duet3D prior to 3.5 (Deprecated) 
 Copy the following file to your printer job folder:
 
-[M291Test.gcode](https://github.com/stuartofmt/DuetLapse3/blob/main/Examples/M291Test.gcode)
+[M291Test.gcode](https://github.com/stuartofmt/DuetLapse3/blob/main/Examples/3.4/M291Test.gcode)
 
 and this file to the macro folder:
 
-[test_job_settings.g](https://github.com/stuartofmt/DuetLapse3/blob/main/Examples/M291_test_job_settings.g)
+[test_job_settings.g](https://github.com/stuartofmt/DuetLapse3/blob/main/Examples/3.4/M291_test_job_settings.g)
 
 ### For Duet#D from 3.5
 Copy the following file to your printer job folder:
 
-[M291Test.gcode](https://github.com/stuartofmt/DuetLapse3/blob/main/Examples/M3291Test.gcode)
+[M291Test.gcode](https://github.com/stuartofmt/DuetLapse3/blob/main/Examples/3.5/M3291Test.gcode)
 
 and this file to the macro folder:
 
-[test_job_settings.g](https://github.com/stuartofmt/DuetLapse3/blob/main/Examples/M3291_test_job_settings.g)
+[test_job_settings.g](https://github.com/stuartofmt/DuetLapse3/blob/main/Examples/3.5/M3291_test_job_settings.g)
 
 
 Start DuetLapse3 with the following suggested options, in addition to those needed for -duet and -camera:
