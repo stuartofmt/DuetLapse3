@@ -66,6 +66,10 @@ CHANGES
 # Added -simulate mode for testing
 # Fixed race condition in graceful_termination
 # Fixed problem in statemachine
+5.3.3
+# Removed M291 message system - too complicated
+# Replaced with custom M3291 queueing
+# Added -M3291 option to allow different Mcode
 """
 
 """
@@ -251,6 +255,8 @@ def whitelist(parser):
     parser.add_argument('-execkey', type=str, nargs=1, default=[''],help='string to identify executable command')
     parser.add_argument('-simulate', type=str, nargs=1, choices=['all', 'printer', 'camera'], default=['off'],
                         help='Default is off')
+    parser.add_argument('-M3291', type=str, nargs=1, default=['M3291'],
+                        help='Default is M3291')
     return parser
 
 ################################################
@@ -460,11 +466,14 @@ def init():
     inputs.update({'hidebuttons': str(hidebuttons)})
 
     #  Special Functions
-    global execkey
+    global execkey, M3291
 
     inputs.update({'# Special Functions': ''})
     execkey = args['execkey'][0]
     inputs.update({'execkey': str(execkey)})
+
+    M3291 = args['M3291'][0]
+    inputs.update({'M3291': str(M3291)})
 
 
     ##### Create a custom logger #####
@@ -729,6 +738,7 @@ def setuplogfile():  #Called at start and restart
         f_handler.setFormatter(f_format)
         logger.addHandler(f_handler)
         logger.info('DuetLapse3 Version --- ' + str(duetLapse3Version))
+        logger.info('Requires Duet3d Version --- ' + str(duet3DVersion))
         logger.info('Process Id  ---  ' + str(pid) )
         logger.info('-------------------------------------------------------------------------------\n')
 
@@ -1769,70 +1779,62 @@ def Status():
     global lastStatusCall
     lastStatusCall = time.time()
     # Used to get the status information from Duet
-    status = display = ''
+    status = ''
     if simulate in ['all','printer']:
         logger.info('Simulated status is Idle')
         return 'idle', ''
-
+    
+    j = {}
+    msgQueue = []
     if apiModel == 'rr_model':
         URL = ('http://' + duet + '/rr_model?key=state')
-        while True: #  The max queue depth is 8 so we clear as many as we can in one go
-            r = urlCall(URL,  False)
-            if r.ok:
-                try:
-                    j = json.loads(r.text)
-                    status = j['result']['status']
-                    logger.debug('Status is ' + status)
-                    message = ''
-                    if j['result'].get('messageBox') != None:
-                        if j['result']['messageBox'].get('message') != None:
-                            message = j['result']['messageBox']['message']
-                            seq = j['result']['messageBox']['seq']
-                            if message != '' and seq != lastMessageSeq:
-                                parseM291(message,seq)
-                                continue
-                            else:
-                                break
-                        else:
-                            break
-                    else:
-                        break     
-                except Exception as e:
-                    logger.debug('Could not get Status')
-                    logger.debug(e)
-
-        return status, message        
+        r = urlCall(URL,  False)
+        msgQueue = []    
+        if r.ok:
+            try:
+                j = json.loads(r.text)
+                status = j['result']['status']
+                logger.debug('Status is ' + status)  
+            except Exception as e:
+                logger.debug('Could not get Status')
+                logger.debug(e)      
 
     elif apiModel == 'SBC':
         URL = ('http://' + duet + '/machine/status')
-        while True: #  The max queue depth is 8 so we clear as many as we can in one go
-            r = urlCall(URL,  False)
-            if r.ok:
-                try:
-                    j = json.loads(r.text)
-                    status = j['state']['status']
-                    logger.debug('Status is ' + status)
-                    message = ''
-                    if j['state'].get('messageBox') != None:
-                        if j['state']['messageBox'].get('message') != None: 
-                            message = j['state']['messageBox']['message']
-                            seq = j['state']['messageBox']['seq']
-                            if message != '' and seq != lastMessageSeq:
-                                parseM291(message,seq)
-                                continue
-                            else:
-                                break
-                        else:
-                            break
-                    else:
-                        break        
-                except Exception as e:
-                    logger.debug('Could not get Message')
-                    logger.debug(e)
+        # while True: #  The max queue depth is 8 so we clear as many messages as we can in one go
+        r = urlCall(URL,  False)
+        if r.ok:
+            try:
+                j = json.loads(r.text)
+                status = j['state']['status']
+                logger.debug('Status is ' + status)     
+            except Exception as e:
+                logger.debug('Could not get Status')
+                logger.debug(e)
+    else:
+            return 'disconnected', ''
+    
+    #  Check for message commands
+    queue = []
+    dellist = []     
+    if j['global'].get('DL3msg') != None: # Just in case there is a race condition
+        queue = j['global']['DL3msg']
+    if j['global']['DL3del'] != None:
+        dellist = j['global']['DL3del'][0]   
+    if queue[0] > lastMessageSeq or dellist != None > 0:
+        msgQueue = parseM3291(queue,dellist)
+    '''
+    except Exception as e:
+        logger.debug('Could not get Message from queue')
+        logger.debug(e)  
+    '''
+    for item in msgQueue:
+        logger.debug(item)
+        actionM3291(item)
 
-        return status, message
+    return status, ''
 
-    return 'disconnected', ''
+
 
 def Layer():
     # Used to get the the current layer
@@ -3142,7 +3144,7 @@ def startMakeVideo(directory, xtratime = False, thread = True): # Does not run i
 ###################################
 
 def mainLoop():
-    # Used for handling M291 Messages
+    # Used for handling direct DL3 Messages
     # Runs continously except during terminate processing
     global mainLoopState, action, duetStatus, lastCaptureLoop, lastStatusCall
     duetStatus = 'unknown'
@@ -3294,7 +3296,7 @@ def nextAction(nextaction):  # can be run as a thread
 
         # This test is positionally sensitive
         if nextaction == 'completed':  # end of a print job
-            printState = 'Completed'  # Update may have come from M291
+            printState = 'Completed'  # Update may have come from message Q
             if novideo:
                 logger.info('Video creation was skipped')
             else:
@@ -3352,25 +3354,42 @@ def nextAction(nextaction):  # can be run as a thread
 ###################################
 #  Utility Functions
 ###################################
+def parseM3291(queue = [], dellist = []):
+    global lastMessageSeq
+    # If missed deletions - cleanup and try again on next poll
+    if dellist != None:
+        logger.debug('Delayed delete on DL3msg queue')
+        sendDuetGcode(apiModel, M3291 + ' B"Del"')
+        return {}    
 
-
-def parseM291(displaymessage,seq):
-    global action, lastMessageSeq
-    logger.debug('Parsing message = ' + displaymessage + ' with seq # = ' +str(seq))
-    if seq == lastMessageSeq:
-        return
+    logger.debug('Parsing message queue = ' + str(queue))    
+    lastMessageSeq = queue[0]
+    processed = []
+    actionqueue = []
+    for i in range(1,len(queue)):
+        if queue[i] is None:
+            continue
+        message = queue[i].strip() # get rid of leading / trailing blanks
+        if message.startswith('DuetLapse3.') or (execkey != '' and message.startswith(execkey)):
+            actionqueue.append(message)
+        processed.append(i)
     
-    lastMessageSeq = seq
+    if len(processed) != 0:
+        delqueue = '{'
+        for i in processed:
+            delqueue += str(i) + ','   
+        delqueue += '}'
+        # sendDuetGcode(apiModel,'set global.DL3del[0]=' + delqueue + ' ; ' + M3291 + ' P"Del"')
+        sendDuetGcode(apiModel, 'set global.DL3del[0]=' + delqueue)
+        sendDuetGcode(apiModel, M3291 + ' B"Del"')
 
-    displaymessage = displaymessage.strip() # get rid of leading / trailing blanks
+    return actionqueue
 
-    if displaymessage.startswith('DuetLapse3.'):
-        #  sendDuetGcode(apiModel,'M292%20P0%20S' + str(seq)) #  Clear the message
-        sendDuetGcode(apiModel,'M292 P0 S' + str(seq)) #  Clear the message
-        logger.debug('Cleared M291 Command: ' + displaymessage + ' seq ' + str(seq))
 
+def actionM3291(displaymessage):
+    global action
+    if  displaymessage.startswith('DuetLapse3.'):   
         nextaction = displaymessage.split('DuetLapse3.')[1].strip()
-
         if nextaction == action: #  Nothing to do
             logger.info('Already in ' + action + ' state')
             return
@@ -3380,7 +3399,7 @@ def parseM291(displaymessage,seq):
         elif nextaction == 'forced':
             quit_forcibly()
         elif nextaction in allowedNextAction(action) or nextaction == 'completed':
-            logger.debug ('M291 sending to startnextAction: ' + nextaction)
+            logger.debug ('DL3msg queue sending to startnextAction: ' + nextaction)
             startnextAction(nextaction)
         elif nextaction.startswith('snapshot'):
             if workingDirStatus != -1:
@@ -3393,9 +3412,6 @@ def parseM291(displaymessage,seq):
             logger.info('The current state is: ' + action)
 
     elif execkey != '' and displaymessage.startswith(execkey):
-        # sendDuetGcode(apiModel,'M292%20P0%20S' + str(seq)) #  Clear the message
-        sendDuetGcode(apiModel,'M292 P0 S' + str(seq)) #  Clear the message
-        logger.debug('Cleared M291 execkey: ' + displaymessage + ' seq ' + str(seq))
         displaymessage = urllib.parse.unquote(displaymessage)
         execRun(displaymessage) # Run the command 
     return
@@ -3495,12 +3511,12 @@ def startMessages():
     if standby:
         logger.info('##########################################################')
         logger.info('Will not start until command=start received from http listener')
-        logger.info('or M291 P"DuetLapse3.start" S2  sent as gcode')
+        logger.info('or ' + M3291 +  ' P"DuetLapse3.start" sent as gcode')
         logger.info('##########################################################\n')
 
     logger.info('##########################################################')
     logger.info('Video will be created when printing ends')
-    logger.info('or if requested from the UI or M291 "DuetLapse3.completed" S2')
+    logger.info('or if requested from the UI or ' + M3291 +  ' P"DuetLapse3.completed"')
     logger.info('##########################################################\n')
 
     logger.info('##########################################################')
@@ -3538,6 +3554,9 @@ def startup():
         startHttpListener()
 
     checkforPrinter()  # Needs to be connected before mainloop
+
+    logger.info('Initializing DL3msg queue')
+    sendDuetGcode(apiModel,M3291 + ' B"Init"') # Make sure the DL3msg queue is initialized but don't Clear it
 
     startmainLoop()
 
@@ -3581,7 +3600,7 @@ def main():
     global urlHeaders
     urlHeaders = {}
 
-    # Keep track of M291 messages
+    # Keep track of M3291 messages
     global lastMessageSeq
     lastMessageSeq = 0
 
