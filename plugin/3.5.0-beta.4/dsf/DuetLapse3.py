@@ -3556,7 +3556,7 @@ def startup():
     checkforPrinter()  # Needs to be connected before mainloop
 
     logger.info('Initializing DL3msg queue')
-    sendDuetGcode(apiModel,M3291 + ' B"Init"') # Make sure the DL3msg queue is initialized but don't Clear it
+    sendDuetGcode(apiModel,M3291) # Dummy call to init DL3msg queue
 
     startmainLoop()
 

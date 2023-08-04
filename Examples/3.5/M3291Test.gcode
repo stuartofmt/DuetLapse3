@@ -1,4 +1,4 @@
-: Version 3.5+ 
+; Version 3.5+ 
 ; Test gcode file for demonstrating DuetLapse3. style messages
 ; Note the use of layer change comments required since 3.3RC2
 ; For tracking layer changes
@@ -10,11 +10,7 @@ M561           ; Remove any Bed Compensation
 G90 ; use absolute coordinates
 M83 ; extruder relative mode
 ;
-M3291 B":do: ./test.sh %22Test Job1%22"
-;
 G28 ; home all
-;
-M3291 B":do: ./test.sh %22Home Completed%22"
 ;
 G0 Z50 ; move the print head to where it can be seen by camera
 ;
