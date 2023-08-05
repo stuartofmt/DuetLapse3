@@ -27,49 +27,45 @@ duet3DVersion = '3.5.0-beta.4'
 
 """
 CHANGES
-# Fixed snapshot when called from gcode
-# Added second variable to video api --> xtratime
-# Fixed calculation type error on extratime
-# rationalized timers
-# added throttle for status calls
-# changed M117 messages to M291
-# 5.1.1
-# Refreshes tab on regaining focus from browser
-# Changed G1 to G0 in movehead
-# 5.2.0
-# Process all M291 messages without delay
-# Refactored loop control to prevent thread blocking
-# Prevent first layer capture if -pause yes
-# Added -password
-# 5.2.1
-# Changed background tab color - better for dark theme
-# 5.2.2
-# Fixed bug in -pause layer detection
-# Added wait loop before restart to ensure previous job had finished
-# fixed a timing thing dependent on when "Complete" sent from finish gcode
-# 5.2.3
-# Fixed bug caused by calling unpause inappropriately
-# 5.2.4
-# Added emulation mode check to support V3.5
-# Added stopPlugin call to plugin manager
-# 5.3.0
-# Added capture every nth layer
-# Fixed incorrect POST on M292
-# Changed firmware version to use ['boards'][0]['firmwareVersion']
-# Displayed password as 'Default' or '*******'
-# 5.3.2
-# removed port number from connection status in UI
-# forced disconnect if emulation mode detected.
-# instrumented code in getduetVersion
-# added explicit version check
-# 5.3.2
-# Added -simulate mode for testing
-# Fixed race condition in graceful_termination
-# Fixed problem in statemachine
-5.3.3
-# Removed M291 message system - too complicated
-# Replaced with custom M3291 queueing
-# Added -M3291 option to allow different Mcode
+ Fixed snapshot when called from gcode
+ Added second variable to video api --> xtratime
+ Fixed calculation type error on extratime
+ rationalized timers
+ added throttle for status calls
+ changed M117 messages to M291
+ 5.1.1
+ Refreshes tab on regaining focus from browser
+ Changed G1 to G0 in movehead
+ 5.2.0
+ Process all M291 messages without delay
+ Refactored loop control to prevent thread blocking
+ Prevent first layer capture if -pause yes
+ Added -password
+ 5.2.1
+ Changed background tab color - better for dark theme
+ 5.2.2
+ Fixed bug in -pause layer detection
+ Added wait loop before restart to ensure previous job had finished
+ fixed a timing thing dependent on when "Complete" sent from finish gcode
+ 5.2.3
+ Fixed bug caused by calling unpause inappropriately
+ 5.2.4
+ Added emulation mode check to support V3.5
+ Added stopPlugin call to plugin manager
+5.3.0
+Added -numlayers to enable capture every nth layer
+Changed firmware version to use ['boards'][0]['firmwareVersion']
+Displayed password as 'Default' or '*******'
+5.3.1
+removed port number from connection status in UI
+added explicit version check
+5.3.2
+Added -simulate mode for testing
+Fixed possible race condition in graceful_termination
+Fixed problem from 5.3.1 in statemachine
+Removed M291 and M292 message system - too complicated
+Added custom M3291 queueing mechanism
+Added -M3291 option to allow different Mcode name
 """
 
 """
@@ -96,8 +92,6 @@ for m in modules:
             except ImportError:
                 print('Could not import: ' + m)
 
-
-
 """
 import subprocess
 import sys
@@ -117,7 +111,6 @@ import stat
 import signal
 import logging
 import base64
-# from systemd.journal import JournalHandler
 
 #  Used for debugging by calling currenFuncName(x)
 # for current func name, specify 0 or no argument.
@@ -726,7 +719,7 @@ def setuplogfile():  #Called at start and restart
         for handler in logger.handlers:
             if handler.__class__.__name__ == "FileHandler":
                 filehandler = handler
-        
+
             if filehandler != None:  #  Get rid of it
                 filehandler.flush()
                 filehandler.close()
@@ -737,6 +730,7 @@ def setuplogfile():  #Called at start and restart
         f_format = logging.Formatter('%(asctime)s - %(threadName)s - %(message)s')
         f_handler.setFormatter(f_format)
         logger.addHandler(f_handler)
+        
         logger.info('DuetLapse3 Version --- ' + str(duetLapse3Version))
         logger.info('Requires Duet3d Version --- ' + str(duet3DVersion))
         logger.info('Process Id  ---  ' + str(pid) )
@@ -1816,13 +1810,15 @@ def Status():
     
     #  Check for message commands
     queue = []
-    dellist = []     
-    if j['global'].get('DL3msg') != None: # Just in case there is a race condition
+    dellist = []
+    #  use .get method for safety
+    if j['global'].get('DL3msg') != None: # initialized
         queue = j['global']['DL3msg']
-    if j['global']['DL3del'] != None:
-        dellist = j['global']['DL3del'][0]   
-    if queue[0] > lastMessageSeq or dellist != None > 0:
-        msgQueue = parseM3291(queue,dellist)
+        if j['global'].get('DL3del') != None: # something to delete
+            dellist = j['global']['DL3del']  
+        if queue[0] > lastMessageSeq or len(dellist) > 0:
+            msgQueue = parseM3291(queue,dellist)
+    
     '''
     except Exception as e:
         logger.debug('Could not get Message from queue')
@@ -3357,7 +3353,7 @@ def nextAction(nextaction):  # can be run as a thread
 def parseM3291(queue = [], dellist = []):
     global lastMessageSeq
     # If missed deletions - cleanup and try again on next poll
-    if dellist != None:
+    if len(dellist) > 0:
         logger.debug('Delayed delete on DL3msg queue')
         sendDuetGcode(apiModel, M3291 + ' B"Del"')
         return {}    
@@ -3379,8 +3375,8 @@ def parseM3291(queue = [], dellist = []):
         for i in processed:
             delqueue += str(i) + ','   
         delqueue += '}'
-        # sendDuetGcode(apiModel,'set global.DL3del[0]=' + delqueue + ' ; ' + M3291 + ' P"Del"')
-        sendDuetGcode(apiModel, 'set global.DL3del[0]=' + delqueue)
+
+        sendDuetGcode(apiModel, 'set global.DL3del =' + delqueue)
         sendDuetGcode(apiModel, M3291 + ' B"Del"')
 
     return actionqueue
@@ -3553,10 +3549,10 @@ def startup():
     if httpListener and restarting is False:
         startHttpListener()
 
-    checkforPrinter()  # Needs to be connected before mainloop
+    checkforPrinter()  # Needs to be connected before following are executed
 
     logger.info('Initializing DL3msg queue')
-    sendDuetGcode(apiModel,M3291) # Dummy call to init DL3msg queue
+    sendDuetGcode(apiModel,M3291 + ' B"Clear"') # Clear the message queue
 
     startmainLoop()
 
