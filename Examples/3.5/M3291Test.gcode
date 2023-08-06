@@ -120,7 +120,7 @@ G0 Z1 ; move Z down 1mm - simulates a new layer
 G90
 G4 S10
 ;
-M3291 B"DuetLapse3.seconds=0"    ; stops any timed capture (avoids follow on capture if -restart
+M3291 B"DuetLapse3.change.seconds=0"    ; stops any timed capture (avoids follow on capture if -restart)
 ;
 M3291 B"DuetLapse3.completed"    ; Stop capturing images at this point
 ;
