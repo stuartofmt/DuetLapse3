@@ -22,8 +22,8 @@
 #
 """
 
-duetLapse3Version = '5.2.2.1'
-duet3DVersion = '3.4.5'
+duetLapse3Version = '5.2.3'
+duet3DVersion = '3.4'
 
 """
 CHANGES
@@ -47,35 +47,11 @@ CHANGES
 # Fixed bug in -pause layer detection
 # Added wait loop before restart to ensure previous job had finished
 # a timing thing dependent on when "Complete" sent and finish gcode
+# 5.2.3
+# Changed version number to match anything in 3.4.x
+# Fixed logic bug where DL3 would automatically unpause on manual pause
 """
 
-"""
-# Experimental
-import pathlib
-import subprocess
-import sys
-
-modules = {'platform', 'argparse', 'shlex', 'time', 'requests', 'json', 'os', 'socket', 'threading', 'psutil', 'shutil', 'stat', 'pathlib', 'signal', 'logging'}
-
-for m in modules:
-    try:
-        #import m
-        globals()[m] = __import__(m)
-    except ImportError:
-        print('Trying to install: ' + m)
-        cmd = 'pip3 install ' + m
-        subprocess.run(cmd , shell=True)
-    finally:
-        if m not in sys.modules:
-            try:
-                #import m
-                globals()[m] = __import__(m)
-            except ImportError:
-                print('Could not import: ' + m)
-
-
-
-"""
 import subprocess
 import sys
 import platform
@@ -96,7 +72,7 @@ import logging
 
 
 def setstartvalues():
-    global zo1, zo2, printState, captureLoopState, mainLoopState,  duetStatus, timePriorPhoto1, timePriorPhoto2, frame1, frame2, lastImage
+    global zo1, zo2, printState, captureLoopState, mainLoopState,  duetStatus, timePriorPhoto1, timePriorPhoto2, frame1, frame2, lastImage, pausedbyDuetLapse
     logger.debug('*****  Initializing state and counters  *****')
     printState = 'Waiting'
     stopCaptureLoop()
@@ -114,6 +90,9 @@ def setstartvalues():
 
     # last image captured
     lastImage = ''
+
+    # pause status
+    pausedbyDuetLapse = False
 
 ###########################
 # General purpose methods begin here
@@ -824,9 +803,7 @@ def checkforPrinter():
         except NameError:
             firstConnect = False
             printerVersion = getDuetVersion(Model)
-            #  majorVersion = int(printerVersion[:1]) # use slicing
 
-            #  if majorVersion >= 3:
             if printerVersion.startswith(duet3DVersion):
                 connectionState = True
                 apiModel = Model # We have a good connection
@@ -1217,12 +1194,15 @@ def checkInstances(thisinstance, instances):
 
 
 def checkForPause(layer):
-    global duetStatus
+    global duetStatus, pausedbyDuetLapse
+
     # Checks to see if we should pause and reposition heads.
     # Do not pause until printing has completed layer 2.
     # This solves potential issues with the placement of pause commands in the print stream
     # Before or After layer change
     # As well as timed during print start-up
+
+    pausedbyDuetLapse = False
 
     if (layer < 1):  # Do not try to pause
         return
@@ -1244,6 +1224,7 @@ def checkForPause(layer):
             if connectionState is False:
                 return
             if duetStatus == 'paused':
+                pausedbyDuetLapse = True
                 break
             else:
                 loop += 1
@@ -2968,7 +2949,7 @@ def startMakeVideo(directory, xtratime = False, thread = True): # Does not run i
 def mainLoop():
     # Used for handling M291 Messages
     # Runs continously except during terminate processing
-    global mainLoopState, action, duetStatus, lastCaptureLoop, lastStatusCall
+    global mainLoopState, action, duetStatus, lastCaptureLoop, lastStatusCall, pausedbyDuetLapse
     duetStatus = 'unknown'
     try:
 
@@ -3031,8 +3012,8 @@ def captureLoop():  # Single instance only
                 oneInterval('Camera2', camera2, weburl2, camparam2)
             duetStatus, _ = getDuet('Capture Loop pause check', Status)
 
-            if duetStatus == 'paused':
-                unPause()  # Nothing should be paused at this point
+            if duetStatus == 'paused'and pausedbyDuetLapse: # 
+                unPause()
 
             # Check for latest state to avoid polling delay
             printState = stateMachine(printState)
