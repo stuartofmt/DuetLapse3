@@ -23,7 +23,7 @@
 """
 
 duetLapse3Version = '5.3.2'
-duet3DVersion = '3.5.0-beta.4'
+duet3DVersion = '3.5.0-rc.1'
 
 """
 CHANGES
@@ -68,31 +68,6 @@ Added custom M3291 queueing mechanism
 Added -M3291 option to allow different Mcode name
 """
 
-"""
-# Experimental
-import pathlib
-import subprocess
-import sys
-
-modules = {'platform', 'argparse', 'shlex', 'time', 'requests', 'json', 'os', 'socket', 'threading', 'psutil', 'shutil', 'stat', 'pathlib', 'signal', 'logging',base64}
-
-for m in modules:
-    try:
-        #import m
-        globals()[m] = __import__(m)
-    except ImportError:
-        print('Trying to install: ' + m)
-        cmd = 'pip3 install ' + m
-        subprocess.run(cmd , shell=True)
-    finally:
-        if m not in sys.modules:
-            try:
-                #import m
-                globals()[m] = __import__(m)
-            except ImportError:
-                print('Could not import: ' + m)
-
-"""
 import subprocess
 import sys
 import platform
