@@ -22,8 +22,9 @@
 #
 """
 
-duetLapse3Version = '5.3.2'
+duetLapse3Version = '5.3.3'
 duet3DVersion = '3.5.0-rc.1'
+#duet3DVersion = '3.5'
 
 """
 CHANGES
@@ -66,6 +67,9 @@ Fixed problem from 5.3.1 in statemachine
 Removed M291 and M292 message system - too complicated
 Added custom M3291 queueing mechanism
 Added -M3291 option to allow different Mcode name
+5.3.3
+reenabled connection retry (accidentally bypassed)
+added 127.0.0.1 replacement for url calls if plugin
 """
 
 import subprocess
@@ -514,7 +518,7 @@ def init():
         except OSError as e:
             logger.info('Could not create dir ' + str(e))
             sys.exit(1)
-    
+            
     # Should not happen (almost like winning the lottery)
     for item in listTopDir():
         if item.startswith(pidID):  # Wow - a pid collision
@@ -1638,6 +1642,7 @@ def loginPrinter(model = ''):
             sessionKey = j['sessionKey']
             urlHeaders = {'X-Session-Key': sessionKey}
             model = 'SBC'
+
             #  Could not connect to printer   
         elif code == 403:
                 logger.info('!!!!! SBC Password is invalid !!!!!')
@@ -1748,6 +1753,7 @@ def Status():
     global lastStatusCall
     lastStatusCall = time.time()
     # Used to get the status information from Duet
+    # Note return "disconnected" in different place than ususal due to post processing of messages
     status = ''
     if simulate in ['all','printer']:
         logger.info('Simulated status is Idle')
@@ -1766,7 +1772,10 @@ def Status():
                 logger.debug('Status is ' + status)  
             except Exception as e:
                 logger.debug('Could not get Status')
-                logger.debug(e)      
+                logger.debug(e)
+                return 'disconnected', '' 
+        else:
+            return 'disconnected', ''      
 
     elif apiModel == 'SBC':
         URL = ('http://' + duet + '/machine/status')
@@ -1780,7 +1789,8 @@ def Status():
             except Exception as e:
                 logger.debug('Could not get Status')
                 logger.debug(e)
-    else:
+                return 'disconnected', '' 
+        else:
             return 'disconnected', ''
     
     #  Check for message commands
@@ -3518,13 +3528,17 @@ def checkforvalidport():
 
 
 def startup():
-
+    global duet
     setstartvalues()  # Default startup global values
 
     if httpListener and restarting is False:
         startHttpListener()
 
     checkforPrinter()  # Needs to be connected before following are executed
+
+    if isPlugin(apiModel):  # Switch to local host as it may be more reliable than actual ip
+        duet = "127.0.0.1"
+        logger.info("Switching to 127.0.0.1")
 
     logger.info('Initializing DL3msg queue')
     sendDuetGcode(apiModel,M3291 + ' B"Clear"') # Clear the message queue
