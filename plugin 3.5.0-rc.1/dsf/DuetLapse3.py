@@ -24,7 +24,6 @@
 
 duetLapse3Version = '5.3.3'
 duet3DVersion = '3.5.0-rc.1'
-#duet3DVersion = '3.5'
 
 """
 CHANGES
