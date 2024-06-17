@@ -1,4 +1,9 @@
-#!/usr/bin/python3
+#!/usr/bin/python -u
+
+"""
+For use with v3.6 when virtual environments are implemented:
+#!/opt/dsf/plugins/DuetLapse/venv/bin/python -u
+"""
 
 """
 #Python program to take Time Lapse photographs during a print on
@@ -22,8 +27,8 @@
 #
 """
 
-duetLapse3Version = '5.3.3'
-duet3DVersion = '3.5.0-rc.1'
+duetLapse3Version = '5.3.6'
+duet3DVersion = '3.5'
 
 """
 CHANGES
@@ -69,6 +74,8 @@ Added -M3291 option to allow different Mcode name
 5.3.3
 reenabled connection retry (accidentally bypassed)
 added 127.0.0.1 replacement for url calls if plugin
+5.3.4
+Added check for version returning None.
 """
 
 import subprocess
@@ -763,7 +770,7 @@ def setdebug(val): # How much output
 
     if val:
         debug = ''
-        ffmpegquiet = ' -loglevel quiet'
+        ffmpegquiet = ''
     else:
         ffmpegquiet = ' -loglevel quiet'
         if not win:
@@ -867,25 +874,26 @@ def checkforPrinter():
         except NameError:
             firstConnect = False
             printerVersion = getDuetVersion(Model)
-            #  majorVersion = int(printerVersion[:1]) # use slicing
+            try:
+                logger.info(f"""Version Check returned --> {printerVersion}""")
+                if printerVersion.startswith(duet3DVersion):
+                    connectionState = True
+                    apiModel = Model # We have a good connection
+                    logger.info('###############################################################')
+                    logger.info('Connected to printer at ' + duet)
+                    logger.info('Using Duet version ' + printerVersion)
+                    logger.info('Using API interface ' + apiModel)
+                    logger.info('###############################################################\n')
+                    return
+                else:
+                    logger.info('###############################################################')
+                    logger.info('The printer at ' + duet + ' needs to be at version ' + duet3DVersion)
+                    logger.info('The version on this printer is ' + printerVersion)
+                    logger.info('###############################################################\n')
+                    sys.exit(5)
+            except Exception as e:
+                logger.info(f"""Could not get printer version --> {e}""")
 
-            #  if majorVersion >= 3:
-            if printerVersion.startswith(duet3DVersion):
-                connectionState = True
-                apiModel = Model # We have a good connection
-                logger.info('###############################################################')
-                logger.info('Connected to printer at ' + duet)
-                logger.info('Using Duet version ' + printerVersion)
-                logger.info('Using API interface ' + apiModel)
-                logger.info('###############################################################\n')
-                return
-            else:
-                logger.info('###############################################################')
-                logger.info('The printer at ' + duet + ' needs to be at version ' + duet3DVersion)
-                logger.info('The version on this printer is ' + printerVersion)
-                logger.info('###############################################################\n')
-                sys.exit(5)
-    
 
 def checkforConnection():
     global apiModel, connectionState, checkforconnectionState
@@ -1041,7 +1049,8 @@ def createVideo(directory):
             threadsin = ' -threads 1 '
             threadsout = ' -threads 2 '
 
-        cmd = 'ffmpeg' + threadsin + ffmpegquiet + ' -r ' + str(thisfps) + ' -i ' + location + ' -vcodec libx264 -y ' + threadsout + tmpfn + debug
+        #  cmd = 'ffmpeg' + threadsin + ffmpegquiet + ' -r ' + str(thisfps) + ' -i ' + location + ' -vcodec libx264 -y ' + threadsout + tmpfn + debug
+        cmd = 'ffmpeg' + ffmpegquiet + ' -r ' + str(thisfps) + ' -i ' + location + ' -vcodec libx264 -y ' + tmpfn + debug
 
         #  Wait for up to minutes for ffmpeg capacity to  become available
         #  If still not available - try anyway
@@ -1380,7 +1389,8 @@ def onePhoto(cameraname, camera, weburl, camparam):
         cmd = 'raspistill -t 1 -w 1280 -h 720 -ex sports -mm matrix -n -o ' + fn + debug
 
     if 'stream' in camera:
-        cmd = 'ffmpeg -threads 1' + ffmpegquiet + ' -y -i ' + weburl + ' -vframes 1 -threads 1 ' + fn + debug
+        #  cmd = 'ffmpeg -threads 1' + ffmpegquiet + ' -y -i ' + weburl + ' -vframes 1 -threads 1 ' + fn + debug
+        cmd = 'ffmpeg' + ffmpegquiet + ' -y -i ' + weburl + ' -vframes 1 ' + fn + debug
 
     if 'web' in camera:
         # Only for use if the url delivers single images (not for streaming)
@@ -1553,7 +1563,7 @@ def urlCall(url, post):
             if post is False:
                 r = requests.get(url, timeout=timelimit, headers=urlHeaders)
             else:
-                r = requests.post(url, data=post, headers=urlHeaders)
+                r = requests.post(url, timeout=timelimit, data=post, headers=urlHeaders)
         except requests.ConnectionError as e:
             logger.info('Cannot connect to the printer\n')
             logger.debug(str(e))
@@ -1730,7 +1740,7 @@ def Jobname():
                 return jobname
             except Exception as e:
                 logger.debug('Could not get jobname')
-                logger.debug(e)
+                logger.debug(str(e))
 
     elif apiModel == 'SBC':
         URL = ('http://' + duet + '/machine/status')
@@ -1744,7 +1754,7 @@ def Jobname():
                 return jobname
             except Exception as e:
                 logger.debug('Could not get jobname')
-                logger.debug(e)
+                logger.debug(str(e))
 
     return 'disconnected'
 
@@ -1768,10 +1778,10 @@ def Status():
             try:
                 j = json.loads(r.text)
                 status = j['result']['status']
-                logger.debug('Status is ' + status)  
+                logger.debug('Standalone Status is ' + status)  
             except Exception as e:
-                logger.debug('Could not get Status')
-                logger.debug(e)
+                logger.debug('Could not get Standalone Status')
+                logger.debug(str(e))
                 return 'disconnected', '' 
         else:
             return 'disconnected', ''      
@@ -1784,30 +1794,29 @@ def Status():
             try:
                 j = json.loads(r.text)
                 status = j['state']['status']
-                logger.debug('Status is ' + status)     
+                logger.debug('SBC Status is ' + status)     
             except Exception as e:
-                logger.debug('Could not get Status')
-                logger.debug(e)
+                logger.debug('Could not get SBC Status')
+                logger.debug(str(e))
                 return 'disconnected', '' 
         else:
             return 'disconnected', ''
     
     #  Check for message commands
-    queue = []
-    dellist = []
-    #  use .get method for safety
-    if j['global'].get('DL3msg') != None: # initialized
-        queue = j['global']['DL3msg']
-        if j['global'].get('DL3del') != None: # something to delete
-            dellist = j['global']['DL3del']  
-        if queue[0] > lastMessageSeq or len(dellist) > 0:
-            msgQueue = parseM3291(queue,dellist)
-    
-    '''
+    try:
+        queue = []
+        dellist = []
+        #  use .get method for safety
+        if j['global'].get('DL3msg') != None: # initialized
+            queue = j['global']['DL3msg']
+            if j['global'].get('DL3del') != None: # something to delete
+                dellist = j['global']['DL3del']  
+            if queue[0] > lastMessageSeq or len(dellist) > 0:
+                msgQueue = parseM3291(queue,dellist)
     except Exception as e:
-        logger.debug('Could not get Message from queue')
-        logger.debug(e)  
-    '''
+        logger.info('Error Processing message queue')
+        logger.info(str(e))
+
     for item in msgQueue:
         logger.debug(item)
         actionM3291(item)
@@ -1833,7 +1842,7 @@ def Layer():
                 return layer
             except Exception as e:
                 logger.debug('Could not get Layer Info')
-                logger.debug(e)
+                logger.debug(str(e))
 
     elif apiModel == 'SBC':
         URL = ('http://' + duet + '/machine/status')
@@ -1848,7 +1857,7 @@ def Layer():
                 return layer
             except Exception as e:
                 logger.debug('Could not get Layer Info')
-                logger.debug(e)
+                logger.debug(str(e))
 
     return 'disconnected'
 
@@ -1869,7 +1878,7 @@ def Position():
                 return Xpos, Ypos, Zpos
             except Exception as e:
                 logger.debug('Could not get Position Info')
-                logger.debug(e)
+                logger.debug(str(e))
     elif apiModel == 'SBC':
         URL = ('http://' + duet + '/machine/status')
         r = urlCall(URL,  False)
@@ -1882,7 +1891,7 @@ def Position():
                 return Xpos, Ypos, Zpos
             except Exception as e:
                 logger.debug('Could not get Position Info')
-                logger.debug(e)
+                logger.debug(str(e))
 
     return 'disconnected'
 
@@ -1916,7 +1925,7 @@ def isPlugin(model):
                 logger.info('Not Running as a plugin')
             except Exception as e:
                 logger.debug('Could not get plugin information')
-                logger.debug(e)
+                logger.debug(str(e))
     else:
         logger.debug('isPlugin ignored - only valid for SBC')
         return False
@@ -2514,16 +2523,12 @@ class MyHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         try:
-            global referer, refererip
+            global referer
             referer = self.headers['Host']  # Should always be there
             if not referer:  # Lets try authority
                 referer = self.headers['authority']
                 if not referer:
                     referer = 'localhost'  # Best guess if all else fails
-            if ':' in referer:
-                split_referer = referer.split(":", 1)
-                refererip = split_referer[0]  # just interested in the calling address as we know our port number
-
 
             global action, selectMessage, refreshing
 
@@ -2610,7 +2615,7 @@ class MyHandler(SimpleHTTPRequestHandler):
             return
         except Exception as e:
             if 'Broken pipe' in str(e):
-                 logger.debug(str(e))           
+                 logger.debug(str(e))          
             else:
                 logger.info(str(e))
 
@@ -2985,14 +2990,14 @@ def startHttpListener():
         listener = ThreadingHTTPServer((host, port), MyHandler)
         threading.Thread(name='httpServer', target=listener.serve_forever, daemon=False).start()  #Avoids blocking
         logger.info('##########################################################')
-        logger.info('***** Started http listener *****')
+        logger.info(f"""***** Started http listener on port {port}*****""")
         logger.info('##########################################################\n')
     except Exception as e:
         if 'Errno 98' in e:
             logger.debug('http listener is already running')
         else:
             logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  There was a problem starting the http listener !!!!!!!!!!!!!!!!!!!!!')
-            logger.info(e)
+            logger.info(str(e))
             sys.exit(1)
 
 
@@ -3003,7 +3008,7 @@ def closeHttpListener():
         logger.debug('!!!!! http listener stopped  !!!!!')
     except Exception as e:
         logger.debug('Could not terminate http listener')
-        logger.debug(e)
+        logger.debug(str(e))
 
 
 def execRun(displaymessage):
@@ -3129,10 +3134,8 @@ def mainLoop():
     global mainLoopState, action, duetStatus, lastCaptureLoop, lastStatusCall
     duetStatus = 'unknown'
     try:
-
         if connectionState is False:
             return
-
         mainLoopState = 1 # Running
         logger.info('###########################')
         logger.info('Starting mainLoop')

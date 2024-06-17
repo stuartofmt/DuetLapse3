@@ -30,7 +30,7 @@ import { DisconnectedError, OperationCancelledError } from "@/utils/errors";
 
 // <!-- Do not change
 const pluginName = 'DuetLapse3';
-const configFile = './' + pluginName + '/' + pluginName + '.config';
+const configFile = pluginName + '/' + pluginName + '.config';
 // -->
 window.onmessage = function(event){
     if (event.data == 'reply') {
@@ -52,11 +52,13 @@ export default {
 				const response = await store.dispatch("machine/download", { filename: setFileName, type: 'text', showSuccess: false, showError: false});
 				this.fileContent = await response;
 				//get the ip address
-				let pattern = /-duet.*(?:$|\n)/i;
+				//let pattern = /-duet.*(?:$|\n)/i;
+				let pattern = /-duet.+/i;
 				let match = this.fileContent.match(pattern).toString();
 				this.topurl = "http://"+ match.replace('-duet', '').trim();
 				// get the port
-				pattern = /-port.*(?:$|\n)/i;
+				//pattern = /-port.*(?:$|\n)/i;
+				pattern = /-port.+/i;
 				match = this.fileContent.match(pattern).toString();
 				this.myurl = this.topurl + ":" + match.replace('-port', '').trim();
 				console.log('DuetLapse url is ' + this.myurl);

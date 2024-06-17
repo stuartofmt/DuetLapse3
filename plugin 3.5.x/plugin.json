@@ -5,13 +5,13 @@
     "version": "5.3.3",
     "license": "GPL-2.0-or-later",
     "homepage": "https://github.com/stuartofmt/DuetLapse3",
-    "dwcVersion": "3.5.0-rc.1",
+    "dwcVersion": "3.5",
 	"sbcRequired": true,
-	"sbcDsfVersion": "3.5.0-rc.1",
+	"sbcDsfVersion": "3.5",
 	"sbcExecutable": "DuetLapse3.py",
 	"sbcExecutableArguments": "-file /opt/dsf/sd/sys/DuetLapse3/DuetLapse3.config",
 	"sbcOutputRedirected": false,
-	"sbcPermissions": ["commandExecution", "objectModelReadWrite", "networkAccess", "webcamAccess", "readSystem", "writeSystem", "fileSystemAccess","launchProcesses", "managePlugins"],
-	"sbcPythonDependencies": ["requests", "psutil"]
+	"sbcPermissions": ["commandExecution", "objectModelReadWrite", "objectModelRead","networkAccess", "webcamAccess", "readSystem", "writeSystem", "fileSystemAccess","launchProcesses", "managePlugins"],
+	"sbcPythonDependencies": ["requests","psutil"]
  }
  
