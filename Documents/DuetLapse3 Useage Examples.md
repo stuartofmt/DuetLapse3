@@ -2,12 +2,14 @@
 
 Many options can be combined.  For example, the program can trigger on both "seconds" and "detect layer". It will inform you if you select conflicting options.
 
-Example: Using a config file.  Start the http server using port 8082. Capture an image every 30 seconds, do not respond to layer changes or pauses, use a streaming webcam at the specified url:
+*THE EXAMPLES BELOW ARE FOR USING DuetLapse3 IN STAND_ALONE MODE.  However the config file examples have the same form if using the SBC plugin.*
+
+Example (stand alone): Using a config file.  Start the http server using port 8082. Capture an image every 30 seconds, do not respond to layer changes or pauses, use a streaming webcam at the specified url:
 
 ```python
 python3 ./DuetLapse3.py  -file ./DuetLapse3.config
 
-Example Content of DetLapse3.config
+Example Content of DuetLapse3.config
 -duet 192.168.7.101
 -port 8082
 -seconds 30
