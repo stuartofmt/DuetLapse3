@@ -10,7 +10,7 @@ DuetLapse3 can be installed as a self-contained, stand alone program (see instru
 
 or as a plugin on an SBC Duet (see instructions here):
 
-<https://github.com/stuartofmt/DuetLapse3/blob/main/plugin/plugin%20installation%20guide.md>
+<https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/plugin%20installation%20guide.md>
 
 **All these actions should be performed on the computer that DuetLapse3 WILL BE installed**
 
