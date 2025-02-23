@@ -1,7 +1,7 @@
-#!/usr/bin/python -u
+#! /opt/dsf/plugins/DuetLapse/venv/bin/python -u
 
 """
-For use with NON virtual environment
+For use with virtual environments
 """
 
 """
@@ -26,8 +26,8 @@ For use with NON virtual environment
 #
 """
 
-duetLapse3Version = '5.3.6'
-duet3DVersion = '3.5'
+duetLapse3Version = '5.3.7'
+duet3DVersion = '3.6'
 
 """
 CHANGES
@@ -75,6 +75,13 @@ reenabled connection retry (accidentally bypassed)
 added 127.0.0.1 replacement for url calls if plugin
 5.3.4
 Added check for version returning None.
+5.3.5 and 5.3.6 were cosmetic
+5.3.7
+Changed logic in runsubprocess for determining success (stdout inconsistent)
+Added timeout in subprocess. e.g. wget
+changed ffmpeg image capture to use -frames:v 1 -update true - should be more efficient
+removed terminate button when using SBC
+added argument -# to allow comments in config file
 """
 
 import subprocess
@@ -234,6 +241,8 @@ def whitelist(parser):
                         help='Default is off')
     parser.add_argument('-M3291', type=str, nargs=1, default=['M3291'],
                         help='Default is M3291')
+    parser.add_argument('-#', type=str, nargs=1, default=[''],
+                        help='Comment')
     return parser
 
 ################################################
@@ -242,26 +251,30 @@ def whitelist(parser):
 
 
 def runsubprocess(cmd):
+    logger.debug('RUNNING SUBPROCESS WITH ' + str(cmd))
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True, shell=True)
-
-        if str(result.stderr) != '':
-            logger.info('Command Failure: ' + str(cmd))
-            logger.debug('Error = ' + str(result.stderr))
-            logger.debug('Output = ' + str(result.stdout))
-            return False
-        else:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True, shell=True, timeout=5)
+        logger.debug('Return Code = ' + str(result.returncode))
+        logger.debug('stdout = ' + str(result.stdout))
+        logger.debug('stderr = ' + str(result.stderr))
+        ## if str(result.stderr) == '0' or str(result.stderr) == '':   # some apps dont provide stderr
+        if result.returncode == 0:
             logger.debug('Command Success : ' + str(cmd))
             if result.stdout != '':
                 logger.debug(str(result.stdout))
             return True
+        else:
+            logger.info('Command Failure: ' + str(cmd))
+            logger.debug('Error = ' + str(result.stderr))
+            logger.debug('Response = ' + str(result.stdout))
+            return False
+    except (subprocess.TimeoutExpired):
+        logger.info('Call Timed Out: ' + str(cmd))
+        return False
     except (subprocess.CalledProcessError, OSError) as e:
         logger.info('Command Exception: ' + str(cmd))
         logger.info('Exception = ' + str(e))
         return False
-
-
-
 
 def init():
     global inputs
@@ -1389,7 +1402,7 @@ def onePhoto(cameraname, camera, weburl, camparam):
 
     if 'stream' in camera:
         #  cmd = 'ffmpeg -threads 1' + ffmpegquiet + ' -y -i ' + weburl + ' -vframes 1 -threads 1 ' + fn + debug
-        cmd = 'ffmpeg' + ffmpegquiet + ' -y -i ' + weburl + ' -vframes 1 ' + fn + debug
+        cmd = 'ffmpeg' + ffmpegquiet + ' -y -i ' + weburl + ' -frames:v 1 -update true ' + fn + debug
 
     if 'web' in camera:
         # Only for use if the url delivers single images (not for streaming)
@@ -2228,9 +2241,15 @@ class MyHandler(SimpleHTTPRequestHandler):
             for button in allowed_buttons:
                 btn = button + 'button'
                 btnstring = btnstring + eval(btn)
-            buttons = btnstring + terminatebutton
+            if apiModel == 'SBC':
+                buttons = btnstring
+            else:    
+                buttons = btnstring + terminatebutton
         else:
-            buttons = startbutton + standbybutton + pausebutton + continuebutton + restartbutton + terminatebutton
+            if apiModel == 'SBC':
+                buttons = startbutton + standbybutton + pausebutton + continuebutton + restartbutton
+            else:    
+                buttons = startbutton + standbybutton + pausebutton + continuebutton + restartbutton + terminatebutton
 
         return buttons
 
@@ -2571,7 +2590,8 @@ class MyHandler(SimpleHTTPRequestHandler):
                 elif api == 'displayInfo':
                     result = self.display_info()
                 elif api == 'displayTerminate':
-                    result = self.display_terminate_buttons()
+                    if apiModel != 'SBC':
+                        result = self.display_terminate_buttons()
                 elif api == 'snapshot':
                     if workingDirStatus != -1:
                         result = startMakeVideo(workingDir, False, False) # False => no extratime and nothread therefore blocking

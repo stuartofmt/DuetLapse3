@@ -88,7 +88,17 @@ Optional (but highly recommended).  A configuration file (text format) with one 
 ```bash
 -file ./DuetLapse3.config     # Read options from this file
 ```
+___
 
+#### -# [quoted comment string]
+
+Recommended if using a configuration file just to make it clearer.
+  
+**example**
+
+```bash
+-# "This is a comment"
+```
 ___
 
 #### -duet [ip address]
@@ -382,7 +392,7 @@ If omitted the default is usb. Determines how images are captured.
 
 **Note: If you are using a Raspberry Pi camera there can be issues using -camera pi. The defaults for the Pi camera can lead to problems when creating the video.  This is because there may not be enough RAM (depends on your Pi model).**
 
-At this time(start 2023), the recommended approach is to use streaming software stream. [videostream](https://github.com/stuartofmt/videostream) with the -size 2 option works as a good starting point.  
+At this time(start 2023), the recommended approach is to use streaming software e.g. [videostream] (https://github.com/stuartofmt/videostream) with the -size 2 option works as a good starting point. 
 
 **Example option settings**
 
@@ -443,8 +453,9 @@ ___
 
 If omitted has no default. Used in conjunction with -camera1 to define how the images will be captured.
 
-**Note the use of the = and quoting of the command string.**
-**Single quotes should be used in the command string when quotes are needed.**
+**Note the use of quoting of the command string.**
+**Single quotes should be used inside the command string when quotes are needed.**
+**Also not the need for a space at the end of the inner quote before appending a placeholde**
 There are 3 placeholder literals that can be used.  These are weburl, fn and debug.  **You do not put in your own values.** They are calculated at runtime:
 
 - weburl take the value of weburl1
@@ -455,7 +466,7 @@ There are 3 placeholder literals that can be used.  These are weburl, fn and deb
 
 ```text
 -camera1 other
--camparam1="'ffmpeg -y -i '+weburl+ ' -vframes 1 ' +fn+debug"
+-camparam1="'ffmpeg -y -i '+weburl+ ' -vframes 1 ' +fn + debug"
 ```
 
 This example above is the same as if -camera1 stream was used. The value of weburl1 would be substituted for weburl and the output goes to the runtime file fn. The results are detailed if -verbose was set.  Both and fn and debug should be used.  The use of weburl would depend on the capture method.
@@ -467,13 +478,13 @@ The following are the standard commands for reference.*
 'fswebcam --quiet --no-banner '+fn+debug
 
 -camera pi
-'raspistill -t 1 -ex sports -mm matrix -n -o '+fn+debug
+'raspistill -t 1 -ex sports -mm matrix -n -o '+ fn + debug
 
 -camera stream
-'ffmpeg -y -i '+weburl+ ' -vframes 1 ' +fn+debug
+'ffmpeg -y -i '+weburl+ ' -vframes 1 ' + fn + debug
 
 -camera web
-'wget --auth-no-challenge -nv -O '+fn+' "'+weburl+'" '+debug
+'wget --auth-no-challenge -nv -O '+fn+' "'+ weburl + '" ' + debug
 ___
 
 #### -vidparam1="[command]"
@@ -498,7 +509,7 @@ You can use another video creation application if you wish.
 **example**
 
 ```text
--vidparam1="'ffmpeg -r 10 -i '+basedir+'/'+duetname+'/tmp/'+cameraname+'-%08d.jpeg -vcodec libx264 -y'+tmpfn+debug"
+-vidparam1="'ffmpeg -r 10 -i '+basedir+'/'+duetname+'/tmp/'+cameraname+'-%08d.jpeg -vcodec libx264 -y '+ tmpfn + debug"
 ```
 
 This example is the same as the standard video creation.
