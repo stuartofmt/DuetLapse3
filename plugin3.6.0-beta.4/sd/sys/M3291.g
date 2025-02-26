@@ -34,12 +34,13 @@
 ; Version number of this macro
 var version = "Version 1.1"
 ;
-var debug = False   ; set to true for debug messages
+; Set debug to true for debug messages
+var debug = false
 ;
-; Make sure queue is initialized
 ; number of messages that can be held. 15 should be good for most cases
 var len_DL3msg = 15
 
+; Make sure queue is initialized
 if !exists(global.DL3msg) || global.DL3msg=null
 	;initialize the message queue
 	global DL3msg = vector(var.len_DL3msg,null)
@@ -106,5 +107,4 @@ if exists(param.B)
 			M291 P{var.errormsg} S0
 
 else
-	if var.debug
-		echo "DL3msg queue: No B param passed"
+	echo "DL3msg queue: No B param passed"
