@@ -44,7 +44,7 @@ There are three ways to control DuetLapse.  All three require that its integrate
 
 1) Browser based UI
 2) Sending http messages e.g. froma browser or using curl
-3) From a gcode print (or DWC UI) using a specific form of M291 messages
+3) From a gcode print (or DWC UI) using M3291 messages
 
 #### Browser based UI
 
@@ -59,7 +59,7 @@ http methods for controlling DUetLapse3 can be found here:
 
 #### gcode messages
 
-DuetLapse3 can be controlled directly from gcode using M117 messages
+DuetLapse3 can be controlled directly from gcode using M3291 messages
 
 [Controlling with gcode.md](https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/Controlling%20with%20gcode.md)
 
@@ -222,7 +222,7 @@ ___
 #### -standby
 
 If omitted the default is False
-This option will cause DuetLapse3 to wait for a start command from the http listener or M117 command before capturing images.
+This option will cause DuetLapse3 to wait for a start command from the http listener or M3291 (depending on version) command before capturing images.
 It is useful for having DuetLapse running but not actually doing anything until commanded to do so.
 This option takes precedence over -dontwait.
 
@@ -618,7 +618,7 @@ ___
 #### -execkey [string]
 
 If omitted the feature is disabled.
-If used, the string should be something unique and unlikely to appear in an M117 message by accident.
+If used, the string should be something unique and unlikely to appear in an M3291 message by accident.
 See the following document for more details:
 
 [Controlling with gcode.md](https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/Controlling%20with%20gcode.md)
@@ -626,7 +626,7 @@ See the following document for more details:
 **example**
 
 ```text
--execkey :do: # M117 messages starting with :do: will treated as an OS command.
+-execkey :do: # M3291 messages starting with :do: will treated as an OS command.
 ```
 
 #### -password [string]

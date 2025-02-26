@@ -32,9 +32,7 @@
 ;
 ; #################  MACRO STARTS HERE #################################
 ; Version number of this macro
-var version = "Version 1.1"
-;
-var debug = False   ; set to true for debug messages
+var version = "Version 1.0"
 ;
 ; Make sure queue is initialized
 ; number of messages that can be held. 15 should be good for most cases
@@ -50,7 +48,8 @@ if !exists(global.DL3msg) || global.DL3msg=null
 		; initialize the delete array
 		global DL3del = null
 
-	echo "DL3msg queue: initialized "^var.version
+	echo "DL3msg queue: initialized"
+	echo var.version
 
 ; check if B parameter sent
 if exists(param.B)
@@ -64,8 +63,7 @@ if exists(param.B)
 		set global.DL3msg = vector(var.len_DL3msg,null)
 		set global.DL3msg[0] = var.sequence 
 		set global.DL3del = null
-		if var.debug
-			echo "DL3msg queue:  Cleared"
+		echo "DL3msg queue:  Cleared"
 
 	elif var.Bparam = "Del"
 		; Delete (make null) selected messages from DL3msg queue
@@ -76,12 +74,10 @@ if exists(param.B)
 				if iterations >= #global.DL3del
 					break
 				set global.DL3msg[global.DL3del[iterations]] = null
-			if var.debug
-				echo "DL3msg queue:  Items deleted - "^global.DL3del
+			echo "DL3msg queue:  Items deleted - "^global.DL3del
 			set global.DL3del = null
 		else
-			if var.debug
-				echo "DL3msg queue:  Nothing to delete"
+			echo "DL3msg queue:  Nothing to delete"
 
 	else
 		; Add new message to the queue
@@ -95,8 +91,7 @@ if exists(param.B)
 				set global.DL3msg[0] = global.DL3msg[0] + 1 ; increment message count
 				set global.DL3msg[iterations] = var.Bparam
 				set var.success = true
-				if var.debug
-					echo "DL3msg queue: Added - "^var.Bparam^" as item "^iterations 
+				echo "DL3msg queue: Added - "^var.Bparam^" as item "^iterations 
 				break
 
 		; Check if message added OK		
@@ -106,5 +101,5 @@ if exists(param.B)
 			M291 P{var.errormsg} S0
 
 else
-	if var.debug
-		echo "DL3msg queue: No B param passed"
+	echo var.version
+	echo "DL3msg queue: No B param passed"

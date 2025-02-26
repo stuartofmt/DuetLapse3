@@ -253,7 +253,11 @@ def whitelist(parser):
 def runsubprocess(cmd):
     logger.debug('RUNNING SUBPROCESS WITH ' + str(cmd))
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True, shell=True, timeout=5)
+        if 'wget' in cmd: # can sometimes hang 
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, shell=True, timeout=5)
+        else:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, shell=True)
+
         logger.debug('Return Code = ' + str(result.returncode))
         logger.debug('stdout = ' + str(result.stdout))
         logger.debug('stderr = ' + str(result.stderr))
