@@ -78,7 +78,7 @@ Added check for version returning None.
 5.3.5 and 5.3.6 were cosmetic
 5.3.7
 Changed logic in runsubprocess for determining success (stdout inconsistent)
-Added timeout in subprocess. e.g. wget
+Added 10s timeout to wget commands.  Accidental connection to stream will not return
 changed ffmpeg image capture to use -frames:v 1 -update true - should be more efficient
 removed terminate button when using SBC
 added argument -# to allow comments in config file
@@ -253,8 +253,8 @@ def whitelist(parser):
 def runsubprocess(cmd):
     logger.debug('RUNNING SUBPROCESS WITH ' + str(cmd))
     try:
-        if 'wget' in cmd: # can sometimes hang 
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True, shell=True, timeout=5)
+        if cmd.startswith('wget'):
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, shell=True, timeout= 10)
         else:
             result = subprocess.run(cmd, capture_output=True, text=True, check=True, shell=True)
 
@@ -1412,9 +1412,10 @@ def onePhoto(cameraname, camera, weburl, camparam):
         # Only for use if the url delivers single images (not for streaming)
         # ? on use of --auth-no-challenge
         if debug:
-            cmd = 'wget --auth-no-challenge -v -O ' + fn + ' "' + weburl + '" ' + debug
+            cmd = 'wget --auth-no-challenge -v --tries 2 -O ' + fn + ' "' + weburl + '" ' + debug
         else:   
-            cmd = 'wget --auth-no-challenge -nv -O ' + fn + ' "' + weburl + '" ' + debug
+            cmd = 'wget --auth-no-challenge -v --tries 2 -O ' + fn + ' "' + weburl + '" ' + debug
+            #cmd = 'wget --auth-no-challenge -nv --timeout 10 --tries 1 -O ' + fn + ' "' + weburl + '" ' + debug
 
     if 'other' in camera:
         cmd = eval(camparam)

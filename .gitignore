@@ -1,6 +1,6 @@
 *.conf
-/shelf/
-/workspace.xml
-/.idea
-/.vs
-/DuetLapse3.config
+*.config
+*.log
+*.txt
+plugin.zip
+**/venv/
