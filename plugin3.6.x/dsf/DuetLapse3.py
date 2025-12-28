@@ -1083,7 +1083,7 @@ def createVideo(directory):
 
 
         if runsubprocess(cmd) is False:
-            msg = ('!!!!!  There was a problem creating the video for '+cameraname+' !!!!!')
+            msg = ('!!!!!  There was a  creating the video for '+cameraname+' !!!!!')
             logger.info(msg)
             if os.path.isfile(tmpfn): 
                 try:
@@ -3009,15 +3009,19 @@ def allowedNextAction(thisaction):
 
 
 def startHttpListener():
-    global listener
+    global listener , listenerThread
+
     try:
+        #logger.info(f'Listener thread 1 = {listenerThread.is_alive()}')
         listener = ThreadingHTTPServer((host, port), MyHandler)
-        threading.Thread(name='httpServer', target=listener.serve_forever, daemon=False).start()  #Avoids blocking
+        listenerThread = threading.Thread(name='httpServer', target=listener.serve_forever, daemon=False).start()  #Avoids blocking
+        #logger.info(f'Listener thread 2 = {listenerThread.is_alive()}')
         logger.info('##########################################################')
         logger.info(f"""***** Started http listener on port {port}*****""")
         logger.info('##########################################################\n')
     except Exception as e:
-        if 'Errno 98' in e:
+        logger.info(str(e))
+        if 'Errno 98' in str(e):
             logger.debug('http listener is already running')
         else:
             logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  There was a problem starting the http listener !!!!!!!!!!!!!!!!!!!!!')
@@ -3072,7 +3076,6 @@ def waitforcaptureLoop():
     if captureLoopState != -1:
         captureLoopState = -1  # Forced
         logger.debug('Timed out trying to exit captureLoop')
-
 
 def startmainLoop():
     #  global mainLoopState
@@ -3332,10 +3335,11 @@ def nextAction(nextaction):  # can be run as a thread
             if novideo:
                 logger.info('Video creation was skipped')
             else:
-                if workingDirStatus != -1:  startMakeVideo(workingDir, True) # Add extratimeif appropriate
+                if workingDirStatus != -1:
+                    startMakeVideo(workingDir, True) # Add extratime if appropriate
                 waitforMakeVideo() # Wait until done before deleting files
-            restartAction()
-            
+                restartAction()
+
             if standby:
                 action = 'standby'
             else:
@@ -3557,8 +3561,10 @@ def startup():
     global duet
     setstartvalues()  # Default startup global values
 
+    
     if httpListener and restarting is False:
         startHttpListener()
+
 
     checkforPrinter()  # Needs to be connected before following are executed
 
@@ -3568,7 +3574,7 @@ def startup():
 
     logger.info('Initializing DL3msg queue')
     sendDuetGcode(apiModel,M3291 + ' B"Clear"') # Clear the message queue
-
+     
     startmainLoop()
 
     logger.info('Initiating with action set to ' + action)
