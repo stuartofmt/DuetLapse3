@@ -2992,7 +2992,7 @@ def startHttpListener():
         logger.info(f"""***** Started http listener on port {port}*****""")
         logger.info('##########################################################\n')
     except Exception as e:
-        if 'Errno 98' in e:
+        if 'Errno 98' in str(e):
             logger.debug('http listener is already running')
         else:
             logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  There was a problem starting the http listener !!!!!!!!!!!!!!!!!!!!!')

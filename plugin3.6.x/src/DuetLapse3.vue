@@ -18,7 +18,6 @@ Thanks to @MintyTrebor for all the help in getting this working
 <template>
 		<div class="iframe_container">
 			<iframe id="myiframe" :src= "myurl" width="100%" :height="tmpHeight" frameborder="0">
-				<span>Your browser does not support iFrames</span>
 			</iframe>
 		</div>
 </template>

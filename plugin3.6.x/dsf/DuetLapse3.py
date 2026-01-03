@@ -1826,8 +1826,10 @@ def Status():
         #  use .get method for safety
         if j['global'].get('DL3msg') != None: # initialized
             queue = j['global']['DL3msg']
+            logger.debug(f'DL3Msg queue = {queue}')
             if j['global'].get('DL3del') != None: # something to delete
-                dellist = j['global']['DL3del']  
+                dellist = j['global']['DL3del']
+                logger.debug(f'DL3del queue = {dellist}')  
             if queue[0] > lastMessageSeq or len(dellist) > 0:
                 msgQueue = parseM3291(queue,dellist)
     except Exception as e:
@@ -3011,16 +3013,20 @@ def allowedNextAction(thisaction):
 def startHttpListener():
     global listener , listenerThread
 
+    try: # check if running
+        if listenerThread.is_alive():
+            logger.debug('http listener is already running')
+            return
+    except (AttributeError, NameError):
+        listenerThread = None
+
     try:
-        #logger.info(f'Listener thread 1 = {listenerThread.is_alive()}')
         listener = ThreadingHTTPServer((host, port), MyHandler)
         listenerThread = threading.Thread(name='httpServer', target=listener.serve_forever, daemon=False).start()  #Avoids blocking
-        #logger.info(f'Listener thread 2 = {listenerThread.is_alive()}')
         logger.info('##########################################################')
         logger.info(f"""***** Started http listener on port {port}*****""")
         logger.info('##########################################################\n')
     except Exception as e:
-        logger.info(str(e))
         if 'Errno 98' in str(e):
             logger.debug('http listener is already running')
         else:
