@@ -5,4 +5,4 @@
 plugin.zip
 **/venv/
 .vscode
-
+.idea
