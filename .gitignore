@@ -4,5 +4,4 @@
 *.txt
 plugin.zip
 **/venv/
-.vscode
 .idea
