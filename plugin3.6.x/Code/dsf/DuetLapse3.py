@@ -1,7 +1,7 @@
-#!/usr/bin/python -u
+#! /opt/dsf/plugins/DuetLapse/venv/bin/python -u
 
 """
-For use with NON virtual environment
+For use with virtual environments
 """
 
 """
@@ -26,8 +26,8 @@ For use with NON virtual environment
 #
 """
 
-duetLapse3Version = '5.3.6'
-duet3DVersion = '3.5'
+duetLapse3Version = '5.3.7'
+duet3DVersion = '3.6'
 
 """
 CHANGES
@@ -75,6 +75,13 @@ reenabled connection retry (accidentally bypassed)
 added 127.0.0.1 replacement for url calls if plugin
 5.3.4
 Added check for version returning None.
+5.3.5 and 5.3.6 were cosmetic
+5.3.7
+Changed logic in runsubprocess for determining success (stdout inconsistent)
+Added 10s timeout to wget commands.  Accidental connection to stream will not return
+changed ffmpeg image capture to use -frames:v 1 -update true - should be more efficient
+removed terminate button when using SBC
+added argument -# to allow comments in config file
 """
 
 import subprocess
@@ -234,6 +241,8 @@ def whitelist(parser):
                         help='Default is off')
     parser.add_argument('-M3291', type=str, nargs=1, default=['M3291'],
                         help='Default is M3291')
+    parser.add_argument('-#', type=str, nargs=1, default=[''],
+                        help='Comment')
     return parser
 
 ################################################
@@ -242,26 +251,34 @@ def whitelist(parser):
 
 
 def runsubprocess(cmd):
+    logger.debug('RUNNING SUBPROCESS WITH ' + str(cmd))
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True, shell=True)
-
-        if str(result.stderr) != '':
-            logger.info('Command Failure: ' + str(cmd))
-            logger.debug('Error = ' + str(result.stderr))
-            logger.debug('Output = ' + str(result.stdout))
-            return False
+        if cmd.startswith('wget'):
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, shell=True, timeout= 10)
         else:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True, shell=True)
+
+        logger.debug('Return Code = ' + str(result.returncode))
+        logger.debug('stdout = ' + str(result.stdout))
+        logger.debug('stderr = ' + str(result.stderr))
+        ## if str(result.stderr) == '0' or str(result.stderr) == '':   # some apps dont provide stderr
+        if result.returncode == 0:
             logger.debug('Command Success : ' + str(cmd))
             if result.stdout != '':
                 logger.debug(str(result.stdout))
             return True
+        else:
+            logger.info('Command Failure: ' + str(cmd))
+            logger.debug('Error = ' + str(result.stderr))
+            logger.debug('Response = ' + str(result.stdout))
+            return False
+    except (subprocess.TimeoutExpired):
+        logger.info('Call Timed Out: ' + str(cmd))
+        return False
     except (subprocess.CalledProcessError, OSError) as e:
         logger.info('Command Exception: ' + str(cmd))
         logger.info('Exception = ' + str(e))
         return False
-
-
-
 
 def init():
     global inputs
@@ -1066,7 +1083,7 @@ def createVideo(directory):
 
 
         if runsubprocess(cmd) is False:
-            msg = ('!!!!!  There was a problem creating the video for '+cameraname+' !!!!!')
+            msg = ('!!!!!  There was a  creating the video for '+cameraname+' !!!!!')
             logger.info(msg)
             if os.path.isfile(tmpfn): 
                 try:
@@ -1389,15 +1406,16 @@ def onePhoto(cameraname, camera, weburl, camparam):
 
     if 'stream' in camera:
         #  cmd = 'ffmpeg -threads 1' + ffmpegquiet + ' -y -i ' + weburl + ' -vframes 1 -threads 1 ' + fn + debug
-        cmd = 'ffmpeg' + ffmpegquiet + ' -y -i ' + weburl + ' -vframes 1 ' + fn + debug
+        cmd = 'ffmpeg' + ffmpegquiet + ' -y -i ' + weburl + ' -frames:v 1 -update true ' + fn + debug
 
     if 'web' in camera:
         # Only for use if the url delivers single images (not for streaming)
         # ? on use of --auth-no-challenge
         if debug:
-            cmd = 'wget --auth-no-challenge -v -O ' + fn + ' "' + weburl + '" ' + debug
+            cmd = 'wget --auth-no-challenge -v --tries 2 -O ' + fn + ' "' + weburl + '" ' + debug
         else:   
-            cmd = 'wget --auth-no-challenge -nv -O ' + fn + ' "' + weburl + '" ' + debug
+            cmd = 'wget --auth-no-challenge -v --tries 2 -O ' + fn + ' "' + weburl + '" ' + debug
+            #cmd = 'wget --auth-no-challenge -nv --timeout 10 --tries 1 -O ' + fn + ' "' + weburl + '" ' + debug
 
     if 'other' in camera:
         cmd = eval(camparam)
@@ -1808,8 +1826,10 @@ def Status():
         #  use .get method for safety
         if j['global'].get('DL3msg') != None: # initialized
             queue = j['global']['DL3msg']
+            logger.debug(f'DL3Msg queue = {queue}')
             if j['global'].get('DL3del') != None: # something to delete
-                dellist = j['global']['DL3del']  
+                dellist = j['global']['DL3del']
+                logger.debug(f'DL3del queue = {dellist}')  
             if queue[0] > lastMessageSeq or len(dellist) > 0:
                 msgQueue = parseM3291(queue,dellist)
     except Exception as e:
@@ -2228,9 +2248,15 @@ class MyHandler(SimpleHTTPRequestHandler):
             for button in allowed_buttons:
                 btn = button + 'button'
                 btnstring = btnstring + eval(btn)
-            buttons = btnstring + terminatebutton
+            if apiModel == 'SBC':
+                buttons = btnstring
+            else:    
+                buttons = btnstring + terminatebutton
         else:
-            buttons = startbutton + standbybutton + pausebutton + continuebutton + restartbutton + terminatebutton
+            if apiModel == 'SBC':
+                buttons = startbutton + standbybutton + pausebutton + continuebutton + restartbutton
+            else:    
+                buttons = startbutton + standbybutton + pausebutton + continuebutton + restartbutton + terminatebutton
 
         return buttons
 
@@ -2571,7 +2597,8 @@ class MyHandler(SimpleHTTPRequestHandler):
                 elif api == 'displayInfo':
                     result = self.display_info()
                 elif api == 'displayTerminate':
-                    result = self.display_terminate_buttons()
+                    if apiModel != 'SBC':
+                        result = self.display_terminate_buttons()
                 elif api == 'snapshot':
                     if workingDirStatus != -1:
                         result = startMakeVideo(workingDir, False, False) # False => no extratime and nothread therefore blocking
@@ -2984,10 +3011,18 @@ def allowedNextAction(thisaction):
 
 
 def startHttpListener():
-    global listener
+    global listener , listenerThread
+
+    try: # check if running
+        if listenerThread.is_alive():
+            logger.debug('http listener is already running')
+            return
+    except (AttributeError, NameError):
+        listenerThread = None
+
     try:
         listener = ThreadingHTTPServer((host, port), MyHandler)
-        threading.Thread(name='httpServer', target=listener.serve_forever, daemon=False).start()  #Avoids blocking
+        listenerThread = threading.Thread(name='httpServer', target=listener.serve_forever, daemon=False).start()  #Avoids blocking
         logger.info('##########################################################')
         logger.info(f"""***** Started http listener on port {port}*****""")
         logger.info('##########################################################\n')
@@ -3047,7 +3082,6 @@ def waitforcaptureLoop():
     if captureLoopState != -1:
         captureLoopState = -1  # Forced
         logger.debug('Timed out trying to exit captureLoop')
-
 
 def startmainLoop():
     #  global mainLoopState
@@ -3307,10 +3341,11 @@ def nextAction(nextaction):  # can be run as a thread
             if novideo:
                 logger.info('Video creation was skipped')
             else:
-                if workingDirStatus != -1:  startMakeVideo(workingDir, True) # Add extratimeif appropriate
+                if workingDirStatus != -1:
+                    startMakeVideo(workingDir, True) # Add extratime if appropriate
                 waitforMakeVideo() # Wait until done before deleting files
-            restartAction()
-            
+                restartAction()
+
             if standby:
                 action = 'standby'
             else:
@@ -3532,8 +3567,10 @@ def startup():
     global duet
     setstartvalues()  # Default startup global values
 
+    
     if httpListener and restarting is False:
         startHttpListener()
+
 
     checkforPrinter()  # Needs to be connected before following are executed
 
@@ -3543,7 +3580,7 @@ def startup():
 
     logger.info('Initializing DL3msg queue')
     sendDuetGcode(apiModel,M3291 + ' B"Clear"') # Clear the message queue
-
+     
     startmainLoop()
 
     logger.info('Initiating with action set to ' + action)
