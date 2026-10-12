@@ -10,7 +10,7 @@ The plugin may rely on specific versions os DSF.  Select and install from the ap
 
 Follow the steps in the getting started guide and create a minimal configuration file.
 
-<https://github.com/stuartofmt/DuetLapse3/blob/main/3.6.x/Documents/Getting%20Started.md>
+<https://github.com/stuartofmt/DuetLapse3/blob/3.6.x/Documents/Getting%20Started.md>
 
 Be especially careful to use:
 

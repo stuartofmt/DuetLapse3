@@ -32,7 +32,7 @@ Options can be specified on the command line, in a configuration file ( see -fil
 
 Examples of command line options are shown here:
 
-<https://github.com/stuartofmt/DuetLapse3/blob/main/3.6.x/Documents/DuetLapse3%20Useage%20Examples.md>
+<https://github.com/stuartofmt/DuetLapse3/blob/3.6.x/Documents/DuetLapse3%20Useage%20Examples.md>
 
 The program will usually be started just before you starting printing job - but this is not critical.  Depending on options (e.g. dontwait) it will either immediately start creating still images or wait until the printer starts printing.
 
@@ -49,19 +49,19 @@ There are three ways to control DuetLapse.  All three require that its integrate
 #### Browser based UI
 
 The user interface is described here:
-[Controlling with the UI](https://github.com/stuartofmt/DuetLapse3/blob/main/3.6.x/Documents/User%20Interface.md)
+[Controlling with the UI](https://github.com/stuartofmt/DuetLapse3/blob/3.6.x/Documents/User%20Interface.md)
 
 #### http messages
 
 http methods for controlling DUetLapse3 can be found here:
 
-[Controlling with http](https://github.com/stuartofmt/DuetLapse3/blob/main/3.6.x/Documents/Using%20http%20controls.md)
+[Controlling with http](https://github.com/stuartofmt/DuetLapse3/blob/3.6.x/Documents/Using%20http%20controls.md)
 
 #### gcode messages
 
 DuetLapse3 can be controlled directly from gcode using M3291 messages
 
-[Controlling with gcode.md](https://github.com/stuartofmt/DuetLapse3/blob/main/3.6.x/Documents/Controlling%20with%20gcode.md)
+[Controlling with gcode.md](https://github.com/stuartofmt/DuetLapse3/blob/3.6.x/Documents/Controlling%20with%20gcode.md)
 
 ## Options
 
@@ -621,7 +621,7 @@ If omitted the feature is disabled.
 If used, the string should be something unique and unlikely to appear in an M3291 message by accident.
 See the following document for more details:
 
-[Controlling with gcode.md](https://github.com/stuartofmt/DuetLapse3/blob/main/3.6.x/Documents/Controlling%20with%20gcode.md)
+[Controlling with gcode.md](https://github.com/stuartofmt/DuetLapse3/blob/3.6.x/Documents/Controlling%20with%20gcode.md)
 
 **example**
 
