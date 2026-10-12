@@ -23,19 +23,19 @@ For most users, startDuetLapse3 will not be used.
 
 ### A quick installation guide for standalone DuetLapse3 is in this document:
 
-[Standalone quick installation guide.md](https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/Standalone%20quick%20installation%20guide.md)
+[Standalone quick installation guide.md](https://github.com/stuartofmt/DuetLapse3/blob/main/3.6.x/Documents/Standalone%20quick%20installation%20guide.md)
 
 ### Details of DuetLapse3 options are in this document:
 
-[DuetLapse3.md](https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/DuetLapse3.md)
+[DuetLapse3.md](https://github.com/stuartofmt/DuetLapse3/blob/main/3.6.x/Documents/DuetLapse3.md)
 
 **In addition to a browser interface DuetLapse3 can be controlled directly from gcode.**
 
-[Controlling with gcode.md](https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/Controlling%20with%20gcode.md)
+[Controlling with gcode.md](https://github.com/stuartofmt/DuetLapse3/blob/main/3.6.x/Documents/Controlling%20with%20gcode.md)
 
 **Useage examples are in this document**
 
-[DuetLapse3 Useage Examples.md](https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/DuetLapse3%20Useage%20Examples.md)
+[DuetLapse3 Useage Examples.md](https://github.com/stuartofmt/DuetLapse3/blob/main/3.6.x/Documents/DuetLapse3%20Useage%20Examples.md)
 
 ## Version History
 

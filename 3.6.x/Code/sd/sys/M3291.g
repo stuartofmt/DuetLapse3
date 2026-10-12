@@ -27,7 +27,7 @@
 ; e.g.  set global.DL3del = {1,3,7,}
 ;
 ; At the processing end, if global.DL3msg[0] is > last time checked: all messages are extracted in one go
-; global.DL3del is set with a list of extracted messge indexes
+; global.DL3del is set with a list of extracted message indexes
 ; and then M321 P"Del" called.  i.e. the recently read entries are cleared
 ;
 ; #################  MACRO STARTS HERE #################################

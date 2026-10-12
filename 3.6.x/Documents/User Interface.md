@@ -20,13 +20,13 @@ The user interface is navigated by tabs and buttons.
 
 The status tab provides basic information about the state of your printer and of DuetLapse.  This tab automatically refreshes 4 times for each poll of the printer. Note that other tabs do not automatically refresh.
 
-![DuetLapse](../Images/0-Status.png "Cannot find Image")
+![DuetLapse](Images/0-Status.png "Cannot find Image")
 
 ### __Controls Tab__
 
 The Controls tab allows the state of DuetLapse to be changed.  The controls are enabled, logically, based on the current state.  For example "Continue" is only available if the current state is "Pause' (and vice versa).  Also, if you use the -hidden option, disabed controls will not be visible.
 
-![DuetLapse](../Images/1-Controls.png "Cannot find Image")
+![DuetLapse](Images/1-Controls.png "Cannot find Image")
 
 The function of each button is:
 
@@ -60,7 +60,7 @@ Popup alert(s) informs of the progress of the video creation.
 
 Note that these settings also affect the length of a video when using the video button in the files tab (see below). 
 
-![DuetLapse](../Images/2-Video.png "Cannot find Image")
+![DuetLapse](Images/2-Video.png "Cannot find Image")
 
 ### __Files Tab__
 
@@ -73,17 +73,17 @@ Logfiles from previous print jobs can be deleted.  Image folders from previous p
 
 __The file tab is refreshed after each action.__
 
-![DuetLapse](../Images/3a-Files.png "Cannot find Image")
+![DuetLapse](Images/3a-Files.png "Cannot find Image")
 
 Logfiles and zip files can be downloaded by clicking on the filename.log or filename.zip links
 
 Video files can be viewed by clicking on the filename.mp4 link
 
-![DuetLapse](../Images/3b-Logfile.png "Cannot find Image")
+![DuetLapse](Images/3b-Logfile.png "Cannot find Image")
 
 Image folders can be viewed by clicking on the foldername link.
 
-![DuetLapse](../Images/3c-Images.png "Cannot find Image")
+![DuetLapse](Images/3c-Images.png "Cannot find Image")
 
 Images can be viewed by clicking on the filename.jpeg link.
 
@@ -91,4 +91,4 @@ Images can be viewed by clicking on the filename.jpeg link.
 
 The info tab shows the values of all the current options and file / folder locations.
 
-![DuetLapse](../Images/4-Info.png "Cannot find Image")
+![DuetLapse](Images/4-Info.png "Cannot find Image")

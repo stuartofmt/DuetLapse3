@@ -8,7 +8,7 @@ This is a brief guide to installing DuetLapse3 as a self-contained, stand alone 
 
 Follow the steps in the getting started guide and create a minimal configuration file.
 
-<https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/Getting%20Started.md>
+<https://github.com/stuartofmt/DuetLapse3/blob/main/3.6.x/Documents/Getting%20Started.md>
 
 ## 1 -- Install DuetLapse 3
 

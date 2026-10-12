@@ -6,11 +6,11 @@ It is strongly recommended that these steps be performed **BEFORE** installing D
 
 DuetLapse3 can be installed as a self-contained, stand alone program (see instructions here)
 
-<https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/Standalone%20quick%20installation%20guide.md>
+<https://github.com/stuartofmt/DuetLapse3/blob/main/3.6.x/Documents/Standalone%20quick%20installation%20guide.md>
 
 or as a plugin on an SBC Duet (see instructions here):
 
-<https://github.com/stuartofmt/DuetLapse3/blob/main/Documents/plugin%20installation%20guide.md>
+<https://github.com/stuartofmt/DuetLapse3/blob/main/3.6.x/Documents/plugin%20installation%20guide.md>
 
 **All these actions should be performed on the computer that DuetLapse3 WILL BE installed**
 
