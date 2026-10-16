@@ -1,9 +1,9 @@
-<!-- Zip button (image folders only).  Placeholders: {{referer}} {{path}} -->
+<!-- Zip button (image folders only).  Placeholders: {{path}} -->
 <td>
 <div class="inline">
 <button class="button" style="background-color:yellow" onclick="(async () => {
 let fullname_encoded = encodeURIComponent('{{path}}');
-let response = await fetch(`http://{{referer}}?zip=${fullname_encoded}`);
+let response = await fetch(`/zip?path=${fullname_encoded}`);
 await displayFiles(event,'true');
 })()">Zip</button>
 </div>

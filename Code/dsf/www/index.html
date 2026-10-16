@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
     duetLapse3 main page - the tabs fill "tab-content" from the other templates
-    Placeholders: {{referer}} {{poll_ms}}
+    Placeholders: {{poll_ms}}
 -->
 <html>
 <head>
@@ -88,6 +88,10 @@ function loadLasttab(evt) {
         displayFiles(event, path);
     } else if (lastTab == "Info") {
         displayInfo(event);
+    } else if (lastTab == "Cameras") {
+        displayCameras(event);
+    } else if (lastTab == "Config") {
+        displayConfig(event);
     } else {
         console.log("Default Tab");
         repeatDisplayStatus(event);
@@ -102,7 +106,7 @@ function repeatDisplayStatus(evt){
 async function displayStatus(evt){
     sessionStorage.setItem("lastTab", "Status");
     let content = document.getElementById("tab-content");
-    const getUrl = "http://{{referer}}/?displayStatus=true";
+    const getUrl = "/tab/status";
     let promise = await fetch(getUrl);
     let result = await promise.text();
     content.innerHTML = result;
@@ -114,7 +118,7 @@ async function displayControls(evt){
         nIntervalId = undefined;
     }
     let content = document.getElementById("tab-content");
-    const getUrl = "http://{{referer}}/?displayControls=true";
+    const getUrl = "/tab/controls";
     let promise = await fetch(getUrl);
     let result = await promise.text();
     content.innerHTML = result;
@@ -126,7 +130,7 @@ async function displayVideo(evt){
         nIntervalId = undefined;
     }
     let content = document.getElementById("tab-content");
-    const getUrl = "http://{{referer}}/?displayVideo=true";
+    const getUrl = "/tab/video";
     let promise = await fetch(getUrl);
     let result = await promise.text();
     content.innerHTML = result;
@@ -139,7 +143,7 @@ async function displayFiles(evt, path){
         nIntervalId = undefined;
     }
     let content = document.getElementById("tab-content");
-    const getUrl = `http://{{referer}}/?displayFiles=${path}`;
+    const getUrl = `/tab/files?path=${encodeURIComponent(path)}`;
     let promise = await fetch(getUrl);
     let result = await promise.text();
     content.innerHTML = result;
@@ -151,7 +155,7 @@ async function displayInfo(evt){
         nIntervalId = undefined;
     }
     let content = document.getElementById("tab-content");
-    const getUrl = "http://{{referer}}/?displayInfo=true";
+    const getUrl = "/tab/info";
     let promise = await fetch(getUrl);
     let result = await promise.text();
     content.innerHTML = result;
@@ -162,10 +166,75 @@ async function displayTerminate(evt){
         nIntervalId = undefined;
     }
     let content = document.getElementById("tab-content");
-    const getUrl = "http://{{referer}}/?displayTerminate=true";
+    const getUrl = "/tab/terminate";
     let promise = await fetch(getUrl);
     let result = await promise.text();
     content.innerHTML = result;
+}
+async function displayConfig(evt){
+    sessionStorage.setItem("lastTab", "Config");
+    if (nIntervalId) {
+        clearInterval(nIntervalId);
+        nIntervalId = undefined;
+    }
+    let content = document.getElementById("tab-content");
+    const getUrl = "/tab/config";
+    let promise = await fetch(getUrl);
+    let result = await promise.text();
+    content.innerHTML = result;
+}
+async function displayCameras(evt){
+    sessionStorage.setItem("lastTab", "Cameras");
+    if (nIntervalId) {
+        clearInterval(nIntervalId);
+        nIntervalId = undefined;
+    }
+    let content = document.getElementById("tab-content");
+    const getUrl = "/tab/cameras";
+    let promise = await fetch(getUrl);
+    let result = await promise.text();
+    content.innerHTML = result;
+}
+// Show a new image from the url in camera n's box - duetLapse3 fetches it (see /camera/preview)
+function previewCamera(n){
+    const url = document.getElementById("weburl" + n).value.trim();
+    const cell = document.getElementById("preview" + n);
+    if (url == "") {
+        cell.innerHTML = "No camera";
+        return;
+    }
+    const src = "/camera/preview?url=" + encodeURIComponent(url) + "&t=" + Date.now();  // t stops the browser using an old image
+    cell.innerHTML = `<a href="${src}" target="_blank"><img src="${src}" width="320" alt="No image from this url"></a>`;
+}
+// Save the camera urls, then show a new preview of each
+async function saveCameras(){
+    const settings = {weburl1: document.getElementById("weburl1").value, weburl2: document.getElementById("weburl2").value};
+    let message = document.getElementById("camerasmessage");
+    message.innerHTML = "Saving ...";
+    let promise = await fetch("/cameras/save", {method: "POST", headers: {"Content-Type": "application/json"},
+                                                body: JSON.stringify(settings)});
+    message.innerHTML = await promise.text();
+    previewCamera(1);
+    previewCamera(2);
+}
+// Send the Config tab's settings to be checked and saved - each input has name= and data-type=
+async function saveConfig(){
+    const settings = {};
+    for (const el of document.querySelectorAll("#configform [name]")) {
+        const type = el.dataset.type;
+        if (type == "bool") {
+            settings[el.name] = el.checked;
+        } else if (type == "list") {
+            (settings[el.name] = settings[el.name] || []).push(el.value);
+        } else {
+            settings[el.name] = el.value;
+        }
+    }
+    let message = document.getElementById("configmessage");
+    message.innerHTML = "Saving ...";
+    let promise = await fetch("/config/save", {method: "POST", headers: {"Content-Type": "application/json"},
+                                               body: JSON.stringify(settings)});
+    message.innerHTML = await promise.text();
 }
 function imgTab(evt, src){
     window.open(src);
@@ -179,6 +248,8 @@ function imgTab(evt, src){
 <button class="tablinks" onclick="displayVideo(event)">Video</button>
 <button class="tablinks" onclick="displayFiles(event,'true')">Files</button>
 <button class="tablinks" onclick="displayInfo(event)">Info</button>
+<button class="tablinks" onclick="displayCameras(event)">Cameras</button>
+<button class="tablinks" onclick="displayConfig(event)">Config</button>
 </div>
 <div id="tab-content" class="tabcontent" style="width:inherit; max-height:200px; overflow-y:auto"></div>
 </body>

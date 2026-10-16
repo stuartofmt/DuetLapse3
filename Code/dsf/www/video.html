@@ -1,8 +1,8 @@
 <!--
     Video tab
-    Placeholders: {{referer}} {{fps}} {{minvideo}} {{maxvideo}} {{videomsg}}
+    Placeholders: {{fps}} {{minvideo}} {{maxvideo}} {{videomsg}}
 -->
-<form action="http://{{referer}}" onsubmit="setTimeout(function() {displayVideo();}, 1500)">
+<form action="/videosettings" onsubmit="setTimeout(function() {displayVideo();}, 1500)">
 <label for="fps">fps:</label>
 <input type="text" id="fps" name="fps" value={{fps}} style="background-color:lime; width:30px; border:none" />
 <label for="minvideo">minvideo:</label>
@@ -13,7 +13,7 @@
 <input type="submit" value="Update">
 </form><br><b>{{videomsg}}&nbsp;&nbsp;&nbsp;&nbsp;<div class="inline">
 <button class="button" style="background-color:yellow" onclick="(async () => {
-let promise = await fetch('http://{{referer}}?snapshot=true');
+let promise = await fetch('/snapshot');
 let result = await promise.text();
 alert(result);
 await displayVideo();

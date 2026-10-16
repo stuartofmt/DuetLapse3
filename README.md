@@ -11,24 +11,28 @@ This branch is version 6 for DWC / DSF 3.7. It runs as a DWC plugin on an SBC (f
 The plugin has been renamed from `DuetLapse3` to `duetLapse3`, so DWC treats it as a different plugin.
 
 1. **Uninstall the old `DuetLapse3` plugin** before you install this one.
-2. **Move your settings.** The settings file is now `sys/duetLapse3/duetLapse3.json`, replacing `sys/DuetLapse3/DuetLapse3.config`. Copy your values across (see [Settings](#settings)). Settings that are not in the json use their defaults.
+2. **Move your settings.** The settings file is now `sys/duetLapse3/duetLapse3.json`, replacing `sys/DuetLapse3/DuetLapse3.config`. Copy your values across (see [Settings](#settings)): the old `.config` file and command-line options are no longer read. Settings that are not in the json use their defaults.
 3. **The port is now chosen automatically** if `port` is 0, and the DWC page finds it without any setup. If you give a port and it is already in use, duetLapse3 picks a free one instead of stopping.
 4. **gcode commands.** Commands now start with `duetLapse3.`, but the old `DuetLapse3.` still works, so you don't need to change existing slicer gcode.
 5. **No firmware version check.** duetLapse3 no longer refuses to run on a firmware version it doesn't expect. The firmware version is shown on the Status tab.
+6. **One logfile.** The log is now `duetLapse3.log`, next to `duetLapse3.json` (`sys/duetLapse3/duetLapse3.log` for the plugin). It starts fresh each time duetLapse3 starts, instead of a separate log for each print.
+7. **Only http cameras are supported.** Set `weburl1` (and `weburl2` for a second camera) to the camera's snapshot URL, or its MJPEG stream URL (see [Cameras](#cameras)). USB and Pi cameras can no longer be used directly: use a camera server such as multiCam, ustreamer or crowsnest to give them a URL. The `camera1`, `camera2`, `camparam1` and `camparam2` settings have been removed (if they are in the json, they are ignored with a warning).
 
 ## Installing
 
 1. In DWC, go to **Settings → Plugins → External plugins → Install plugin** and choose the duetLapse3 zip.
 2. The plugin installs the `M3291.g` macro in `/sys`. duetLapse3 uses it to receive commands from gcode.
-3. Edit `sys/duetLapse3/duetLapse3.json` if you need to change anything (see below), then start the plugin.
+3. Start the plugin, open its page, and on the **Cameras** tab enter your camera's URL (see [Cameras](#cameras)) and press **Save**. Or set `weburl1` in `sys/duetLapse3/duetLapse3.json` before starting the plugin.
 
 DSF installs the Python packages duetLapse3 needs (from `requirements.txt`) when the plugin is installed.
 
 ## Settings
 
-Settings are in `sys/duetLapse3/duetLapse3.json`. You can edit it in DWC under **System → sys → duetLapse3**. Restart the plugin after changing it.
+Settings are in `sys/duetLapse3/duetLapse3.json`. You can change them on the **Cameras** and **Config** tabs of the duetLapse3 page, or edit the file in DWC under **System → sys → duetLapse3**. Restart the plugin after changing them.
 
-The file is split into sections only to make it easier to read: any setting can go in any section. If the file is missing, duetLapse3 creates it with the default values.
+The file is split into sections only to make it easier to read: any setting can go in any section. If the file is missing, duetLapse3 creates it with the default values. If a setting has the wrong kind of value (for example text where a number is needed), duetLapse3 says which one in the log and doesn't start.
+
+The log is `duetLapse3.log`, in the same folder.
 
 ```json
 {
@@ -37,7 +41,6 @@ The file is split into sections only to make it easier to read: any setting can 
     "seconds": 0
   },
   "Camera": {
-    "camera1": "web",
     "weburl1": "http://192.168.1.20:8081/snapshot"
   },
   "UI": {
@@ -51,9 +54,8 @@ The main settings are:
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| `camera1` | `usb` | Camera type: `usb`, `pi`, `web`, `stream` or `other` |
-| `weburl1` | | Image URL for camera1 when it is `web` or `stream` |
-| `camera2`, `weburl2` | | Optional second camera |
+| `weburl1` | | Required. URL of camera1: a snapshot URL (preferred) or an MJPEG stream URL |
+| `weburl2` | | URL of an optional second camera |
 | `detect` | `layer` | When to take images: `layer`, `pause` or `none` |
 | `seconds` | `0` | Also take an image every n seconds (0 = off) |
 | `numlayers` | `1` | Take an image every n layers |
@@ -70,8 +72,8 @@ The main settings are:
 | `novideo` | `false` | Don't make a video |
 | `deletepics` | `false` | Delete the images when duetLapse3 terminates |
 | `keepfiles` | `false` | Don't delete files on startup or shutdown |
-| `keeplogs` | `false` | Don't delete old logs |
-| `basedir` | | Where images, videos and logs go (default: the program's folder) |
+| `keeplogs` | `false` | Don't delete per-print logs left by earlier versions |
+| `basedir` | | Where images and videos go (default: the program's folder) |
 | `password` | `reprap` | Printer password |
 | `poll` | `12` | Seconds between printer status checks |
 | `verbose` | `false` | Detailed logging |
@@ -80,17 +82,36 @@ The main settings are:
 | `ip` | | Set by duetLapse3 to this computer's IP address. You don't need to change it |
 | `M3291` | `M3291` | Name of the message macro, if you renamed `M3291.g` |
 | `execkey` | | Prefix for messages that run a command on the SBC |
-| `camparam1`, `camparam2`, `vidparam1`, `vidparam2` | | Advanced: override the capture or video commands |
+| `vidparam1`, `vidparam2` | | Advanced: override the video commands |
+| `instances` | `single` | `single`: only one duetLapse3 can run. `oneip`: one for each settings folder. `many`: no limit |
+| `duet` | `localhost` | The printer's address. Not in the file by default: only needed when not running as a plugin |
+| `host` | `0.0.0.0` | The address the page listens on. Not in the file by default |
+| `simulate` | `off` | For testing: `all`, `printer` or `camera` are simulated |
+
+## Cameras
+
+duetLapse3 gets its images from http cameras. Each camera needs a URL that is either:
+
+- **a snapshot URL** (preferred), which returns one JPEG image, for example `http://192.168.1.20:8081/snapshot`, or
+- **an MJPEG stream URL**, for example `http://192.168.1.20:8081/stream`. duetLapse3 takes the first image from the stream and closes the connection.
+
+A snapshot URL is quicker and uses less of the SBC and the camera server. The image is saved exactly as the camera sends it, without being re-compressed.
+
+To check a URL, use **Preview** on the Cameras tab, or open it in a browser: a snapshot URL shows a single still image, and a stream URL shows live video. Other kinds of stream, such as RTSP or H.264, can't be used.
+
+USB and Pi cameras need a camera server to give them a URL, for example multiCam, ustreamer, mjpg-streamer or crowsnest. A URL that needs a login can include it: `http://user:password@192.168.1.20/snapshot`.
 
 ## The duetLapse3 page
 
-Open **Plugins → duetLapse3** in DWC. It has five tabs:
+Open **Plugins → duetLapse3** in DWC. It has seven tabs:
 
 - **Status:** what duetLapse3 is doing, and the last image.
 - **Controls:** start, standby, pause, continue, restart and terminate.
 - **Video:** change the video settings, or make a video now (Snapshot).
-- **Files:** download, zip, delete or make videos from earlier images, videos and logs.
+- **Files:** download, zip, delete or make videos from earlier images and videos.
 - **Info:** the settings in use and where files are kept.
+- **Cameras:** the URL of each camera, with a preview. **Preview** shows a new image from the URL in the box, and **Save** saves the URLs to `duetLapse3.json` and starts using them straight away.
+- **Config:** change the other settings in `duetLapse3.json`. **Save** checks every value first and saves nothing if any are wrong. Restart duetLapse3 for the changes to take effect.
 
 The page shows a message if the plugin stops, and shows the page again when the plugin restarts.
 
@@ -119,15 +140,31 @@ M3291 B"duetLapse3.start"
 duetLapse3 can also run on its own:
 
 ```bash
-python duetLapse3.py [settings] [options]
+python duetLapse3.py [folder]
 ```
 
-- `settings` is optional: the path to a `duetLapse3.json`, or to the folder it is in.
-- Any setting can be given on the command line as `-<setting> <value>`, for example `-duet 192.168.1.5 -camera1 web -weburl1 http://...`. Command-line options take priority over the json.
-- Two options are only used on the command line:
-  - `-duet` is the printer's address (default `localhost`).
-  - `-host` is the address the page listens on (default `0.0.0.0`).
-- `-file <file>` reads options from a text file, as in earlier versions.
-- `-simulate all` runs without a printer or camera, for testing.
+- `folder` is where `duetLapse3.json` and `duetLapse3.log` are. If you leave it out, they go in the same folder as `duetLapse3.py`.
+- All settings are in `duetLapse3.json` (see [Settings](#settings)). Add `"duet"` with the printer's address, for example `"duet": "192.168.1.5"`.
+- For testing, `"simulate": "all"` runs without a printer or camera.
 
 The page is at `http://<this computer>:<port>`. The port in use is shown in the log.
+
+## Web API
+
+The duetLapse3 page uses these URLs, and you can call them yourself, for example from a script. All of them use GET. A list of the routes is also at `http://<this computer>:<port>/docs`.
+
+| URL | What it does |
+| --- | --- |
+| `/command/<command>` | `start`, `standby`, `pause`, `continue` or `restart` |
+| `/snapshot` | Make a video of the images so far |
+| `/makevideo?path=<folder>&xtratime=false` | Make a video from an image folder |
+| `/videosettings?fps=<n>&minvideo=<n>&maxvideo=<n>` | Change the video settings (give any of them) |
+| `/getfile?path=<file>` | Download a file |
+| `/zip?path=<folder>` | Zip an image folder |
+| `/delete?path=<file or folder>` | Delete a file or folder |
+| `/terminate/terminateg` | Make the video and terminate |
+| `/terminate/terminatef` | Terminate straight away, without a video |
+
+The tabs of the page are at `/tab/status`, `/tab/controls`, `/tab/video`, `/tab/files`, `/tab/info`, `/tab/cameras`, `/tab/config` and `/tab/terminate`. The Config tab saves with a POST of the settings as JSON to `/config/save`, and the Cameras tab with a POST of `weburl1` and `weburl2` to `/cameras/save`. `/camera/preview?url=<camera url>` returns one image from a camera url.
+
+URLs from earlier versions, such as `http://<this computer>:<port>/?command=start`, still work.

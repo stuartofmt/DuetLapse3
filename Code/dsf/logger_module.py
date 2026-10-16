@@ -4,15 +4,11 @@ Logging for duetLapse3
 Derived from the duetPrintGuard logger_module but adapted for duetLapse3:
   - The logger exists at import time so any module can simply do
         from logger_module import logger
-  - Console output is set up first (setup_logger) and the logfile later
-    (create_log_file), once the directory for it is known
-  - The logfile is moved to follow each job (move_log_file)
+  - Console output is set up first (setup_logger) and the logfile later (create_log_file)
   - Formats include the thread name, as duetLapse3 is multi-threaded
 """
 import logging
-import shutil
 import sys
-import time
 
 logger = logging.getLogger('duetLapse3')
 logger.propagate = False
@@ -52,29 +48,10 @@ def _add_file_handler(filename, mode):
     logfilename = filename
 
 
-def create_log_file(filename, wait=0):
+def create_log_file(filename):
     # Start a new (empty) logfile, replacing any existing one
-    # wait - seconds to allow messages to propagate after closing the old file
-    # logfilename is set first so a move_log_file during the wait does not
-    # move the previous logfile
-    global logfilename
-    logfilename = filename
-    if close_log_file() and wait > 0:
-        time.sleep(wait)
-    _add_file_handler(filename, 'w')
-    return logfilename
-
-
-def move_log_file(newfilename):
-    # Move the current logfile to newfilename and continue appending to it
-    oldfilename = logfilename
     close_log_file()
-    try:
-        logger.debug('Renaming logfile to ' + newfilename)
-        shutil.move(oldfilename, newfilename)
-    except shutil.Error as e:
-        logger.info('Error on move of logfile ' + str(e))
-    _add_file_handler(newfilename, 'a')
+    _add_file_handler(filename, 'w')
     return logfilename
 
 

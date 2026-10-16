@@ -14,7 +14,8 @@ the functions noted against each group.
 ###########################
 
 inputs = None  # dict of option name -> display value (see getOptions)
-configfile = None  # json config file given by -config ('' if none)
+configdir = None  # Folder for duetLapse3.json and the logfile - argument 1, or the program's folder
+configfile = None  # duetLapse3.json in configdir
 
 # Simulate
 simulate = None
@@ -25,7 +26,6 @@ password = None
 basedir = None
 poll = None
 instances = None
-logtype = None
 nolog = None
 verbose = None
 host = None
@@ -48,8 +48,6 @@ standby = None
 restart = None
 
 # Cameras
-camera1 = None
-camera2 = None
 weburl1 = None
 weburl2 = None
 
@@ -60,8 +58,6 @@ minvideo = None
 maxvideo = None
 
 # Overrides
-camparam1 = None
-camparam2 = None
 vidparam1 = None
 vidparam2 = None
 
@@ -93,7 +89,6 @@ nextWorkingDir = None
 workingDir = None
 workingDirStatus = None
 pidIncrement = None
-loggingset = None
 logfilename = None
 
 ###########################
@@ -158,9 +153,8 @@ simulatedImage = None
 lastMessageSeq = None
 
 ###########################
-# http listener - set in startHttpListener(), MyHandler
+# http listener - set in startHttpListener()
 ###########################
 
-listener = None
+listener = None  # uvicorn.Server
 listenerThread = None
-referer = None  # None until the first http request is received

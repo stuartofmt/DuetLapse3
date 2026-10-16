@@ -7,7 +7,6 @@
     "basedir": "",
     "poll": 12,
     "instances": "single",
-    "logtype": "both",
     "nolog": false,
     "verbose": false,
     "keeplogs": false,
@@ -22,14 +21,15 @@
     "detect": "layer",
     "pause": "no",
     "numlayers": 1,
-    "movehead": [0, 0],
+    "movehead": [
+      0,
+      0
+    ],
     "rest": 1,
     "standby": false,
     "restart": false
   },
   "Camera": {
-    "camera1": "usb",
-    "camera2": "",
     "weburl1": "",
     "weburl2": ""
   },
@@ -40,14 +40,12 @@
     "maxvideo": 0
   },
   "Overrides": {
-    "camparam1": "",
-    "camparam2": "",
     "vidparam1": "",
     "vidparam2": ""
   },
   "UI": {
     "port": 0,
-    "ip": "",
+    "ip": "192.168.30.41",
     "hidebuttons": false
   },
   "Special Functions": {

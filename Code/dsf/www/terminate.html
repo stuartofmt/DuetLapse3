@@ -1,12 +1,12 @@
 <!--
     Terminate options (from the Terminate button on the Controls tab)
-    Placeholders: {{referer}} {{vidmsg}} {{restartmsg}} {{pageaction}}
+    Placeholders: {{vidmsg}} {{restartmsg}} {{pageaction}}
     The confirm text must stay on one line - use \n for line breaks
 -->
 <td>
 <div class="inline">
 <button class="button" style="background-color:green" onclick="(async () => {
-if (confirm('Press OK to Gracefully Terminate\n{{vidmsg}}{{restartmsg}}')) {console.log('Graceful Terminate');fetch('http://{{referer}}?terminate=terminateg');{{pageaction}}} else {console.log('Abort Graceful Terminate.');repeatDisplayStatus();
+if (confirm('Press OK to Gracefully Terminate\n{{vidmsg}}{{restartmsg}}')) {console.log('Graceful Terminate');fetch('/terminate/terminateg');{{pageaction}}} else {console.log('Abort Graceful Terminate.');repeatDisplayStatus();
 };
 })()">Graceful Terminate</button>
 </div>
@@ -14,7 +14,7 @@ if (confirm('Press OK to Gracefully Terminate\n{{vidmsg}}{{restartmsg}}')) {cons
 <div class="inline">
 <button class="button" style="background-color:red" onclick="(async () => {
 if (confirm('Press OK to Forcefully Terminate\nA video will NOT be created.')) {
-console.log('Forced Terminate');fetch('http://{{referer}}?terminate=terminatef');document.body.innerHTML = '';} else {console.log('Abort Forced Terminate.');repeatDisplayStatus();
+console.log('Forced Terminate');fetch('/terminate/terminatef');document.body.innerHTML = '';} else {console.log('Abort Forced Terminate.');repeatDisplayStatus();
 };
 })()">Forced Terminate</button>
 </div>

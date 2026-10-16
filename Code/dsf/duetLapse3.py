@@ -12,9 +12,7 @@
 #
 #
 # Developed on Raspberry Pi and WSL with Debian Bullseye and on Windows 10/11. SHOULD work on most other linux distributions.
-# For USB or Pi camera, The Camera MUST be physically attached to the Pi computer.
-# For Webcam, the camera must be network reachable and via a defined URL for a still image.
-# For Stream   the camera must be network reachable and via a defined URL
+# Cameras must be network reachable http cameras, with a snapshot url or an MJPEG stream url.
 # The Duet printer must be RepRap firmware V3 and must be network reachable.
 #
 #
@@ -91,8 +89,12 @@ removed terminate button when using SBC
 added argument -# to allow comments in config file
 6.0.0
 Renamed to duetLapse3 (plugin id, files, config folder and route)
-Options can be read from duetLapse3.json - path to the file or its folder as the first argument
-Command line options take priority over duetLapse3.json
+Settings are read from duetLapse3.json - no command line options (argparse removed, including -file)
+Argument 1 is the folder for duetLapse3.json and duetLapse3.log - default is the program's folder
+One logfile (duetLapse3.log) for the whole run, instead of a logfile for each print job
+instances = oneip now means one instance per settings folder
+Added a Config tab to view and change duetLapse3.json
+Added a Cameras tab - the camera urls, with a preview of each.  Saved urls are used straight away
 If port = 0 (or the port is in use) a free port is selected
 The ip address in use is saved to duetLapse3.json and published to DWC as plugin data
 The web server always runs
@@ -100,13 +102,18 @@ Removed the firmware version check
 Version is read from the plugin manifest
 Shared state moved to state.py, logging to logger_module.py, html to www/
 gcode commands accept duetLapse3. or DuetLapse3. (any case)
+Web server is now FastAPI / uvicorn - the routes are in routes.py
+New URLs for the page and API (/tab/..., /command/..., etc) - the older ?<api>=<value> URLs still work
+Fixed Continue never returning (and using a cpu) when sent from the page
+Fixed terminate hanging if another python process ended at the same time
+Only http cameras are supported: -weburl1 (and optionally -weburl2) is a snapshot or MJPEG stream url
+Images are captured in python - wget, fswebcam and raspistill are no longer used
+Removed USB and Pi camera support, ffmpeg capture of streams (RTSP / H.264) and -camera1, -camera2, -camparam1, -camparam2
 """
 
 import subprocess
 import sys
 import platform
-import argparse
-import shlex
 import time
 import requests
 import socket
@@ -116,11 +123,11 @@ import shutil
 import pathlib
 import stat
 import signal
-import logging
 import base64
-import re
+import urllib.parse
 
 import state  # Shared state - always use state.<name>
+import camera
 import logger_module
 from logger_module import logger
 
@@ -173,46 +180,74 @@ def returncode(code):  # Defined here - used by calling programs
     return text
 
 
-class LoadFromFilex (argparse.Action):
-    def __call__ (self, parser, namespace, values, option_string = None):
-        with values as file:
-            try:
-                import copy
-
-                old_actions = parser._actions
-                file_actions = copy.deepcopy(old_actions)
-
-                for act in file_actions:
-                    act.required = False
-
-                parser._actions = file_actions
-                parser.parse_args(shlex.split(file.read()), namespace)
-                parser._actions = old_actions
-
-            except Exception as e:
-                logger.info('Error: ' +  str(e))
-                return
-
-
 ####################################################
-# json config file
+# Settings - read from duetLapse3.json
 ####################################################
 
 configFileName = 'duetLapse3.json'
-configExtras = ['ip']  # Keys in the config file that are not command line options
-configOmit = ['duet', 'host']  # Command line only - left out of a new config file
+logFileName = 'duetLapse3.log'
 
-def configDefaults(parser):
-    # Option defaults from the parser - single values are not wrapped in a list
-    defaults = {}
-    for act in parser._actions:
-        if act.dest in ['help', '#', 'file', 'config']:
-            continue
-        val = act.default
-        if isinstance(val, list) and act.nargs in [1, '*']:
-            val = val[0]
-        defaults[act.dest] = val
-    return defaults
+# Every setting and its default.  The type of the default is the type of the setting.
+# The sections match duetLapse3.json - they are only for readability
+DEFAULTS = {
+    'Simulate': {'simulate': 'off'},
+    'Environment': {'duet': 'localhost', 'host': '0.0.0.0', 'password': 'reprap', 'basedir': '', 'poll': 12,
+                    'instances': 'single', 'nolog': False, 'verbose': False, 'keeplogs': False, 'novideo': False,
+                    'deletepics': False, 'maxffmpeg': 2, 'keepfiles': False},
+    'Execution': {'dontwait': False, 'seconds': 0, 'detect': 'layer', 'pause': 'no', 'numlayers': 1,
+                  'movehead': [0, 0], 'rest': 1, 'standby': False, 'restart': False},
+    'Camera': {'weburl1': '', 'weburl2': ''},
+    'Video': {'extratime': 0, 'fps': 10, 'minvideo': 5, 'maxvideo': 0},
+    'Overrides': {'vidparam1': '', 'vidparam2': ''},
+    'UI': {'port': 0, 'ip': '', 'hidebuttons': False},
+    'Special Functions': {'execkey': '', 'M3291': 'M3291'},
+}
+CHOICES = {'simulate': ['off', 'all', 'printer', 'camera'], 'instances': ['single', 'oneip', 'many'],
+           'detect': ['layer', 'pause', 'none'], 'pause': ['yes', 'no']}
+# Shown on the Config tab
+HELP = {
+    'simulate': 'For testing: all, printer or camera are simulated',
+    'duet': 'The printer address - only needed when not running as a plugin',
+    'host': 'The address the page listens on',
+    'password': 'Printer password',
+    'basedir': 'Where images and videos go (blank = the program folder)',
+    'poll': 'Seconds between printer status checks',
+    'instances': 'single: only one duetLapse3.  oneip: one per settings folder.  many: no limit',
+    'nolog': 'No logfile',
+    'verbose': 'Detailed logging',
+    'keeplogs': "Don't delete per-print logs left by earlier versions",
+    'novideo': "Don't make a video",
+    'deletepics': 'Delete the images when duetLapse3 terminates',
+    'maxffmpeg': 'Most ffmpeg instances to run at once when making videos',
+    'keepfiles': "Don't delete files on startup or shutdown",
+    'dontwait': 'Start taking images straight away, without waiting for a print',
+    'seconds': 'Also take an image every n seconds (0 = off)',
+    'detect': 'When to take images',
+    'pause': 'yes parks the head before each image',
+    'numlayers': 'Take an image every n layers',
+    'movehead': 'Where to park the head (X, Y) when pause is yes',
+    'rest': 'Seconds to wait after parking, before the image',
+    'standby': 'Wait for a start command before doing anything',
+    'restart': 'Get ready for the next print when this one finishes',
+    'weburl1': 'Required. Camera1 snapshot url (preferred) or MJPEG stream url',
+    'weburl2': 'Optional second camera url',
+    'extratime': 'Seconds to hold the last image at the end of the video',
+    'fps': 'Video frames per second',
+    'minvideo': 'Shortest video to make (seconds)',
+    'maxvideo': 'Fixed video length in seconds (0 = off)',
+    'vidparam1': 'Advanced: override the Camera1 video command',
+    'vidparam2': 'Advanced: override the Camera2 video command',
+    'port': 'Port for this page (0 = pick a free port)',
+    'ip': 'Set by duetLapse3 - the ip address of this computer',
+    'hidebuttons': 'Only show the buttons that can be used now',
+    'execkey': 'Prefix for messages that run a command on the SBC',
+    'M3291': 'Name of the message macro, if you renamed M3291.g',
+}
+configOmit = ['duet', 'host']  # Left out of a new config file - only needed when not running as a plugin
+configExtras = ['ip']  # Written by duetLapse3, not read as a setting
+
+def flatDefaults():
+    return {key: val for section in DEFAULTS.values() for key, val in section.items()}
 
 def readConfig(filename):
     with open(filename, encoding='utf-8') as f:
@@ -223,33 +258,66 @@ def writeConfig(filename, config):
         json.dump(config, f, indent=2)
         f.write('\n')
 
-def loadConfig(filename, parser):
-    # Returns the config file settings as parser defaults
-    # If the file does not exist, it is created from the parser defaults
+def badSetting(filename, message):
+    logger.critical('Invalid setting in ' + filename + ': ' + message)
+    sys.exit(2)
+
+def checkSetting(key, val, default):
+    # Returns val as the same type as default.  Raises ValueError (with the reason) if it can't be
+    if isinstance(default, bool):  # Must be before int (bool is a kind of int)
+        if isinstance(val, bool):
+            return val
+        if isinstance(val, str) and val.lower() in ['true', 'false']:
+            return val.lower() == 'true'
+        raise ValueError(key + ' must be true or false, not ' + json.dumps(val))
+    if isinstance(default, int):
+        try:
+            return int(val)
+        except (ValueError, TypeError):
+            raise ValueError(key + ' must be a whole number, not ' + json.dumps(val))
+    if isinstance(default, list):
+        try:
+            val = [int(v) for v in val]
+        except (ValueError, TypeError):
+            val = []
+        if len(val) != len(default):
+            raise ValueError(key + ' must be a list of ' + str(len(default)) + ' numbers e.g. ' + json.dumps(default))
+        return val
+    if not isinstance(val, str):
+        raise ValueError(key + ' must be text (in quotes), not ' + json.dumps(val))
+    if key in CHOICES and val not in CHOICES[key]:
+        raise ValueError(key + ' must be one of ' + ', '.join(CHOICES[key]) + ', not "' + val + '"')
+    return val
+
+def loadSettings(filename):
+    # Returns every setting: the defaults, replaced by any values in the config file
+    # If the file does not exist, it is created from the defaults
     if not os.path.isfile(filename):
         logger.warning('No config file found at ' + filename + ' - creating it with default values')
-        config = {'Options': {k: v for k, v in configDefaults(parser).items() if k not in configOmit}}
-        config['Options']['ip'] = ''
+        config = {section: {k: v for k, v in keys.items() if k not in configOmit} for section, keys in DEFAULTS.items()}
         try:
             writeConfig(filename, config)
         except OSError as e:
             logger.warning('Could not create config file ' + str(e))
     else:
-        config = readConfig(filename)
+        try:
+            config = readConfig(filename)
+        except (OSError, ValueError) as e:
+            badSetting(filename, str(e))
 
-    actions = {act.dest: act for act in parser._actions}
-    defaults = {}
+    settings = flatDefaults()
     for section in config.values():  # Sections are only for readability
         for key, val in section.items():
             if key in configExtras:
                 continue
-            if key not in actions or key in ['help', '#', 'file', 'config']:
-                logger.warning('Ignoring unknown option "' + key + '" in ' + filename)
+            if key not in settings:
+                logger.warning('Ignoring unknown setting "' + key + '" in ' + filename)
                 continue
-            if actions[key].nargs in [1, '*']:
-                val = [val]  # parser expects a list
-            defaults[key] = val
-    return defaults
+            try:
+                settings[key] = checkSetting(key, val, settings[key])
+            except ValueError as e:
+                badSetting(filename, str(e))
+    return settings
 
 def saveUiAddress(ip):
     # Record the ip address in use in the config file (if it changed) - same as duetPrintGuard
@@ -288,77 +356,6 @@ def publishUiAddress(ip, port):
         command_connection.close()
 
 
-def whitelist(parser):
-    # Environment
-    parser.add_argument('-duet', type=str, nargs=1, default=['localhost'],
-                        help='Name of duet or ip address. Default = localhost')
-    parser.add_argument('-password', type=str, nargs=1, default=['reprap'],
-                        help='Password for printer. Default = reprap')
-    parser.add_argument('-poll', type=int, nargs=1, default=[12])
-    parser.add_argument('-basedir', type=str, nargs=1, default=[''], help='default = This program directory')
-    parser.add_argument('-instances', type=str, nargs=1, choices=['single', 'oneip', 'many'], default=['single'],
-                        help='Default = single')
-    parser.add_argument('-logtype', type=str, nargs=1, choices=['console', 'file', 'both'], default=['both'],
-                        help='Deprecated.  Use -nolog')
-    parser.add_argument('-nolog', action='store_true', help='Do not use log file')
-    parser.add_argument('-verbose', action='store_true', help='Detailed output')
-    parser.add_argument('-host', type=str, nargs=1, default=['0.0.0.0'],
-                        help='The ip address this service listens on. Default = 0.0.0.0')
-    parser.add_argument('-port', type=int, nargs=1, default=[0],
-                        help='Specify the port on which the server listens. Default = 0')
-    parser.add_argument('-keeplogs', action='store_true', help='Does not delete logs.')
-    parser.add_argument('-novideo', action='store_true', help='Does not create a video.')
-    parser.add_argument('-deletepics', action='store_true', help='Deletes images on Terminate')
-    parser.add_argument('-maxffmpeg', type=int, nargs=1, default=[2],
-                        help='Max instances of ffmpeg during video creation. Default = 2')
-    parser.add_argument('-keepfiles', action='store_true', help='Dont delete files on startup or shutdown')
-    # Execution
-    parser.add_argument('-dontwait', action='store_true', help='Capture images immediately.')
-    parser.add_argument('-seconds', type=int, nargs=1, default=[0])
-    parser.add_argument('-detect', type=str, nargs=1, choices=['layer', 'pause', 'none'], default=['layer'],
-                        help='Trigger for capturing images. Default = layer')
-    parser.add_argument('-pause', type=str, nargs=1, choices=['yes', 'no'], default=['no'],
-                        help='Park head before image capture.  Default = no')
-    parser.add_argument('-numlayers', type=int, nargs=1, default=[1],
-                        help='Number of layers before capture.  Default = 1')
-    parser.add_argument('-movehead', type=int, nargs=2, default=[0, 0],
-                        help='Where to park head on pause, Default = 0,0')
-    parser.add_argument('-rest', type=int, nargs=1, default=[1],
-                        help='Delay before image capture after a pause.  Default = 1')
-    parser.add_argument('-standby', action='store_true', help='Wait for command to start.')
-    parser.add_argument('-restart', action='store_true', help='Will restart when print finishes')
-    # Camera
-    parser.add_argument('-camera1', type=str, nargs=1, choices=['usb', 'pi', 'web', 'stream', 'other'], default=['usb'],
-                        help='Mandatory Camera. Default = usb')
-    parser.add_argument('-weburl1', type=str, nargs=1, default=[''], help='Url for Camera1 if web or stream')
-    parser.add_argument('-camera2', type=str, nargs=1, choices=['usb', 'pi', 'web', 'stream', 'other'], default=[''],
-                        help='Optional second camera. No Default')
-    parser.add_argument('-weburl2', type=str, nargs=1, default=[''], help='Url for Camera2 if web or stream')
-    # Video
-    parser.add_argument('-extratime', type=int, nargs=1, default=[0], help='Time to repeat last image, Default = 0')
-    parser.add_argument('-minvideo', type=int, nargs=1, default=[5], help='Minimum video length (sec), Default = 5')
-    parser.add_argument('-maxvideo', type=int, nargs=1, default=[0], help='Fixed video length (sec), Default = inactive')
-    # Overrides
-    parser.add_argument('-camparam1', type=str, nargs=1, default=[''],
-                        help='Camera1 Capture overrides. Use -camparam1="parameters"')
-    parser.add_argument('-camparam2', type=str, nargs='*', default=[''],
-                        help='Camera2 Capture overrides. Use -camparam2="parameters"')
-    parser.add_argument('-vidparam1', type=str, nargs=1, default=[''],
-                        help='Camera1 Video overrides. Use -vidparam1="parameters"')
-    parser.add_argument('-vidparam2', type=str, nargs=1, default=[''],
-                        help='Camera2 Video overrides. Use -vidparam2="parameters"')
-    parser.add_argument('-fps', type=int, nargs=1, default=[10], help='Frames-per-second for video. Default = 10')
-    parser.add_argument('-hidebuttons', action='store_true', help='Hides buttons not logically available.')
-    #Special Functions
-    parser.add_argument('-execkey', type=str, nargs=1, default=[''],help='string to identify executable command')
-    parser.add_argument('-simulate', type=str, nargs=1, choices=['all', 'printer', 'camera'], default=['off'],
-                        help='Default is off')
-    parser.add_argument('-M3291', type=str, nargs=1, default=['M3291'],
-                        help='Default is M3291')
-    parser.add_argument('-#', type=str, nargs=1, default=[''],
-                        help='Comment')
-    return parser
-
 ################################################
 ##  Main routines for calling subprocesses
 ################################################
@@ -367,10 +364,7 @@ def whitelist(parser):
 def runsubprocess(cmd):
     logger.debug('RUNNING SUBPROCESS WITH ' + str(cmd))
     try:
-        if cmd.startswith('wget'):
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True, shell=True, timeout= 10)
-        else:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True, shell=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True, shell=True)
 
         logger.debug('Return Code = ' + str(result.returncode))
         logger.debug('stdout = ' + str(result.stdout))
@@ -395,22 +389,17 @@ def runsubprocess(cmd):
         return False
 
 def init():
-    parser = argparse.ArgumentParser(
-            description='Create time lapse video for Duet3D based printer. V' + duetLapse3Version, allow_abbrev=False)
-    parser = whitelist(parser)
+    # Argument 1 is the folder for duetLapse3.json and the logfile - default is this program's folder
+    if len(sys.argv) > 1:
+        state.configdir = os.path.realpath(sys.argv[1])
+        if not os.path.isdir(state.configdir):
+            print('Folder ' + sys.argv[1] + ' could not be found - Exiting')
+            sys.exit(1)
+    else:
+        state.configdir = os.path.dirname(os.path.realpath(__file__))
+    state.configfile = os.path.join(state.configdir, configFileName)
 
-    parser.add_argument('-file', type=argparse.FileType('r'), help='file of options', action=LoadFromFilex)
-    parser.add_argument('config', type=str, nargs='?', default='',
-                        help='json config file, or the directory containing ' + configFileName)
-
-    # Options in the json config file replace the defaults - command line options still take priority
-    state.configfile = parser.parse_known_args()[0].config
-    if os.path.isdir(state.configfile):
-        state.configfile = os.path.join(state.configfile, configFileName)
-    if state.configfile != '':
-        parser.set_defaults(**loadConfig(state.configfile, parser))
-
-    args = vars(parser.parse_args())  # Save as a dict
+    args = loadSettings(state.configfile)
 
     state.inputs = {}
 
@@ -418,18 +407,18 @@ def init():
     
     # Simulate
     state.inputs.update({'# Simulate': ''})
-    state.simulate = args['simulate'][0]
+    state.simulate = args['simulate']
     state.inputs.update({'simulate': str(state.simulate)})
 
     # Environment
     state.inputs.update({'# Environment':''})
     
-    state.duet = args['duet'][0]
+    state.duet = args['duet']
     if state.simulate in ['all','printer']:
         state.duet = 'SIMULATED'
     state.inputs.update({'duet': str(state.duet)})
 
-    state.password = args['password'][0]  
+    state.password = args['password']  
     #  password is not displayed
     if state.password == 'reprap':
         state.inputs.update({'password': 'Default'})
@@ -437,33 +426,27 @@ def init():
         state.inputs.update({'password': '*******'})
 
         
-    state.basedir = args['basedir'][0]
+    state.basedir = args['basedir']
     state.inputs.update({'basedir': str(state.basedir)})
     
-    state.poll = args['poll'][0]
+    state.poll = args['poll']
     if state.poll < state.minPoll:
         state.poll = state.minPoll
     state.inputs.update({'poll': str(int(state.poll))})
     
-    state.instances = args['instances'][0]
+    state.instances = args['instances']
     state.inputs.update({'instances': str(state.instances)})
     
-    state.logtype = args['logtype'][0]
-    state.inputs.update({'logtype': str(state.logtype)})
-    
     state.nolog = args['nolog']
-    # Deprecated logtype
-    if ('console' in state.logtype):
-            state.nolog = True
     state.inputs.update({'nolog': str(state.nolog)})
     
     state.verbose = args['verbose']
     state.inputs.update({'verbose': str(state.verbose)})
 
-    state.host = args['host'][0]
+    state.host = args['host']
     state.inputs.update({'host': str(state.host)})
 
-    state.port = args['port'][0]
+    state.port = args['port']
     state.inputs.update({'port': str(state.port)})
 
     state.keeplogs = args['keeplogs']
@@ -475,7 +458,7 @@ def init():
     state.deletepics = args['deletepics']
     state.inputs.update({'deletepics': str(state.deletepics)})
 
-    state.maxffmpeg = args['maxffmpeg'][0]
+    state.maxffmpeg = args['maxffmpeg']
     state.inputs.update({'maxffmpeg': str(state.maxffmpeg)})
 
     state.keepfiles = args['keepfiles']
@@ -487,18 +470,18 @@ def init():
     state.dontwait = args['dontwait']
     state.inputs.update({'dontwait': str(state.dontwait)})
 
-    state.seconds = args['seconds'][0]
+    state.seconds = args['seconds']
     if state.seconds != 0 and state.seconds < state.minseconds:
         state.seconds = state.minseconds
     state.inputs.update({'seconds': str(state.seconds)})
 
-    state.detect = args['detect'][0]
+    state.detect = args['detect']
     state.inputs.update({'detect': str(state.detect)})
 
-    state.pause = args['pause'][0]
+    state.pause = args['pause']
     state.inputs.update({'pause': str(state.pause)})
 
-    state.numlayers = args['numlayers'][0]
+    state.numlayers = args['numlayers']
     if state.numlayers < 1:
         state.numlayers = 1
     state.inputs.update({'numlayers': int(state.numlayers)})
@@ -506,7 +489,7 @@ def init():
     state.movehead = args['movehead']
     state.inputs.update({'movehead': str(state.movehead)})
 
-    state.rest = args['rest'][0]
+    state.rest = args['rest']
     if state.rest < 0:
         state.rest = 0
     state.inputs.update({'rest': str(state.rest)})
@@ -520,31 +503,25 @@ def init():
     # Camera
     state.inputs.update({'# Camera': ''})
 
-    state.camera1 = args['camera1'][0]
-    state.inputs.update({'camera1': str(state.camera1)})
-
-    state.camera2 = args['camera2'][0]
-    state.inputs.update({'camera2': str(state.camera2)})
-
-    state.weburl1 = args['weburl1'][0]
+    state.weburl1 = args['weburl1']
     state.inputs.update({'weburl1': str(state.weburl1)})
 
-    state.weburl2 = args['weburl2'][0]
+    state.weburl2 = args['weburl2']
     state.inputs.update({'weburl2': str(state.weburl2)})
 
     # Video
     state.inputs.update({'# Video': ''})
 
-    state.extratime = args['extratime'][0]
+    state.extratime = args['extratime']
     state.inputs.update({'extratime': str(state.extratime)})
 
-    state.fps = args['fps'][0]
+    state.fps = args['fps']
     state.inputs.update({'fps': str(state.fps)})
 
-    state.minvideo = args['minvideo'][0]
+    state.minvideo = args['minvideo']
     state.inputs.update({'minvideo': str(state.minvideo)})
 
-    state.maxvideo = args['maxvideo'][0]
+    state.maxvideo = args['maxvideo']
     if state.maxvideo > 0:
        if state.maxvideo < state.minvideo:
            state.maxvideo = state.minvideo
@@ -554,16 +531,10 @@ def init():
     # Overrides
     state.inputs.update({'# Overrides': ''})
 
-    state.camparam1 = args['camparam1'][0]
-    state.inputs.update({'camparam1': str(state.camparam1)})
-
-    state.camparam2 = args['camparam2'][0]
-    state.inputs.update({'camparam2': str(state.camparam2)})
-
-    state.vidparam1 = args['vidparam1'][0]
+    state.vidparam1 = args['vidparam1']
     state.inputs.update({'vidparam1': str(state.vidparam1)})
 
-    state.vidparam2 = args['vidparam2'][0]
+    state.vidparam2 = args['vidparam2']
     state.inputs.update({'vidparam2': str(state.vidparam2)})
 
     # UI
@@ -575,10 +546,10 @@ def init():
     #  Special Functions
 
     state.inputs.update({'# Special Functions': ''})
-    state.execkey = args['execkey'][0]
+    state.execkey = args['execkey']
     state.inputs.update({'execkey': str(state.execkey)})
 
-    state.M3291 = args['M3291'][0]
+    state.M3291 = args['M3291']
     state.inputs.update({'M3291': str(state.M3291)})
 
 
@@ -599,10 +570,7 @@ def init():
     else:
         state.win = False
 
-    thisinstance = os.path.basename(__file__)
-    if not state.win:
-        thisinstance = './' + thisinstance
-    checkInstances(thisinstance, state.instances)
+    checkInstances(state.instances)
 
     ####################################################
     # Setup for logging and filenames
@@ -618,7 +586,6 @@ def init():
     state.duetname = state.duet.replace('.', '-')
 
     # set directories for files
-    state.loggingset = False
     state.pidIncrement = 0 # Used to create a new path for each job.
     if state.basedir == '':
         state.basedir = os.path.dirname(os.path.realpath(__file__))
@@ -653,6 +620,7 @@ def init():
     cleanupFiles('startup')
 
     setuplogfile()
+    setNextWorkingDir()
     
     ###############################################
     # derived parameters
@@ -671,55 +639,40 @@ def init():
 
     # Invalid Combinations that will abort program
 
-    if (state.camera1 == 'stream' or state.camera1 == 'web') and (not state.weburl1.startswith('http://')):
-        logger.info('************************************************************************************')
-        logger.info('Invalid Combination: Camera type ' + state.camera1 + ' cannot be used without a url')
-        logger.info('************************************************************************************\n')
-        sys.exit(2)
+    # Only http cameras are supported
+    if state.simulate in ['all', 'camera'] and state.weburl1 == '':
+        state.weburl1 = 'http://simulated'
 
-    if (state.camera2 == 'stream' or state.camera2 == 'web') and (not state.weburl1.startswith('http://')):
+    # A missing or invalid url does not stop duetLapse3 - the url can be set on the Cameras tab
+    # Until then that camera is not used
+    for key, name in [('weburl1', 'Camera1'), ('weburl2', 'Camera2')]:
+        url = getattr(state, key)
+        if url != '' and not camera.is_http_url(url):
+            logger.info('************************************************************************************')
+            logger.info('Invalid setting: ' + key + ' "' + url + '" is not an http url - ' + name + ' will not be used')
+            logger.info('Use a snapshot url (preferred) or an MJPEG stream url - set it on the Cameras tab')
+            logger.info('************************************************************************************\n')
+            setattr(state, key, '')
+    if state.weburl1 == '':
         logger.info('************************************************************************************')
-        logger.info('Invalid Combination: Camera type ' + state.camera2 + ' cannot be used without a url')
+        logger.info('No url for Camera1 (weburl1) - no images will be captured until it is set on the Cameras tab')
         logger.info('************************************************************************************\n')
-        sys.exit(2)
 
-    if (state.camera1 != 'other') and (state.camparam1 != ''):
-        logger.info('************************************************************************************')
-        logger.info('Invalid Combination: Camera type ' + state.camera1 + ' cannot be used with camparam1')
-        logger.info('************************************************************************************\n')
-        sys.exit(2)
-
-    if (state.camera2 != 'other') and (state.camparam2 != ''):
-        logger.info('************************************************************************************')
-        logger.info('Invalid Combination: Camera type ' + state.camera2 + ' cannot be used with camparam2')
-        logger.info('************************************************************************************\n')
-        sys.exit(2)
-
-    if (state.camera1 == 'usb' or state.camera1 == 'pi') and state.win:  # These do not work on WIN OS
-        logger.info('************************************************************************************')
-        logger.info('Invalid Combination: Camera type ' + state.camera1 + ' cannot be on Windows OS')
-        logger.info('************************************************************************************\n')
-        sys.exit(2)
-
-    if (state.camera2 == 'usb' or state.camera2 == 'pi') and state.win:
-        logger.info('************************************************************************************')
-        logger.info('Invalid Combination: Camera type ' + state.camera2 + ' cannot be on Windows OS')
-        logger.info('************************************************************************************\n')
-        sys.exit(2)
+    checkDependencies()  # Exits if ffmpeg is missing
 
 
     if (not state.movehead == [0.0, 0.0]) and (not 'yes' in state.pause) and (not 'pause' in state.detect):
         logger.info('************************************************************************************')
         logger.info(
-                'Invalid Combination: "-movehead {0:1.2f} {1:1.2f}" requires either "-pause yes" or "-detect pause".'.format(
+                'Invalid Combination: "movehead {0:1.2f} {1:1.2f}" requires either "pause yes" or "detect pause".'.format(
                         state.movehead[0], state.movehead[1]))
         logger.info('************************************************************************************\n')
         sys.exit(2)
 
     if ('yes' in state.pause) and ('pause' in state.detect):
         logger.info('************************************************************************************')
-        logger.info('Invalid Combination: "-pause yes" causes this program to pause printer when')
-        logger.info('other events are detected, and "-detect pause" requires the gcode on the printer')
+        logger.info('Invalid Combination: "pause yes" causes this program to pause printer when')
+        logger.info('other events are detected, and "detect pause" requires the gcode on the printer')
         logger.info('contain its own pauses.  These cannot be used together.')
         logger.info('************************************************************************************\n')
         sys.exit(2)
@@ -731,48 +684,48 @@ def issue_warnings():
     # Information and Warnings
     if state.seconds <= 0 and 'none' in state.detect:
         logger.info('************************************************************************************')
-        logger.info('Warning:: -seconds ' + str(state.seconds) + ' and -detect ' + state.detect + ' nothing will be captured.')
-        logger.info('Specify "-detect none" with "-seconds > 0" to trigger on seconds alone.')
+        logger.info('Warning:: seconds ' + str(state.seconds) + ' and detect ' + state.detect + ' nothing will be captured.')
+        logger.info('Specify "detect none" with "seconds > 0" to trigger on seconds alone.')
         logger.info('************************************************************************************\n')
 
     if state.seconds > 0 and (not 'none' in state.detect):
         logger.info('************************************************************************************')
-        logger.info('Warning: -seconds ' + str(state.seconds) + ' and -detect ' + state.detect + ' will trigger on both.')
-        logger.info('Specify "-detect none" with "-seconds > 0" to trigger on seconds alone.')
+        logger.info('Warning: seconds ' + str(state.seconds) + ' and detect ' + state.detect + ' will trigger on both.')
+        logger.info('Specify "detect none" with "seconds > 0" to trigger on seconds alone.')
         logger.info('************************************************************************************\n')
 
     if state.seconds > 0  and 'none' in state.detect:
         logger.info('************************************************************************************')
-        logger.info('Warning: -seconds ' + str(state.seconds) + ' and -detect ' + state.detect)
-        logger.info('This combination implies -dontwait and will be set automatically')
+        logger.info('Warning: seconds ' + str(state.seconds) + ' and detect ' + state.detect)
+        logger.info('This combination implies dontwait and will be set automatically')
         logger.info('************************************************************************************\n')
         state.dontwait = True
 
     if 'pause' in state.detect:
         logger.info('************************************************************************************')
-        logger.info('* Note "-detect pause" means that the G-Code on the printer already contains pauses,')
+        logger.info('* Note "detect pause" means that the G-Code on the printer already contains pauses,')
         logger.info('* and that this program will detect them, take a photo, and issue a resume.')
         logger.info('* Head position during those pauses is can be controlled by the pause.g macro ')
-        logger.info('* on the duet, or by specifying "-movehead nnn nnn".')
+        logger.info('* on the duet, or by specifying "movehead nnn nnn".')
         logger.info('*')
         logger.info('* If instead, it is desired that this program force the printer to pause with no')
         logger.info('* pauses in the gcode, specify either:')
-        logger.info('* "-pause yes -detect layer" or "-pause yes -seconds nnn".')
+        logger.info('* "pause yes detect layer" or "pause yes seconds nnn".')
         logger.info('************************************************************************************\n')
 
     if 'yes' in state.pause:
         logger.info('************************************************************************************')
-        logger.info('* Note "-pause yes" means this program will pause the printer when the -detect and / or ')
-        logger.info('* -seconds flags trigger.')
+        logger.info('* Note "pause yes" means this program will pause the printer when the detect and / or ')
+        logger.info('* seconds flags trigger.')
         logger.info('*')
         logger.info('* If instead, it is desired that this program detect pauses that are already in')
         logger.info('* in the gcode, specify:')
-        logger.info('* "-detect pause"')
+        logger.info('* "detect pause"')
         logger.info('************************************************************************************\n')
 
     if state.novideo and state.deletepics:
         logger.info('************************************************************************************')
-        logger.info('Warning: The combination of -novideo and -deletepics will not create any output')
+        logger.info('Warning: The combination of novideo and deletepics will not create any output')
         logger.info('************************************************************************************\n')
 
     return # issue_warnings()
@@ -798,9 +751,9 @@ def listOptions():
         if label.startswith('#'):
             logger.info(label)
         elif value == '':
-            logger.info('-' + label)
+            logger.info(label)
         else:
-            logger.info('-' + label + '  =  ' + value)
+            logger.info(label + '  =  ' + value)
     logger.info('-----------------------------------------------------------------------\n\n')
 
 
@@ -808,29 +761,22 @@ def listOptions():
 # Logfile setup
 ####################################################
 
-def setuplogfile():  #Called at start and restart
-    #  Set up log file now that we have a name for it
-    
-    state.logfilename = os.path.join(state.topDir, 'startup.log')
-    state.pidIncrement += 1
-    state.nextWorkingDir = os.path.join(state.topDir, state.pid + '_' + str(state.pidIncrement))
-
+def setuplogfile():  # Called at start - one logfile, in the config folder, for the whole run
     if state.nolog is False:
-        # wait allows any messages to propogate to the old logfile
-        logger_module.create_log_file(state.logfilename, wait = state.mainLoopPoll)
+        state.logfilename = os.path.join(state.configdir, logFileName)
+        logger_module.create_log_file(state.logfilename)
 
         logger.info('duetLapse3 Version --- ' + str(duetLapse3Version))
         logger.info('Process Id  ---  ' + str(state.pid) )
+        logger.info('Settings from  ---  ' + state.configfile)
         logger.info('-------------------------------------------------------------------------------\n')
+    else:
+        state.logfilename = 'None (nolog is set)'
 
-    state.loggingset = True
 
-
-def renamelogfile(thisDir): # called from createworkingDir 
-    logger.debug('Calling stack ' + currentFuncName(2) + ' --> '  + currentFuncName(1) + ' --> '  + currentFuncName(0))
-
-    if state.nolog is False:
-        state.logfilename = logger_module.move_log_file(thisDir + '.log')
+def setNextWorkingDir():  # Called at start and restart - the folder for the next job's images
+    state.pidIncrement += 1
+    state.nextWorkingDir = os.path.join(state.topDir, state.pid + '_' + str(state.pidIncrement))
 
 ####################################################
 # Misc settings
@@ -875,47 +821,13 @@ def poll_seconds():
         if state.seconds > 0 and 'none' in state.detect:
             updateglobals('dontwait', 'True')       
       
-def checkDependencies(id):
-    if id == 1:
-        camera = state.camera1
-        camparam  = state.camparam1
-    else:
-        camera = state.camera2
-        camparam  = state.camparam2
-
-    if 'usb' in camera:
-        if runsubprocess('fswebcam --version') is False:
-            logger.info("Module 'fswebcam' is required. ")
-            if not state.win:
-                logger.info("Obtain via 'sudo apt install fswebcam'")
-            sys.exit(3)
-
-    if 'pi' in camera:
-        logger.info('NOTE: THE -camera pi OPTION IS DEPRECATED')
-
-    if 'pi' in camera or 'raspistill' in camparam:
-        if runsubprocess('raspistill --help') is False:
-            logger.info("Module 'raspistill' is required BUT is only available for Pi version Buster or lower. ")
-            if not state.win:
-                logger.info("Obtain via 'sudo apt install raspistill'")
-            sys.exit(3)
-
-    if 'web' in camera or 'wget' in camparam:
-        if runsubprocess('wget --version') is False:
-            logger.info("Module 'wget' is required. ")
-            if not state.win:
-                logger.info("Obtain via 'sudo apt install wget'")
-            sys.exit(3)
-
+def checkDependencies():
+    # ffmpeg is needed to make the videos
     if runsubprocess('ffmpeg -version') is False:
         logger.info("Module 'ffmpeg' is required. ")
         if not state.win:
             logger.info("Obtain via 'sudo apt install ffmpeg'")
         sys.exit(3)
-
-    checkDependencies(1)
-    if state.camera2 != '':
-        checkDependencies(2)
 
     """
     ########################################################################
@@ -1151,8 +1063,8 @@ def createVideo(directory):
 def ffmpeg_available():
     count = 0
     max_count = state.maxffmpeg  # Default is 2
-    for p in psutil.process_iter():
-        if 'ffmpeg' in p.name():  # Check to see if it's running
+    for p in psutil.process_iter(['name']):  # Processes that end during the scan are skipped
+        if 'ffmpeg' in (p.info['name'] or ''):  # Check to see if it's running
             count += 1
         if count >= max_count:
             logger.debug('Waiting for ffmpeg to become available')
@@ -1162,8 +1074,8 @@ def ffmpeg_available():
 
 def getRunningInstancePids():
     pidlist = []
-    for p in psutil.process_iter():
-        if 'python' in p.name():  # Check all other python instances
+    for p in psutil.process_iter(['name']):  # Processes that end during the scan are skipped
+        if 'python' in (p.info['name'] or ''):  # Check all other python instances
             pidlist.append(str(p.pid))
     return pidlist
 
@@ -1182,7 +1094,6 @@ def createworkingDir():
     try:
         os.mkdir(state.nextWorkingDir)
         logger.debug('Created working directory: ' + state.nextWorkingDir)
-        renamelogfile(state.nextWorkingDir)  # change the logfle to match the working dir
         state.workingDirStatus = 0
     except OSError as e:
         logger.info('Could not create working directory ' + str(e))
@@ -1214,7 +1125,6 @@ def renameworkingDir(thisDir):
     try:
         shutil.move(thisDir, nextWorkingDir)
         logger.debug('Renaming working directory: ' + nextWorkingDir)
-        renamelogfile(nextWorkingDir)  # change the logfle to match the working dir
         state.workingDirStatus = 1
     except shutil.Error as e:
         logger.info('Error on move of workingDir ' + str(e))
@@ -1280,9 +1190,10 @@ def startNow():
 
 def getThisInstance(thisinstancepid):
     thisrunning = 'Could not find a process running with pid = ' + str(thisinstancepid)
-    for p in psutil.process_iter():
-        if ('python3' in p.name() or 'pythonw' in p.name()) and thisinstancepid == p.pid:
-            cmdline = str(p.cmdline())
+    for p in psutil.process_iter(['name', 'cmdline']):  # Processes that end during the scan are skipped
+        name = p.info['name'] or ''
+        if ('python3' in name or 'pythonw' in name) and thisinstancepid == p.pid:
+            cmdline = str(p.info['cmdline'] or [])
             cmdline = cmdline.replace('[', '')
             cmdline = cmdline.replace(']', '')
             cmdline = cmdline.replace(',', '')
@@ -1298,19 +1209,39 @@ def getThisInstance(thisinstancepid):
 ##  Processing Functions
 #####################################################
 
-def checkInstances(thisinstance, instances):
+def instanceConfigDir(proc):
+    # The settings folder of a running duetLapse3 (from its command line), or None if it is not duetLapse3
+    cmdline = proc.info['cmdline'] or []
+    for i, part in enumerate(cmdline):
+        if os.path.basename(part) == os.path.basename(__file__):
+            if len(cmdline) > i + 1:
+                folder = cmdline[i + 1]
+            else:
+                folder = os.path.dirname(part)  # Default is the program's folder
+            try:
+                return os.path.realpath(os.path.join(proc.cwd(), folder))
+            except (psutil.Error, OSError):
+                return ''  # Can't tell which folder
+    return None
+
+
+def checkInstances(instances):
+    # single - only one duetLapse3 can run.  oneip - one per settings folder (i.e. per printer).  many - no limit
     proccount = 0
     allowed = 0
 
-    for p in psutil.process_iter():
-
-        if ('python3' in p.name() or 'pythonw' in p.name()) and thisinstance in p.cmdline():
-            proccount += 1
-            if 'single' in instances:
-                allowed += 1
-            if 'oneip' in instances:
-                if state.duet in p.cmdline():
-                    allowed += 1
+    for p in psutil.process_iter(['name', 'cmdline']):  # Processes that end during the scan are skipped
+        name = p.info['name'] or ''
+        if not ('python' in name or 'pythonw' in name):
+            continue
+        folder = instanceConfigDir(p)
+        if folder is None:
+            continue
+        proccount += 1  # Includes this instance
+        if 'single' in instances:
+            allowed += 1
+        if 'oneip' in instances and folder == state.configdir:
+            allowed += 1
 
     if allowed > 1:
         logger.info('#############################')
@@ -1410,7 +1341,7 @@ def unPause():  # Only gets called if duetStatus = paused
     return
 
 
-def onePhoto(cameraname, camera, weburl, camparam):
+def onePhoto(cameraname, weburl):
 
     if state.workingDirStatus == -1: # Create as late as possible
         state.workingDir = createworkingDir()
@@ -1432,34 +1363,10 @@ def onePhoto(cameraname, camera, weburl, camparam):
         s = str(state.frame2).zfill(8)
         fn = state.camfile2 + s + '.jpeg'
 
-    if 'usb' in camera:
-        cmd = 'fswebcam --quiet --no-banner ' + fn + state.debug
-
-    if 'pi' in camera:
-        cmd = 'raspistill -t 1 -w 1280 -h 720 -ex sports -mm matrix -n -o ' + fn + state.debug
-
-    if 'stream' in camera:
-        #  cmd = 'ffmpeg -threads 1' + ffmpegquiet + ' -y -i ' + weburl + ' -vframes 1 -threads 1 ' + fn + debug
-        cmd = 'ffmpeg' + state.ffmpegquiet + ' -y -i ' + weburl + ' -frames:v 1 -update true ' + fn + state.debug
-
-    if 'web' in camera:
-        # Only for use if the url delivers single images (not for streaming)
-        # ? on use of --auth-no-challenge
-        if state.debug:
-            cmd = 'wget --auth-no-challenge -v --tries 2 -O ' + fn + ' "' + weburl + '" ' + state.debug
-        else:   
-            cmd = 'wget --auth-no-challenge -v --tries 2 -O ' + fn + ' "' + weburl + '" ' + state.debug
-            #cmd = 'wget --auth-no-challenge -nv --timeout 10 --tries 1 -O ' + fn + ' "' + weburl + '" ' + debug
-
-    if 'other' in camera:
-        # camparam may reference shared values e.g. debug, ffmpegquiet
-        cmd = eval(camparam, {**globals(), **vars(state)}, locals())
-
-
     if state.simulate in ['all','camera']:
         with open(fn, 'wb') as outputfile:
             outputfile.write(state.simulatedImage)
-    elif runsubprocess(cmd) is False: #  order is important
+    elif camera.capture_image(weburl, fn) is False: #  order is important
         logger.info('!!!!!  There was a problem capturing an image !!!!!')
         # Decrement the frame counter because we did not capture anything
         if cameraname == 'Camera1':
@@ -1473,8 +1380,7 @@ def onePhoto(cameraname, camera, weburl, camparam):
                 state.frame2 = 0
             return
     #  Success
-    if state.referer is not None:  # May not be defined yet
-        state.lastImage = 'http://' + state.referer + '?getfile=' + fn
+    state.lastImage = '/getfile?path=' + urllib.parse.quote(fn)
     if cameraname == 'Camera1':
         state.timePriorPhoto1 = time.time()
         return
@@ -1482,7 +1388,7 @@ def onePhoto(cameraname, camera, weburl, camparam):
         state.timePriorPhoto2 = time.time()
         return
 
-def oneInterval(cameraname, camera, weburl, camparam, finalframe = False):
+def oneInterval(cameraname, weburl, finalframe = False):
     if state.connectionState is False:
         logger.debug('Bypassing oneInterval because of connectionState')
         return
@@ -1511,17 +1417,17 @@ def oneInterval(cameraname, camera, weburl, camparam, finalframe = False):
                 if (not zn == state.zo1 and cameraname == 'Camera1') or (not zn == state.zo2 and cameraname == 'Camera2'):
                     # Layer changed, take a picture.
                     logger.info('Layer - ' + cameraname + ': capturing frame ' + str(frame) + ' at layer ' + layer + ' after layer change')
-                    onePhoto(cameraname, camera, weburl, camparam)
+                    onePhoto(cameraname, weburl)
 
         elif ('pause' in state.detect) and (state.duetStatus == 'paused'):
             checkForPause(zn)
             logger.info('Pause - ' + cameraname + ': capturing frame ' + str(frame) + ' at layer ' + layer + ' at pause in print gcode')
-            onePhoto(cameraname, camera, weburl, camparam)
+            onePhoto(cameraname, weburl)
         elif finalframe:
             # get a final frame
             checkForPause(zn)
             logger.info('finalframe - ' + cameraname + ': capturing frame ' + str(frame) + ' at layer ' + layer + ' after layer change')
-            onePhoto(cameraname, camera, weburl, camparam)
+            onePhoto(cameraname, weburl)
 
 
     # update the layer counter
@@ -1542,7 +1448,7 @@ def oneInterval(cameraname, camera, weburl, camparam, finalframe = False):
         checkForPause(zn)
         logger.info('Time - ' + cameraname + ': capturing frame ' + str(frame) + ' at layer ' + layer + ' after ' + str(
                 state.seconds) + ' seconds')
-        onePhoto(cameraname, camera, weburl, camparam)
+        onePhoto(cameraname, weburl)
 
 #############################################################################
 ##############  Duet API access Functions
@@ -2008,15 +1914,16 @@ def makeVideo(directory, xtratime = False):  #  Adds and extra frame
         # Make copies if appropriate
 
         if xtratime and state.extratime >= 1: #  Do not add images if called from snapshot or video
-            logger.debug('For Camera1')
-            oneInterval('Camera1', state.camera1, state.weburl1, state.camparam1, True)  # For Camera 1
-            ## if extratime != 0 and frame1/fps > minvideo:
-            if state.frame1 > 0:
-                state.frame1 = copyLastFrame(state.camfile1, state.frame1)
+            if state.weburl1 != '':   #  Camera 1
+                logger.debug('For Camera1')
+                oneInterval('Camera1', state.weburl1, True)
+                ## if extratime != 0 and frame1/fps > minvideo:
+                if state.frame1 > 0:
+                    state.frame1 = copyLastFrame(state.camfile1, state.frame1)
 
-            if state.camera2 != '':   #  Camera 2
+            if state.weburl2 != '':   #  Camera 2
                 logger.debug('For Camera2')
-                oneInterval('Camera2', state.camera2, state.weburl2, state.camparam2, True)
+                oneInterval('Camera2', state.weburl2, True)
                 ## if extratime != 0 and frame2/fps > minvideo:
                 if state.frame2 > 0:
                     state.frame2 = copyLastFrame(state.camfile2, state.frame2)
@@ -2047,7 +1954,8 @@ def copyLastFrame(f, frame):  # Makes copies and updates frame counter
 
 def restartAction():
         state.workingDirStatus = -1 # Force creation of a new workingDir
-        setuplogfile() # Create a new log file
+        setNextWorkingDir()
+        logger.info('################### Restarted - images will go in ' + state.nextWorkingDir + ' ###################')
         startNow() # determine start state
         listOptions() # List the current values
         issue_warnings() # list any warnings about setting combinations
@@ -2120,438 +2028,8 @@ def quit_forcibly():
     os.kill(os.getpid(), 9)  # Brutal but effective
 
 ###########################
-# Integral Web Server
+# Integral Web Server - the routes are in routes.py
 ###########################
-
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-import urllib
-from urllib.parse import urlparse, parse_qs
-import html
-#import io
-
-# html templates are in the www sub directory
-wwwDir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'www')
-
-def render_html(template, **values):
-    # Fill {{name}} placeholders in a www template.  <!-- comments --> are removed.
-    # Templates are read on every call so they can be edited without a restart
-    with open(os.path.join(wwwDir, template), encoding='utf-8') as f:
-        content = f.read()
-    content = re.sub(r'<!--.*?-->\n?', '', content, flags=re.DOTALL).strip()
-    return re.sub(r'\{\{(\w+)\}\}', lambda m: str(values[m.group(1)]), content)
-
-
-class MyHandler(SimpleHTTPRequestHandler):
-
-    def shutdown(self):
-        self.server._BaseServer__shutdown_request = True
-        logger.debug('Sent shutdown request')
-
-    def _set_headers(self):
-        #self.send_response(200)
-        #self.send_header("Content-type", "text/html")
-        self.send_response(200)
-        self.send_header('Age', '0')
-        self.send_header('Cache-Control', 'no-cache, private')
-        self.send_header('Pragma', 'no-cache')
-        self.send_header('Content-Type', "text/html")
-        self.end_headers()
-
-    def _set_headers204(self):
-        self.send_response(204)
-        self.send_header("Content-type", "application/json")
-        self.end_headers()
-
-    def display_controls(self):
-        allowed_buttons = allowedNextAction(state.action)
-        allbuttons = ['start', 'standby', 'pause', 'continue', 'restart']
-
-        if state.hidebuttons:  # hide buttons if option was set
-            shown = [button for button in allowed_buttons if button in allbuttons]
-        else:
-            shown = allbuttons
-
-        buttons = ''
-        for button in shown:
-            if button in allowed_buttons:
-                disable = ''
-            else:
-                disable = 'disabled'
-            buttons += render_html('buttons/' + button + '.html', referer = state.referer, disabled = disable)
-
-        if state.apiModel != 'SBC':
-            buttons += render_html('buttons/terminate.html')
-
-        return buttons
-
-    def display_video(self):
-        return render_html('video.html', referer = state.referer, fps = state.fps, minvideo = state.minvideo,
-                           maxvideo = state.maxvideo, videomsg = getVideoMsg())
-
-    def display_status(self):
-        localtime = time.strftime('%A - %H:%M', time.localtime())
-        if state.zo1 < 0:
-            thislayer = 'None'
-        else:
-            thislayer = str(state.zo1)
-
-        if state.lastImage != '':
-            image = render_html('status_image.html', src = state.lastImage)
-        else:
-            image = render_html('status_noimage.html')
-
-        return render_html('status.html', version = duetLapse3Version, duet3d_version = state.printerVersion,
-                           duet = state.duet, pid = state.pid, localtime = localtime,
-                           print_state = state.printState, action = state.action,
-                           duet_status = state.duetStatus, frames = state.frame1,
-                           layer = thislayer, image = image)
-
-    def display_info(self):
-        if state.workingDirStatus != -1:
-            imagelocation = state.workingDir
-        else:
-            imagelocation = 'Waiting for first image to be created'
-
-        options = getOptions()
-
-        optionlist = ''
-        count = 0
-        for label, value in options.items():
-            if label.startswith('#'):  #  Omit the section info
-                continue
-            if (count % 3) == 0: # 3 columns
-                optionlist += render_html('info_newrow.html')
-            optionlist += render_html('info_option.html', label = label, value = value)
-            count += 1
-
-        return render_html('info.html', pid = state.pid, options = optionlist, topdir = state.topDir,
-                           imagelocation = imagelocation, logfilename = state.logfilename)
-
-    def display_page(self):
-        return render_html('index.html', referer = state.referer, poll_ms = state.poll*1000)
-
-    def do_GET(self):
-        try:
-            state.referer = self.headers['Host']  # Should always be there
-            if not state.referer:  # Lets try authority
-                state.referer = self.headers['authority']
-                if not state.referer:
-                    state.referer = 'localhost'  # Best guess if all else fails
-
-
-            if 'favicon.ico' in self.path:
-                return
-
-            query_components = parse_qs(urlparse(self.path).query)
-            logger.debug('!!!!! http call: ' + str(query_components) + ' !!!!!')
-
-            if query_components is None or len(query_components) == 0 :
-                # Display Page
-                self._set_headers()
-                self.wfile.write(self.display_page().encode("utf8"))
-                return
-            numQueries = len(query_components)
-            queriesProcessed = 0
-
-            for api, value in query_components.items():
-                queriesProcessed += 1
-                if len(value) == 1:
-                    api_args = value[0]
-                else:
-                    api_args = value
-
-                if not api in ['displayStatus', 'displayControls', 'displayVideo', 'displayFiles', 'displayInfo', 'displayTerminate', 'snapshot', 'command', 'delete', 'zip', 'video', 'terminate', 'fps', 'minvideo', 'maxvideo', 'getfile']:
-                    msg = 'The API call "' + api + '" with value "' + api_args + '" is not supported\
-                           <br><br>' + str(query_components) + '<br>'
-                    self._set_headers()
-                    self.wfile.write(msg.encode("utf8"))
-                    return
-                
-                result= ''
-                if api == 'displayStatus':
-                    result = self.display_status()
-                elif api == 'displayControls':
-                    result = self.display_controls()
-                elif api == 'displayVideo':
-                    result = self.display_video()
-                elif api == 'displayFiles':
-                    result = self.display_files(api_args)
-                elif api == 'displayInfo':
-                    result = self.display_info()
-                elif api == 'displayTerminate':
-                    if state.apiModel != 'SBC':
-                        result = self.display_terminate_buttons()
-                elif api == 'snapshot':
-                    if state.workingDirStatus != -1:
-                        result = startMakeVideo(state.workingDir, False, False) # False => no extratime and nothread therefore blocking
-                    else:
-                        result = 'There are no images captured yet.\\nTry again later.'
-                elif api == 'video':
-                        if api_args[1] == 'True':
-                            xtratime = True
-                        else:
-                            xtratime = False
-                        result = startMakeVideo(api_args[0], xtratime, False)  # False => nothread therefore blocking
-                if result != '' and queriesProcessed == numQueries:  # return the display
-                    self._set_headers()
-                    self.wfile.write(result.encode("utf8"))
-                    continue
-                                
-                # An API Call (No Content)  actions that do not change html
-                if api == 'command':
-                    self.update_command(api_args)
-                elif api == 'delete':
-                    deleteFileFolder(api_args)
-                elif api == 'zip':
-                    make_archive(api_args)
-                elif api == 'terminate':
-                    self.terminate_process(api_args)
-                elif api == 'fps':
-                    changeFps(api_args)
-                elif api == 'minvideo':
-                    changeMinvideo(api_args)
-                elif api == 'maxvideo':
-                    changeMaxvideo(api_args)
-                # api calls that close the connection need to negate queriesProcessed
-                elif api == 'getfile':
-                    self.get_file(api_args)
-                    queriesProcessed -= 1 #  get_file closes the connection
-                if queriesProcessed == numQueries:
-                    # Send a 204
-                    self._set_headers204()
-
-            return
-        except Exception as e:
-            if 'Broken pipe' in str(e):
-                 logger.debug(str(e))          
-            else:
-                logger.info(str(e))
-
-            try:
-                self.wfile.close()
-                self.wfile = None
-            except:
-                logger.info('Could not close wfile')
-            return
-    # End of do_Get
-
-    
-    def update_command(self, command):
-        # start / standby
-        if command == 'start':
-            startnextAction(command)
-
-        elif command == 'standby':  # can be called at any time
-            startnextAction(command)
-            while state.action != command: # Dont return until success
-                pass
-
-        # pause / continue
-        elif command == 'pause':
-            startnextAction(command)
-            while state.action != command: # Dont return until success
-                pass
-
-        elif command == 'continue':
-            startnextAction(command) # Dont return until success
-            while state.action != command:
-                pass
-
-        elif command == 'restart':
-            startnextAction(command)
-            while state.action not in ['start', 'standby']: # Dont return until success
-                pass
-
-        elif command == 'terminate':  #command=terminate - backward compatible
-            self.terminate_process('terminatehttp')
-        return
-
-    def log_request(self, code=None, size=None):
-        pass
-
-    def log_message(self, format, *args):
-        pass
-
-    def terminate_process(self, ttype):
-        if ttype not in ['terminatehttp','terminateg', 'terminatef']:
-           logger.info (ttype + ' invalid terminate requested')
-           return
-
-        if ttype == 'terminatehttp':
-            startnextAction('completed')
-        elif ttype == 'terminateg':
-            startnextAction('completed')
-            #  startnextAction('terminate')
-        elif ttype == 'terminatef':
-            if isPlugin(state.apiModel):
-                stopPlugin(state.apiModel, 'duetLapse3')
-            else:
-                quit_forcibly()
-
-        return
-
-    def display_terminate_buttons(self):
-        if state.restart:
-            restartmsg = '\\nA restart will occur after the Terminate'
-            pageaction = "repeatDisplayStatus();"
-        else:
-            restartmsg = ''
-            pageaction = "document.body.innerHTML = '';"
-
-        if state.workingDirStatus != -1:
-            vidmsg = getVideoMsg()
-        else:
-            vidmsg = 'There are no images available'
-
-        return render_html('terminate.html', referer = state.referer, vidmsg = vidmsg,
-                           restartmsg = restartmsg, pageaction = pageaction)
-
-
-
-    def display_files(self, path):
-        if path == 'true':
-            path = state.topDir
-
-        if os.path.isdir(path):  # if its a dir then list it
-            response = self.list_dir(path)
-            return response
-        else:
-            return 'Requested path ' + path + ' is not a dir.'
-
-
-    def get_file(self, path):
-        if os.path.isfile(path):
-            logger.debug('Trying to get file ' + path)
-            fn = os.path.split(path)[1]
-            ctype = self.guess_type(path)
-            logger.debug(str(ctype))
-
-            try:
-                f = open(path, 'rb')
-                fs = os.fstat(f.fileno())
-            except:
-                logger.info('Problem opening file: ' + path)
-
-            try:
-                self.send_response(200)
-                self.send_header("Content-type", ctype)
-                self.send_header("Content-Length", str(fs[6]))
-                if fn.endswith('.log'):
-                    self.send_header("Content-Disposition", 'attachment; filename=' + os.path.split(path)[1])  # must be downloaded
-                else:
-                    self.send_header("Content-Disposition", 'filename=' + os.path.split(path)[1]) #  Can be displayed in browser
-                self.end_headers()
-                self.copyfile(f, self.wfile)
-                f.close()
-            except ConnectionError:
-                 # Note some browsers will block downloading a file more than once
-                 # This resets the connection - one reason why we end up here
-                logger.debug('Connection reset - normal if displaying file')
-            except:
-                logger.info('Error sending file')
-        else:
-            return 'Requested file ' + path + ' is not a file.'
-    
-    def list_dir(self, path):  # Copied from super class
-        # Pass the directory tree and determine what can be done with each file / dir
-        logger.debug('list_dir called with path = ' + path)
-
-        jpegfiles = ['.jpeg', '.jpg']
-        deletablefiles = ['.mp4','.zip', '.log'] #  Different to startDuetLapse3
-        fullfilenames = []
-        jpegfolder = []
-        deletelist = []
-      
-        try:
-            displaypath = urllib.parse.unquote(path, errors='surrogatepass')
-        except UnicodeDecodeError:
-            displaypath = urllib.parse.unquote(path)
-
-        displaypath = html.escape(displaypath, quote=False)                   # this is to handle differences between html and OS representations
-
-        # Parse the directory tree and determine what can be done with each file / dir
-        try:
-            listdir = os.listdir(path)
-        except FileNotFoundError as e:
-            logger.info('No files found: ' + str(e))
-            return render_html('files/nofiles.html', path = displaypath)
-
-        #  sort the list by datetime last modified
-        listdir.sort(key=lambda fn: -os.path.getmtime(os.path.join(path, fn))) # Sort in reverse order
-        
-        dirPid = str(state.pid) + '_' + str(state.pidIncrement)  # get current pid + suffix
-
-        for sfn in listdir:
-            fn = os.path.join(path, sfn)
-            fullfilenames.append(fn)
-            fn_elements =  os.path.splitext(fn)
-            ext = fn_elements[1]
-            if os.path.isdir(fn):
-                if dirPid not in fn:
-                    deletelist.append(fn)
-                    try:
-                        fndir = os.listdir(fn)  #  Check the subdirectory
-                    except FileNotFoundError as e:
-                        logger.info('Subdirectory error:' + str(e))
-                    for jp in fndir:  # break if we find one
-                        jp_elements =  os.path.splitext(jp)
-                        jpext = jp_elements[1]
-                        if jpext in jpegfiles:
-                            jpegfolder.append(fn)
-                            break
-            elif ext in deletablefiles:
-                if sfn == 'startup.log':  # use the short filename
-                    continue
-                if dirPid not in fn:
-                    if ext in ['mp4']:  # can delete mp4 from current print snapshot
-                        continue
-                    deletelist.append(fn)
-
-        #  get the structure information
-
-        if path == state.topDir:
-            child_dir = False
-        else:
-            parentdir = os.path.split(path)[0]
-            child_dir = True
-
-        rows = ''
-
-        # add parent dir to the html
-        if child_dir:
-            displayname = './'
-            rows += render_html('files/parent.html', path = parentdir.replace('\\', '\\\\'), name = html.escape(displayname, quote=False))
-
-
-        # Add actions to files / dirs 
-        for fullname in fullfilenames:          
-            if os.path.islink(fullname):   # A link to a directory displays with @
-                displayname = fullname + "@"
-
-            displayname = os.path.split(fullname)[1]
-            jsname = fullname.replace('\\', '\\\\')
-
-            buttons = ''
-            if fullname in deletelist:
-                buttons += render_html('files/delete.html', referer = state.referer, path = jsname)
-                if fullname in jpegfolder:
-                    buttons += render_html('files/zip.html', referer = state.referer, path = jsname)
-                    buttons += render_html('files/video.html', referer = state.referer, path = jsname)
-
-            if os.path.isdir(fullname):
-                rows += render_html('files/dir.html', path = jsname, name = html.escape(displayname, quote=False), buttons = buttons)
-            else:
-                rows += render_html('files/file.html', path = urllib.parse.quote(fullname, errors='surrogatepass'),
-                                    name = html.escape(displayname, quote=False), buttons = buttons)
-
-        dir_table = render_html('files/table.html', rows = rows)
-
-        logger.debug('Finished parsing the files directory')
-        return dir_table
-    
-        """
-            end of requesthandler
-        """
 
 def changeFps(thisfps):
     try:
@@ -2613,32 +2091,43 @@ def allowedNextAction(thisaction):
 
 
 def startHttpListener():
+    # FastAPI app served by uvicorn in its own thread, so it runs alongside the capture and main loops
+    if state.listenerThread is not None and state.listenerThread.is_alive():
+        logger.debug('http listener is already running')
+        return
 
-    try: # check if running
-        if state.listenerThread.is_alive():
-            logger.debug('http listener is already running')
-            return
-    except AttributeError:
-        state.listenerThread = None
+    import uvicorn
+    from fastapi import FastAPI
+    import routes
 
-    try:
-        state.listener = ThreadingHTTPServer((state.host, state.port), MyHandler)
-        state.listenerThread = threading.Thread(name='httpServer', target=state.listener.serve_forever, daemon=False).start()  #Avoids blocking
-        logger.info('##########################################################')
-        logger.info(f"""***** Started http listener on port {state.port}*****""")
-        logger.info('##########################################################\n')
-    except Exception as e:
-        if 'Errno 98' in str(e):
-            logger.debug('http listener is already running')
-        else:
-            logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  There was a problem starting the http listener !!!!!!!!!!!!!!!!!!!!!')
-            logger.info(str(e))
-            sys.exit(1)
+    routes.dl3 = sys.modules[__name__]  # Gives the routes access to this module's functions
+    app = FastAPI(title='duetLapse3', version=duetLapse3Version)
+    app.include_router(routes.router)
+
+    config = uvicorn.Config(app, host=state.host, port=state.port,
+                            log_config=None, access_log=False,
+                            timeout_graceful_shutdown=2)  # Don't wait long for open connections on shutdown
+    state.listener = uvicorn.Server(config)
+    state.listenerThread = threading.Thread(name='httpServer', target=state.listener.run, daemon=False)
+    state.listenerThread.start()
+
+    # Wait for uvicorn to start (or fail - e.g. the port is in use)
+    timeout = time.time() + 10
+    while not state.listener.started and state.listenerThread.is_alive() and time.time() < timeout:
+        time.sleep(0.1)
+
+    if not state.listener.started:
+        logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  There was a problem starting the http listener !!!!!!!!!!!!!!!!!!!!!')
+        sys.exit(1)
+
+    logger.info('##########################################################')
+    logger.info(f"""***** Started http listener on port {state.port}*****""")
+    logger.info('##########################################################\n')
 
 
 def closeHttpListener():
     try:
-        state.listener.shutdown()
+        state.listener.should_exit = True
         logger.debug('!!!!! http listener stopped  !!!!!')
     except Exception as e:
         logger.debug('Could not terminate http listener')
@@ -2839,11 +2328,12 @@ def captureLoop():  # Single instance only
         state.printState = stateMachine(state.printState)
 
         if state.printState == 'Capturing':
-            logger.debug('Calling oneInterval for Camera 1')
-            oneInterval('Camera1', state.camera1, state.weburl1, state.camparam1)
-            if state.camera2 != '':
+            if state.weburl1 != '':
+                logger.debug('Calling oneInterval for Camera 1')
+                oneInterval('Camera1', state.weburl1)
+            if state.weburl2 != '':
                 logger.debug('Calling oneInterval for Camera 2')
-                oneInterval('Camera2', state.camera2, state.weburl2, state.camparam2)
+                oneInterval('Camera2', state.weburl2)
                 state.duetStatus, _ = getDuet('pause check loop', Status)
             if state.duetStatus == 'paused' and (state.pause == 'yes' or state.detect == state.pause): # will be ignored if a manual pause
                 unPause()  # Nothing should be paused at this point

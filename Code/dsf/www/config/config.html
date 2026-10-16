@@ -1,0 +1,17 @@
+<!--
+    Config tab - edit duetLapse3.json
+    Placeholders: {{configfile}} {{message}} {{sections}} - sections are built from section.html
+    saveConfig() and displayConfig() are in index.html. Every input needs name= and data-type= (str, int, bool or list)
+-->
+<style>
+.config td {padding: 2px 6px; vertical-align: top;}
+.config .help {color: #444;}
+.config h4 {margin: 10px 0 2px 0;}
+</style>
+<div id="configform" class="config">
+<b>Settings file:</b> {{configfile}}<br>
+<div class="inline"><button class="button" style="background-color:lime" onclick="saveConfig()">Save</button></div>
+<div class="inline"><button class="button" style="background-color:yellow" onclick="displayConfig()">Reload</button></div>
+<div id="configmessage">{{message}}</div>
+{{sections}}
+</div>
