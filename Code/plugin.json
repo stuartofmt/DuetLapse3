@@ -13,5 +13,6 @@
 	"sbcOutputRedirected": false,
 	"sbcPermissions": ["commandExecution", "objectModelReadWrite", "objectModelRead","networkAccess", "webcamAccess", "readSystem", "writeSystem", "fileSystemAccess","launchProcesses", "managePlugins"],
 	"sbcPythonDependencies": ["requirements.txt"],
+	"sbcPackageDependencies": ["python3","ffmpeg"],
 	"data": {"ip": "", "port": 0}
  }
