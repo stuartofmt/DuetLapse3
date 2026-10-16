@@ -1,0 +1,57 @@
+{
+  "Simulate": {
+    "simulate": "off"
+  },
+  "Environment": {
+    "password": "reprap",
+    "basedir": "",
+    "poll": 12,
+    "instances": "single",
+    "logtype": "both",
+    "nolog": false,
+    "verbose": false,
+    "keeplogs": false,
+    "novideo": false,
+    "deletepics": false,
+    "maxffmpeg": 2,
+    "keepfiles": false
+  },
+  "Execution": {
+    "dontwait": false,
+    "seconds": 0,
+    "detect": "layer",
+    "pause": "no",
+    "numlayers": 1,
+    "movehead": [0, 0],
+    "rest": 1,
+    "standby": false,
+    "restart": false
+  },
+  "Camera": {
+    "camera1": "usb",
+    "camera2": "",
+    "weburl1": "",
+    "weburl2": ""
+  },
+  "Video": {
+    "extratime": 0,
+    "fps": 10,
+    "minvideo": 5,
+    "maxvideo": 0
+  },
+  "Overrides": {
+    "camparam1": "",
+    "camparam2": "",
+    "vidparam1": "",
+    "vidparam2": ""
+  },
+  "UI": {
+    "port": 0,
+    "ip": "",
+    "hidebuttons": false
+  },
+  "Special Functions": {
+    "execkey": "",
+    "M3291": "M3291"
+  }
+}

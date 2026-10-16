@@ -1,15 +1,15 @@
-; A message passing queue for use by DuetLapse3
+; A message passing queue for use by duetLapse3
 ; This is not used as a FIFO queue - its a multi-message buffer.
 
 ; The macro should be placed in /sys folder and given a name like
 ; M3921 (the default)
 ;
 ; If the name is changed e.g. to avoid a custom M code conflict (should always be M<something>)
-; the -M3291 option of DuetLapse3 needs to be set to the new name
+; the -M3291 option of duetLapse3 needs to be set to the new name
 ;
 ; Useage:
-; M3921 B"<DuetLapse3 command message>"
-; e.g. M3921 B"Duetlapse3.start"
+; M3921 B"<duetLapse3 command message>"
+; e.g. M3921 B"duetLapse3.start"
 ; Can only take one message per call
 ;
 ; Special Useage:

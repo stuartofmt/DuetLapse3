@@ -1,0 +1,26 @@
+<!--
+    Status tab
+    Placeholders: {{version}} {{duet3d_version}} {{duet}} {{pid}} {{localtime}} {{print_state}}
+                  {{action}} {{duet_status}} {{frames}} {{layer}} {{image}}
+-->
+<style>
+* {box-sizing: border-box;}
+.column {float: left; width: 50%; padding: 10px;}
+.row:after {content: "";display: table;clear: both;}
+@media screen and (max-width: 400px) {.column {width: 100%;}}
+</style>
+<div class="row">
+<div class="column">
+duetLapse3 Version {{version}}<br>
+Printer firmware Version {{duet3d_version}}<br>
+Connected to printer at:  {{duet}}<br><br>
+Process Id:  {{pid}}<br>
+Last Update:    {{localtime}}<br>
+Capture Status:= {{print_state}}<br>
+duetLapse3 State:= {{action}}<br>
+Duet Status:= {{duet_status}}<br>
+Images Captured:= {{frames}}<br>
+Current Layer:= {{layer}}<br>
+</div>
+<div class="column">{{image}}</div>
+</div>

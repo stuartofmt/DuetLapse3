@@ -1,0 +1,10 @@
+<!-- Delete button.  Placeholders: {{referer}} {{path}} -->
+<td>
+<div class="inline">
+<button class="button" style="background-color:red" onclick="(async () => {
+let fullname_encoded = encodeURIComponent('{{path}}');
+let response = await fetch(`http://{{referer}}?delete=${fullname_encoded}`);
+await displayFiles(event,'true');
+})()">Delete</button>
+</div>
+</td>

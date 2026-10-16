@@ -1,0 +1,12 @@
+<!-- Video button (image folders only).  Placeholders: {{referer}} {{path}} -->
+<td>
+<div class="inline">
+<button class="button" style="background-color:green" onclick="(async () => {
+let fullname_encoded = encodeURIComponent('{{path}}');
+let promise = await fetch(`http://{{referer}}?video=${fullname_encoded}&video=False`);
+let result = await promise.text();
+alert(result);
+await displayFiles(event,'true');
+})()">Video</button>
+</div>
+</td>

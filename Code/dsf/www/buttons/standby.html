@@ -1,0 +1,9 @@
+<!-- Controls tab.  Placeholders: {{referer}} {{disabled}}
+     The alert text must stay on one line - use \n for line breaks -->
+<div class="inline">
+<button class="button" style="background-color:yellow" onclick="(async () => {
+let response = await fetch('http://{{referer}}?command=standby');
+alert('Standby.\nDoes NOT create a video.\nAll captured images will be deleted.');
+await displayControls();
+})()" {{disabled}} >Standby</button>
+</div>

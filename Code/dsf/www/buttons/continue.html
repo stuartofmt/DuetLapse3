@@ -1,0 +1,7 @@
+<!-- Controls tab.  Placeholders: {{referer}} {{disabled}} -->
+<div class="inline">
+<button class="button" style="background-color:pink" onclick="(async () => {
+let response = await fetch('http://{{referer}}?command=continue');
+await displayControls();
+})()" {{disabled}} >Continue</button>
+</div>
