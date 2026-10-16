@@ -94,7 +94,9 @@ Argument 1 is the folder for duetLapse3.json and duetLapse3.log - default is the
 One logfile (duetLapse3.log) for the whole run, instead of a logfile for each print job
 instances = oneip now means one instance per settings folder
 Added a Config tab to view and change duetLapse3.json
+ffmpeg: computed thread limit (ffmpegthreads, 0 = automatic), low priority (nice), -preset veryfast, -pix_fmt yuv420p, no shell
 Added a Cameras tab - the camera urls, with a preview of each.  Saved urls are used straight away
+The Video tab shows the Video and Overrides settings - saved to duetLapse3.json and used straight away
 If port = 0 (or the port is in use) a free port is selected
 The ip address in use is saved to duetLapse3.json and published to DWC as plugin data
 The web server always runs
@@ -197,7 +199,7 @@ DEFAULTS = {
     'Execution': {'dontwait': False, 'seconds': 0, 'detect': 'layer', 'pause': 'no', 'numlayers': 1,
                   'movehead': [0, 0], 'rest': 1, 'standby': False, 'restart': False},
     'Camera': {'weburl1': '', 'weburl2': ''},
-    'Video': {'extratime': 0, 'fps': 10, 'minvideo': 5, 'maxvideo': 0},
+    'Video': {'extratime': 0, 'fps': 10, 'minvideo': 5, 'maxvideo': 0, 'ffmpegthreads': 0},
     'Overrides': {'vidparam1': '', 'vidparam2': ''},
     'UI': {'port': 0, 'ip': '', 'hidebuttons': False},
     'Special Functions': {'execkey': '', 'M3291': 'M3291'},
@@ -235,6 +237,7 @@ HELP = {
     'fps': 'Video frames per second',
     'minvideo': 'Shortest video to make (seconds)',
     'maxvideo': 'Fixed video length in seconds (0 = off)',
+    'ffmpegthreads': 'Threads for each video (0 = automatic, from the free cpu cores)',
     'vidparam1': 'Advanced: override the Camera1 video command',
     'vidparam2': 'Advanced: override the Camera2 video command',
     'port': 'Port for this page (0 = pick a free port)',
@@ -364,7 +367,8 @@ def publishUiAddress(ip, port):
 def runsubprocess(cmd):
     logger.debug('RUNNING SUBPROCESS WITH ' + str(cmd))
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True, shell=True)
+        # A list of arguments runs without a shell, so paths with spaces etc. are safe
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True, shell=isinstance(cmd, str))
 
         logger.debug('Return Code = ' + str(result.returncode))
         logger.debug('stdout = ' + str(result.stdout))
@@ -392,9 +396,13 @@ def init():
     # Argument 1 is the folder for duetLapse3.json and the logfile - default is this program's folder
     if len(sys.argv) > 1:
         state.configdir = os.path.realpath(sys.argv[1])
-        if not os.path.isdir(state.configdir):
-            print('Folder ' + sys.argv[1] + ' could not be found - Exiting')
-            sys.exit(1)
+        if not os.path.isdir(state.configdir):  # Create it - duetLapse3.json is then created with the defaults
+            try:
+                os.makedirs(state.configdir)
+                print('Created folder ' + state.configdir)
+            except OSError as e:
+                print('Folder ' + sys.argv[1] + ' could not be created - Exiting. ' + str(e))
+                sys.exit(1)
     else:
         state.configdir = os.path.dirname(os.path.realpath(__file__))
     state.configfile = os.path.join(state.configdir, configFileName)
@@ -527,6 +535,9 @@ def init():
            state.maxvideo = state.minvideo
 
     state.inputs.update({'maxvideo': str(state.maxvideo)})
+
+    state.ffmpegthreads = max(0, args['ffmpegthreads'])
+    state.inputs.update({'ffmpegthreads': str(state.ffmpegthreads)})
 
     # Overrides
     state.inputs.update({'# Overrides': ''})
@@ -785,15 +796,6 @@ def setNextWorkingDir():  # Called at start and restart - the folder for the nex
 def setdebug(val): # How much output
     logger_module.set_log_level(val)
 
-    if val:
-        state.debug = ''
-        state.ffmpegquiet = ''
-    else:
-        state.ffmpegquiet = ' -loglevel quiet'
-        if not state.win:
-            state.debug = ' > /dev/null 2>&1'
-        else:
-            state.debug = ' > nul 2>&1'
 
 
 def poll_seconds():
@@ -1012,15 +1014,7 @@ def createVideo(directory):
         tmpfn = os.path.join(directory, '_tmpvideo.mp4')
         location = os.path.join(directory, cameraname + '_%08d.jpeg')
 
-        if state.printState == 'Completed':
-            threadsin = ''  #  Dont limit ffmpeg
-            threadsout = ''  #  Dont limit ffmpeg
-        else:
-            threadsin = ' -threads 1 '
-            threadsout = ' -threads 2 '
-
-        #  cmd = 'ffmpeg' + threadsin + ffmpegquiet + ' -r ' + str(thisfps) + ' -i ' + location + ' -vcodec libx264 -y ' + threadsout + tmpfn + debug
-        cmd = 'ffmpeg' + state.ffmpegquiet + ' -r ' + str(thisfps) + ' -i ' + location + ' -vcodec libx264 -y ' + tmpfn + state.debug
+        cmd = ffmpegCommand(thisfps, location, tmpfn)
 
         #  Wait for up to minutes for ffmpeg capacity to  become available
         #  If still not available - try anyway
@@ -1058,6 +1052,39 @@ def createVideo(directory):
  
     state.makeVideoState = -1
     return msg
+
+
+def ffmpegThreads():
+    # Threads for one ffmpeg - shared from the cpu cores that are free now, leaving one spare
+    # so that making a video does not overwhelm the computer (e.g. while printing)
+    if state.ffmpegthreads > 0:  # Set by the user
+        return state.ffmpegthreads
+    cores = os.cpu_count() or 1
+    try:
+        load = os.getloadavg()[0]  # Average number of busy cores over the last minute
+    except (AttributeError, OSError):  # Not available on Windows
+        load = 0
+    free = int(cores - load - 1)
+    threads = max(1, free // max(1, state.maxffmpeg))  # Up to maxffmpeg can run at once
+    logger.info('ffmpeg threads = ' + str(threads) + ' (' + str(cores) + ' cores, load ' + '{:.1f}'.format(load) + ', maxffmpeg ' + str(state.maxffmpeg) + ')')
+    return threads
+
+
+def ffmpegCommand(fps, location, outfile):
+    # ffmpeg runs at low priority so the printer software, cameras and web page always come first
+    cmd = []
+    if not state.win and shutil.which('nice'):
+        cmd += ['nice', '-n', '19']
+    cmd += ['ffmpeg']
+    if not state.verbose:
+        cmd += ['-loglevel', 'quiet']
+    cmd += ['-r', str(fps), '-i', location,
+            '-vcodec', 'libx264',
+            '-preset', 'veryfast',  # Much less cpu than the default, for a slightly bigger file
+            '-pix_fmt', 'yuv420p',  # Plays in browsers and on phones whatever the camera's JPEG format
+            '-threads', str(ffmpegThreads()),
+            '-y', outfile]
+    return cmd
 
 
 def ffmpeg_available():

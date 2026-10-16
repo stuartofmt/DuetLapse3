@@ -28,7 +28,7 @@ DSF installs the Python packages duetLapse3 needs (from `requirements.txt`) when
 
 ## Settings
 
-Settings are in `sys/duetLapse3/duetLapse3.json`. You can change them on the **Cameras** and **Config** tabs of the duetLapse3 page, or edit the file in DWC under **System → sys → duetLapse3**. Restart the plugin after changing them.
+Settings are in `sys/duetLapse3/duetLapse3.json`. You can change them on the **Cameras**, **Video** and **Config** tabs of the duetLapse3 page, or edit the file in DWC under **System → sys → duetLapse3**. Restart the plugin after changing them.
 
 The file is split into sections only to make it easier to read: any setting can go in any section. If the file is missing, duetLapse3 creates it with the default values. If a setting has the wrong kind of value (for example text where a number is needed), duetLapse3 says which one in the log and doesn't start.
 
@@ -69,6 +69,7 @@ The main settings are:
 | `minvideo` | `5` | Shortest video to make (seconds) |
 | `maxvideo` | `0` | Fixed video length in seconds (0 = off) |
 | `extratime` | `0` | Seconds to hold the last image at the end of the video |
+| `ffmpegthreads` | `0` | CPU threads ffmpeg may use for each video. 0 = automatic: shared from the cores that are free when the video starts, always leaving one spare. ffmpeg also runs at low priority, so making a video doesn't slow the printer |
 | `novideo` | `false` | Don't make a video |
 | `deletepics` | `false` | Delete the images when duetLapse3 terminates |
 | `keepfiles` | `false` | Don't delete files on startup or shutdown |
@@ -107,11 +108,11 @@ Open **Plugins → duetLapse3** in DWC. It has seven tabs:
 
 - **Status:** what duetLapse3 is doing, and the last image.
 - **Controls:** start, standby, pause, continue, restart and terminate.
-- **Video:** change the video settings, or make a video now (Snapshot).
+- **Video:** make a video now (**Snapshot**), and the video settings (the Video and Overrides sections of `duetLapse3.json`). **Save** saves them and starts using them straight away.
 - **Files:** download, zip, delete or make videos from earlier images and videos.
 - **Info:** the settings in use and where files are kept.
 - **Cameras:** the URL of each camera, with a preview. **Preview** shows a new image from the URL in the box, and **Save** saves the URLs to `duetLapse3.json` and starts using them straight away.
-- **Config:** change the other settings in `duetLapse3.json`. **Save** checks every value first and saves nothing if any are wrong. Restart duetLapse3 for the changes to take effect.
+- **Config:** the other settings in `duetLapse3.json`. **Save** checks every value first and saves nothing if any are wrong. Restart duetLapse3 for the changes to take effect.
 
 The page shows a message if the plugin stops, and shows the page again when the plugin restarts.
 
@@ -165,6 +166,6 @@ The duetLapse3 page uses these URLs, and you can call them yourself, for example
 | `/terminate/terminateg` | Make the video and terminate |
 | `/terminate/terminatef` | Terminate straight away, without a video |
 
-The tabs of the page are at `/tab/status`, `/tab/controls`, `/tab/video`, `/tab/files`, `/tab/info`, `/tab/cameras`, `/tab/config` and `/tab/terminate`. The Config tab saves with a POST of the settings as JSON to `/config/save`, and the Cameras tab with a POST of `weburl1` and `weburl2` to `/cameras/save`. `/camera/preview?url=<camera url>` returns one image from a camera url.
+The tabs of the page are at `/tab/status`, `/tab/controls`, `/tab/video`, `/tab/files`, `/tab/info`, `/tab/cameras`, `/tab/config` and `/tab/terminate`. The Config tab saves with a POST of the settings as JSON to `/config/save`, the Video tab to `/video/save`, and the Cameras tab with a POST of `weburl1` and `weburl2` to `/cameras/save`. `/camera/preview?url=<camera url>` returns one image from a camera url.
 
 URLs from earlier versions, such as `http://<this computer>:<port>/?command=start`, still work.

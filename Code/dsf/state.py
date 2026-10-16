@@ -56,6 +56,7 @@ extratime = None
 fps = None
 minvideo = None
 maxvideo = None
+ffmpegthreads = None  # 0 = automatic
 
 # Overrides
 vidparam1 = None
@@ -77,8 +78,6 @@ pid = None  # pid for this instance - used for temp filenames
 duetname = None
 httpListener = None  # True if an integral http listener should be started
 ip = None  # ip address of this machine - published for the DWC page
-debug = None  # shell redirect appended to commands
-ffmpegquiet = None
 
 ###########################
 # Directories and logging - set in init(), setuplogfile(), createworkingDir(), onePhoto()

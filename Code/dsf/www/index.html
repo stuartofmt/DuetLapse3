@@ -62,6 +62,11 @@ form {
 form label {
    text-align:right;
 }
+
+/*Settings tables - Config and Video tabs*/
+.config td {padding: 2px 6px; vertical-align: top;}
+.config .help {color: #444;}
+.config h4 {margin: 10px 0 2px 0;}
 </style>
 <script>
 document.addEventListener("visibilitychange", function() {
@@ -217,10 +222,11 @@ async function saveCameras(){
     previewCamera(1);
     previewCamera(2);
 }
-// Send the Config tab's settings to be checked and saved - each input has name= and data-type=
-async function saveConfig(){
+// Send the settings in a tab to be checked and saved - each input has name= and data-type=
+// Returns the result message, which is also shown in messageId
+async function saveSettings(containerId, url, messageId){
     const settings = {};
-    for (const el of document.querySelectorAll("#configform [name]")) {
+    for (const el of document.querySelectorAll("#" + containerId + " [name]")) {
         const type = el.dataset.type;
         if (type == "bool") {
             settings[el.name] = el.checked;
@@ -230,11 +236,22 @@ async function saveConfig(){
             settings[el.name] = el.value;
         }
     }
-    let message = document.getElementById("configmessage");
+    let message = document.getElementById(messageId);
     message.innerHTML = "Saving ...";
-    let promise = await fetch("/config/save", {method: "POST", headers: {"Content-Type": "application/json"},
-                                               body: JSON.stringify(settings)});
-    message.innerHTML = await promise.text();
+    let promise = await fetch(url, {method: "POST", headers: {"Content-Type": "application/json"},
+                                    body: JSON.stringify(settings)});
+    let result = await promise.text();
+    message.innerHTML = result;
+    return result;
+}
+async function saveConfig(){
+    await saveSettings("configform", "/config/save", "configmessage");
+}
+// The video length message can change, so the tab is reloaded after saving
+async function saveVideo(){
+    const result = await saveSettings("videoform", "/video/save", "videomessage");
+    await displayVideo();
+    document.getElementById("videomessage").innerHTML = result;
 }
 function imgTab(evt, src){
     window.open(src);

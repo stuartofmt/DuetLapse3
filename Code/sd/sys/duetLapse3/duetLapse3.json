@@ -8,7 +8,7 @@
     "poll": 12,
     "instances": "single",
     "nolog": false,
-    "verbose": false,
+    "verbose": true,
     "keeplogs": false,
     "novideo": false,
     "deletepics": false,
@@ -16,28 +16,26 @@
     "keepfiles": false
   },
   "Execution": {
-    "dontwait": false,
-    "seconds": 0,
-    "detect": "layer",
+    "dontwait": true,
+    "seconds": 3,
+    "detect": "none",
     "pause": "no",
     "numlayers": 1,
-    "movehead": [
-      0,
-      0
-    ],
+    "movehead": [0, 0],
     "rest": 1,
     "standby": false,
     "restart": false
   },
   "Camera": {
-    "weburl1": "",
+    "weburl1": "http://192.168.30.41:8082/Camera1/snapshot",
     "weburl2": ""
   },
   "Video": {
     "extratime": 0,
     "fps": 10,
     "minvideo": 5,
-    "maxvideo": 0
+    "maxvideo": 0,
+    "ffmpegthreads": 0
   },
   "Overrides": {
     "vidparam1": "",

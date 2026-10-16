@@ -63,8 +63,9 @@ def display_controls():
 
 
 def display_video():
-    return render_html('video.html', fps = state.fps, minvideo = state.minvideo,
-                       maxvideo = state.maxvideo, videomsg = dl3.getVideoMsg())
+    values, message = config_values()
+    return render_html('video.html', videomsg = dl3.getVideoMsg(), configfile = escape(state.configfile),
+                       message = message, sections = settings_sections(videoSections, values))
 
 
 def display_status():
@@ -314,28 +315,35 @@ def config_input(key, value, default):
         return render_html('config/password.html', key = key, value = escape(value))
     return render_html('config/text.html', key = key, value = escape(value))
 
-cameraSection = 'Camera'  # The section of DEFAULTS shown on the Cameras tab instead of the Config tab
+# Sections of DEFAULTS shown on their own tab instead of the Config tab
+cameraSection = 'Camera'  # Cameras tab
+videoSections = ['Video', 'Overrides']  # Video tab
 
-def display_config(message = ''):
+def config_values():
+    # ({setting: value} from duetLapse3.json, message) - the message is shown if the file can't be read
     try:
         config = dl3.readConfig(state.configfile)
     except (OSError, ValueError) as e:
-        config = {}
-        message = render_html('config/message.html', color = 'red',
-                              message = escape('Could not read the settings file - showing the defaults. ' + str(e)))
-    values = {k: v for section in config.values() if isinstance(section, dict) for k, v in section.items()}
+        return {}, render_html('config/message.html', color = 'red',
+                               message = escape('Could not read the settings file - showing the defaults. ' + str(e)))
+    return {k: v for section in config.values() if isinstance(section, dict) for k, v in section.items()}, ''
 
+def settings_sections(names, values):
+    # The inputs for the named sections of DEFAULTS, with their values
     sections = ''
-    for section, keys in dl3.DEFAULTS.items():
-        if section == cameraSection:  # On the Cameras tab
-            continue
+    for section in names:
         rows = ''
-        for key, default in keys.items():
+        for key, default in dl3.DEFAULTS[section].items():
             rows += render_html('config/row.html', key = key, input = config_input(key, values.get(key, default), default),
                                 help = escape(dl3.HELP.get(key, '')))
         sections += render_html('config/section.html', name = escape(section), rows = rows)
+    return sections
 
-    return render_html('config/config.html', configfile = escape(state.configfile), message = message, sections = sections)
+def display_config():
+    values, message = config_values()
+    names = [name for name in dl3.DEFAULTS if name != cameraSection and name not in videoSections]
+    return render_html('config/config.html', configfile = escape(state.configfile), message = message,
+                       sections = settings_sections(names, values))
 
 def update_config_file(settings):
     # Check every value in settings, then save them all to duetLapse3.json - or nothing if any are invalid
@@ -376,6 +384,28 @@ def save_message(errors, success):
     if errors:
         return render_html('config/message.html', color = 'red', message = 'Not saved:<br>' + '<br>'.join(escape(e) for e in errors))
     return render_html('config/message.html', color = 'green', message = success)
+
+def save_video(settings):
+    # Save the Video and Overrides settings to duetLapse3.json and use them straight away
+    keys = [key for section in videoSections for key in dl3.DEFAULTS[section]]
+    settings = {key: value for key, value in settings.items() if key in keys}
+    errors = update_config_file(settings)
+    if not errors:
+        defaults = dl3.flatDefaults()
+        for key, value in settings.items():
+            value = dl3.checkSetting(key, value, defaults[key])  # Already checked - this converts it
+            if key == 'fps':
+                dl3.changeFps(value)
+            elif key == 'minvideo':
+                dl3.changeMinvideo(value)
+            elif key == 'maxvideo':
+                dl3.changeMaxvideo(value)
+            elif getattr(state, key) != value:
+                logger.info(key + ' changed to ' + str(value))
+                setattr(state, key, value)
+        if state.maxvideo > 0 and state.maxvideo < state.minvideo:  # As at startup
+            state.maxvideo = state.minvideo
+    return save_message(errors, 'Saved. The video settings are in use now.')
 
 def save_config(settings):
     errors = update_config_file(settings)
@@ -446,9 +476,11 @@ def make_video(path, xtratime):
 ###########################
 
 @router.get('/', response_class=HTMLResponse)
+@router.get('/index', response_class=HTMLResponse)  # Same as duetPrintGuard
 def index(request: Request):
-    if request.url.query:  # The older ?<api>=<value> form
-        return legacy_api(request)
+    # Other query parameters (e.g. ?theme=dark&mobile=true from the DWC page) are ignored
+    if any(api in legacyPages or api in legacyActions or api == 'getfile' for api in request.query_params):
+        return legacy_api(request)  # The older ?<api>=<value> form
     return render_html('index.html', poll_ms = state.poll*1000)
 
 @router.get('/tab/status', response_class=HTMLResponse)
@@ -481,6 +513,10 @@ def tab_terminate():
 @router.get('/tab/config', response_class=HTMLResponse)
 def tab_config():
     return display_config()
+
+@router.post('/video/save', response_class=HTMLResponse)
+def video_save(settings: dict = Body(...)):  # {setting: value} from saveVideo() in index.html
+    return save_video(settings)
 
 @router.get('/tab/cameras', response_class=HTMLResponse)
 def tab_cameras():
