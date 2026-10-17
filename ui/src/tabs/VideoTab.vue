@@ -1,8 +1,8 @@
-<!-- Video tab: make a video now (one button per camera when there are two), and the Video and Overrides settings -->
+<!-- Video tab: make a video now (one button per camera when there are two), and the Video settings -->
 <script setup>
 import { computed, ref } from "vue";
-import { api } from "../api.js";
 import { notify } from "../notify.js";
+import { requestVideo } from "../videos.js";
 import { refreshStatus, status } from "../status.js";
 import SettingsForm from "../components/SettingsForm.vue";
 import { mdiMovieOpen } from "../icons.js";
@@ -39,8 +39,7 @@ const videoLimits = (v, key) => (key === "minvideo" && Number(v.maxvideo) > 0 ? 
 async function snapshot(camera) {
 	making.value = camera ? String(camera) : "all";
 	try {
-		const result = await api.getText(camera ? `/snapshot?camera=${camera}` : "/snapshot");
-		notify(result.trim() || "Done", result.toLowerCase().includes("error") ? "error" : "success", 8000);
+		await requestVideo(camera ? `/snapshot?camera=${camera}` : "/snapshot");  // The result is announced
 	} catch (err) {
 		notify(`Snapshot failed: ${err.message}`, "error", 6000);
 	} finally {

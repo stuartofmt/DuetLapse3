@@ -1,4 +1,4 @@
-<!-- Controls tab: start, standby, pause, continue, restart, and terminate -->
+<!-- The controls (on the Status tab): start, standby, pause, continue, restart, and terminate -->
 <script setup>
 import { computed, ref } from "vue";
 import { api } from "../api.js";
@@ -63,37 +63,27 @@ async function terminate(type) {
 </script>
 
 <template>
-	<v-row v-if="s">
-		<v-col cols="12" md="7">
-			<v-card>
-				<v-card-title>Controls</v-card-title>
-				<v-card-subtitle>
-					duetLapse3 is in the <strong>{{ s.action }}</strong> state - capture status {{ s.printState }}
-				</v-card-subtitle>
-				<v-card-text class="d-flex flex-wrap ga-2">
-					<v-btn v-for="c in shown" :key="c.name" :prepend-icon="c.icon" :color="c.color" variant="tonal"
-						   :disabled="!allowed(c.name) || stopped" :loading="busy === c.name" @click="run(c)">
-						{{ c.label }}
+	<v-card v-if="s">
+		<v-card-title>Controls</v-card-title>
+		<v-card-text>
+			<v-alert v-if="stopped" type="info" variant="tonal" density="compact" class="mb-3">duetLapse3 is stopping.</v-alert>
+			<div class="d-flex flex-wrap ga-2">
+				<v-btn v-for="c in shown" :key="c.name" :prepend-icon="c.icon" :color="c.color" variant="tonal"
+					   :disabled="!allowed(c.name) || stopped" :loading="busy === c.name" @click="run(c)">
+					{{ c.label }}
+				</v-btn>
+			</div>
+			<template v-if="s.canTerminate">
+				<v-divider class="my-3"></v-divider>
+				<div class="d-flex flex-wrap ga-2">
+					<v-btn :prepend-icon="mdiStop" color="success" variant="tonal" :disabled="stopped" @click="terminate('graceful')">
+						Graceful terminate
 					</v-btn>
-				</v-card-text>
-			</v-card>
-		</v-col>
-		<v-col v-if="s.canTerminate" cols="12" md="5">
-			<v-card>
-				<v-card-title>Terminate</v-card-title>
-				<v-card-text>
-					<v-alert v-if="stopped" type="info" variant="tonal" class="mb-3">duetLapse3 is stopping.</v-alert>
-					<div class="d-flex flex-wrap ga-2">
-						<v-btn :prepend-icon="mdiStop" color="success" variant="tonal" :disabled="stopped" @click="terminate('graceful')">
-							Graceful terminate
-						</v-btn>
-						<v-btn :prepend-icon="mdiPower" color="error" variant="tonal" :disabled="stopped" @click="terminate('forced')">
-							Forced terminate
-						</v-btn>
-					</div>
-				</v-card-text>
-			</v-card>
-		</v-col>
-	</v-row>
-	<v-progress-linear v-else indeterminate color="primary"></v-progress-linear>
+					<v-btn :prepend-icon="mdiPower" color="error" variant="tonal" :disabled="stopped" @click="terminate('forced')">
+						Forced terminate
+					</v-btn>
+				</div>
+			</template>
+		</v-card-text>
+	</v-card>
 </template>

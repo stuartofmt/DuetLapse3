@@ -55,6 +55,8 @@ def status_data():
         'canTerminate': state.apiModel != 'SBC',  # DSF stops the plugin itself
         'restart': bool(state.restart),
         'poll': state.poll,
+        'run': str(state.pid),  # Video result numbers start again when duetLapse3 restarts
+        'videoEvents': state.videoEvents,  # The last 10 videos made (or not)
     }
 
 def info_data():
@@ -92,6 +94,8 @@ def files_data(path):
 
     entries = []
     for name in names:
+        if name.startswith('.'):  # Hidden - e.g. a video being made
+            continue
         full = os.path.join(path, name)
         try:
             info = os.stat(full)
@@ -110,6 +114,7 @@ def files_data(path):
         entries.append({'name': name, 'path': full, 'isDir': isDir, 'kind': 'folder' if isDir else kinds.get(ext, 'file'),
                         'size': None if isDir else info.st_size, 'modified': info.st_mtime,
                         'images': len(imageFiles) if isDir else None,
+                        'videos': folderVideos(full) if isDir else None,
                         'thumbnail': thumbnail(full, imageFiles) if images else (full if kinds.get(ext) == 'image' else None),
                         'canDelete': deletable, 'canZip': deletable and images, 'canVideo': deletable and images})
     entries.sort(key = lambda e: -e['modified'])  # Newest first
@@ -117,24 +122,35 @@ def files_data(path):
     isTop = os.path.realpath(path) == os.path.realpath(state.topDir)
     return {'path': path, 'top': state.topDir, 'parent': None if isTop else os.path.dirname(path), 'entries': entries}
 
-def folderImages(folder, jpegfiles):
-    # The images (full paths) in a folder and in its Camera1 / Camera2 subfolders - where a print's images are kept
-    found = []
+def filesIn(folder, extensions):
     try:
-        names = os.listdir(folder)
-    except OSError as e:
-        logger.info('Subdirectory error:' + str(e))
-        return found
-    for name in names:
-        full = os.path.join(folder, name)
-        if os.path.splitext(name)[1].lower() in jpegfiles:
-            found.append(full)
-        elif dl3.cameraFolder(full) and os.path.isdir(full):
-            try:
-                found += [os.path.join(full, f) for f in os.listdir(full) if os.path.splitext(f)[1].lower() in jpegfiles]
-            except OSError:
-                pass
+        return [os.path.join(folder, f) for f in os.listdir(folder) if os.path.splitext(f)[1].lower() in extensions]
+    except OSError:
+        return []
+
+def subfolders(folder):
+    # The folders whose files count for a folder: itself, the images and videos folders of a camera folder,
+    # and those of each camera in a print's folder (<print>/CameraN/images and <print>/CameraN/videos)
+    if dl3.cameraFolder(folder):
+        cameras = [folder]
+    else:
+        try:
+            cameras = [os.path.join(folder, n) for n in os.listdir(folder) if dl3.cameraFolder(n) and os.path.isdir(os.path.join(folder, n))]
+        except OSError as e:
+            logger.info('Subdirectory error:' + str(e))
+            cameras = []
+    return [folder] + [os.path.join(c, sub) for c in cameras for sub in ['images', 'videos']]
+
+def folderImages(folder, jpegfiles):
+    # The images (full paths) in a folder - for a print's folder, those in its camera folders too
+    found = []
+    for sub in subfolders(folder):
+        found += filesIn(sub, jpegfiles)
     return sorted(found, key = os.path.basename)
+
+def folderVideos(folder):
+    # How many videos are in a folder - for a print's folder, those in its camera folders too
+    return sum(len(filesIn(sub, ['.mp4'])) for sub in subfolders(folder))
 
 def thumbnail(folder, imageFiles):
     # The latest Camera1 image (or the latest image if there is no Camera1 image)
@@ -160,7 +176,7 @@ def make_video(path, xtratime, cameras = None):
 
 # Sections of DEFAULTS shown on their own tab instead of the Config tab
 cameraSection = 'Camera'  # Cameras tab
-videoSections = ['Video', 'Overrides']  # Video tab
+videoSections = ['Video']  # Video tab
 cameraUrls = ['weburl1', 'weburl2']  # Camera1, Camera2
 cameraEnables = ['enable1', 'enable2']
 
@@ -259,7 +275,7 @@ def video_length_errors(settings):
     return {}
 
 def save_video(settings):
-    # Save the Video and Overrides settings to duetLapse3.json and use them straight away
+    # Save the Video settings to duetLapse3.json and use them straight away
     keys = [key for section in videoSections for key in dl3.DEFAULTS[section]]
     settings = {key: value for key, value in settings.items() if key in keys}
     errors = video_length_errors(settings)

@@ -33,9 +33,9 @@
   },
   "Camera": {
     "weburl1": "http://192.168.30.41:8082/Camera1/snapshot",
-    "enable1": true,
+    "enable1": false,
     "weburl2": "http://192.168.30.41:8082/Camera2/snapshot",
-    "enable2": true
+    "enable2": false
   },
   "Video": {
     "extratime": 0,
@@ -43,10 +43,6 @@
     "minvideo": 2,
     "maxvideo": 0,
     "ffmpegthreads": 0
-  },
-  "Overrides": {
-    "vidparam1": "",
-    "vidparam2": ""
   },
   "UI": {
     "port": 0,

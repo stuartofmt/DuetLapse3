@@ -1,7 +1,8 @@
-<!-- Status tab: what duetLapse3 and the printer are doing, and the last image -->
+<!-- Status tab: the controls, what duetLapse3 and the printer are doing, and the last image -->
 <script setup>
 import { computed } from "vue";
 import { status } from "../status.js";
+import ControlsCard from "../components/ControlsCard.vue";
 import { mdiCameraOff } from "../icons.js";
 
 const s = computed(() => status.data);
@@ -15,7 +16,6 @@ const rows = computed(() => s.value ? [
 	{ label: "Video", value: s.value.videoMessage },
 	{ label: "Printer", value: `${s.value.printer} (firmware ${s.value.printerVersion ?? "unknown"})` },
 	{ label: "duetLapse3 version", value: s.value.version },
-	{ label: "Process id", value: s.value.pid },
 ] : []);
 
 // A new image url when the frame count changes, so the browser shows the latest image
@@ -25,6 +25,7 @@ const imageSrc = computed(() => s.value?.lastImage ? `${s.value.lastImage}&n=${s
 <template>
 	<v-row v-if="s">
 		<v-col cols="12" md="5">
+			<ControlsCard class="mb-4"></ControlsCard>
 			<v-card>
 				<v-card-title>Status</v-card-title>
 				<v-table density="compact">

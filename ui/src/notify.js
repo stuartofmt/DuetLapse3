@@ -7,6 +7,10 @@ export function notify(text, color = "success", timeout = 4000) {
 	Object.assign(snackbar, { show: true, text, color, timeout });
 }
 
+export function clearNotify() {
+	snackbar.show = false;
+}
+
 export const confirmState = reactive({ show: false, title: "", text: "", color: "primary", resolve: null });
 
 // Resolves true when the user confirms

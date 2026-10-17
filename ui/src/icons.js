@@ -1,9 +1,11 @@
 // The icons the page uses. Only these end up in the bundle (as SVG paths) - no icon font is loaded.
 export {
+	mdiAlertCircle,
 	mdiArrowUp,
 	mdiCamera,
 	mdiCameraOff,
 	mdiCctv,
+	mdiCheckCircle,
 	mdiChevronLeft,
 	mdiChevronRight,
 	mdiClose,
@@ -21,7 +23,6 @@ export {
 	mdiFolderImage,
 	mdiFolderMultiple,
 	mdiFolderZip,
-	mdiGamepadVariant,
 	mdiHome,
 	mdiImage,
 	mdiImageRefresh,

@@ -4,11 +4,12 @@ import { ref, watch } from "vue";
 import { query } from "./env.js";
 import { closeConfirm, confirmState, snackbar } from "./notify.js";
 import { startStatus, status } from "./status.js";
+import { startVideoAlerts } from "./videos.js";
+import VideoAlert from "./components/VideoAlert.vue";
 import {
-	mdiCctv, mdiClose, mdiCog, mdiFolderMultiple, mdiGamepadVariant, mdiInformation, mdiVideo, mdiViewDashboard,
+	mdiCctv, mdiClose, mdiCog, mdiFolderMultiple, mdiInformation, mdiVideo, mdiViewDashboard,
 } from "./icons.js";
 import StatusTab from "./tabs/StatusTab.vue";
-import ControlsTab from "./tabs/ControlsTab.vue";
 import VideoTab from "./tabs/VideoTab.vue";
 import FilesTab from "./tabs/FilesTab.vue";
 import InfoTab from "./tabs/InfoTab.vue";
@@ -17,7 +18,6 @@ import ConfigTab from "./tabs/ConfigTab.vue";
 
 const tabs = [
 	{ value: "status", title: "Status", icon: mdiViewDashboard, component: StatusTab },
-	{ value: "controls", title: "Controls", icon: mdiGamepadVariant, component: ControlsTab },
 	{ value: "video", title: "Video", icon: mdiVideo, component: VideoTab },
 	{ value: "files", title: "Files", icon: mdiFolderMultiple, component: FilesTab },
 	{ value: "info", title: "Info", icon: mdiInformation, component: InfoTab },
@@ -44,6 +44,7 @@ watch(tab, (value) => {
 });
 
 startStatus();
+startVideoAlerts();
 </script>
 
 <template>
@@ -58,6 +59,8 @@ startStatus();
 				<component :is="tabs.find((t) => t.value === tab).component"></component>
 			</v-container>
 		</v-main>
+
+		<VideoAlert></VideoAlert>
 
 		<v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="snackbar.timeout">
 			<span style="white-space: pre-line">{{ snackbar.text }}</span>

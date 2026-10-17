@@ -60,9 +60,6 @@ minvideo = None
 maxvideo = None
 ffmpegthreads = None  # 0 = automatic
 
-# Overrides
-vidparam1 = None
-vidparam2 = None
 
 # UI
 hidebuttons = None
@@ -119,6 +116,8 @@ urlHeaders = None  # SBC session key
 
 terminateState = None  # 1 while terminating
 videoJob = None  # The last video given to the video worker (a Future)
+videoEvents = None  # The results of the last 10 videos - announced by the page
+videoSeq = None  # Numbers the video results
 restarting = None
 
 ###########################

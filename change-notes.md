@@ -35,7 +35,7 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
   - The page always listens on every address of the computer. The `host` setting is gone.
   - The computer's IP is shown in the log and on the Info tab, saved to the json (`ip`), and published for the DWC page.
 - **`instances: oneip`** now means one duetLapse3 per settings folder (that is, per printer). The instance check also now spots copies started with a full path, which is how DSF starts plugins.
-- **Removed settings:** `camera1`, `camera2`, `camparam1`, `camparam2`, `logtype`, `host`.
+- **Removed settings:** `camera1`, `camera2`, `camparam1`, `camparam2`, `vidparam1`, `vidparam2` (never used), `logtype`, `host`.
 - **New settings:** `duetport`, `ffmpegthreads`, `enable1`, `enable2`.
 
 ## The web page
@@ -44,9 +44,9 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
 - **Served** with FastAPI and uvicorn at `/` (and `/index`). The API is listed at `/docs`.
 - **Data as JSON.** The page reads `/api/status`, `/api/info`, `/api/files`, `/api/settings` and `/api/cameras`. Saving replies with any errors per setting, which are shown in red under the field.
 - **Removed:** the old HTML templates (`dsf/www/`), the `/tab/...` routes and the old `?displayStatus` style calls.
-- **Tabs:** Status, Controls, Video, Files, Info, **Cameras**, **Config**.
+- **Tabs:** Status (with the controls), Video, Files, Info, **Cameras**, **Config**. The controls moved onto the Status tab, so there's no separate Controls tab.
   - **Cameras:** each camera's URL with a preview, and an on/off switch (`enable1`, `enable2`) that keeps the URL. Saving checks the URLs, writes them to the json and starts using them straight away.
-  - **Video:** the images captured by each camera, with how many are needed for a video. Then Snapshot (a button for each camera when there are two), plus the Video and Overrides settings. Saving writes them to the json and starts using them straight away.
+  - **Video:** the images captured by each camera, with how many are needed for a video. Then Snapshot (a button for each camera when there are two), plus the Video settings. Saving writes them to the json and starts using them straight away.
   - **Files:** a file browser with a breadcrumb path, list or grid view with thumbnails, search and sorting. Images and videos open in a viewer, and each item has an action menu.
   - **Config:** every other setting, with checking before saving. Changes take effect after a restart.
   - **Info:** shows the page address.
@@ -86,7 +86,8 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
   - with `-pix_fmt yuv420p`, so videos play in browsers and on phones whatever the camera's JPEG format.
 - **Safe with spaces.** ffmpeg runs without a shell, so a path with spaces works.
 - **One at a time.** Videos are made one at a time, in order, by a video worker.
-- **A subfolder per camera.** Each print's folder has a `Camera1/` and `Camera2/` subfolder for the images. Videos are still saved next to the print's folder. Folders from earlier versions, with the images directly in them, still work, and a video can also be made from one camera's subfolder.
+- **A folder per camera, with images and videos.** Each print's folder has a folder for each camera, holding its images and its videos: `<print>/Camera1/images/` and `<print>/Camera1/videos/` (videos are named `<print>_Camera1_<Day-HH-MM>.mp4`). A video can be made from a whole print's folder or from one camera's folder.
+- **Videos are kept when images are cleaned up.** The startup clean-up, `deletepics` and Standby delete only the images, keep the videos, and remove folders left empty. Folder layouts from earlier versions aren't read.
 - **One camera's video.** `/snapshot?camera=1` (or `2`) makes a video for just that camera.
 - **`extratime`** is now added at the end of a print, so those videos are longer than before.
 
@@ -141,7 +142,7 @@ Everything above was tested against a fake printer (SBC with WebSocket, SBC with
 - gcode messages;
 - graceful terminate and Ctrl-C;
 - the Config, Cameras and Video tabs;
-- the new page in headless Chromium: every tab in light, dark and phone width, and clicking through Controls, Config and Files.
+- the new page in headless Chromium: every tab in light, dark and phone width, and clicking through the controls, Config and Files.
 
 **None of it has been tried on a real printer or inside DWC yet.**
 

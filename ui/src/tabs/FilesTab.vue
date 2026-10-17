@@ -5,7 +5,8 @@
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
 import { api, fileUrl } from "../api.js";
-import { confirm, notify } from "../notify.js";
+import { clearNotify, confirm, notify } from "../notify.js";
+import { requestVideo } from "../videos.js";
 import {
 	mdiChevronLeft, mdiChevronRight, mdiClose, mdiDelete, mdiDotsVertical, mdiDownload, mdiFileDocumentOutline, mdiFileVideo,
 	mdiFolder, mdiFolderImage, mdiFolderZip, mdiHome, mdiImage, mdiMagnify, mdiMovieOpen, mdiOpenInNew, mdiRefresh, mdiSort,
@@ -131,7 +132,7 @@ function step(by) {
 }
 
 async function action(entry, kind) {
-	if (kind === "delete" && !await confirm(`Delete ${entry.name}?${entry.isDir ? `\nThe folder and its ${entry.images ?? 0} images will be deleted.` : ""}`,
+	if (kind === "delete" && !await confirm(`Delete ${entry.name}?${entry.isDir ? `\nThe folder and everything in it (${contents(entry)}) will be deleted.` : ""}`,
 		{ title: "Delete", color: "error" })) {
 		return;
 	}
@@ -139,8 +140,8 @@ async function action(entry, kind) {
 	try {
 		if (kind === "video") {
 			notify(`Making a video from ${entry.name} ...`, "info", 60000);
-			const result = await api.getText(`/makevideo?path=${encodeURIComponent(entry.path)}&xtratime=false`);
-			notify(result.trim() || "Done", result.toLowerCase().includes("error") ? "error" : "success", 8000);
+			await requestVideo(`/makevideo?path=${encodeURIComponent(entry.path)}&xtratime=false`);  // The result is announced
+			clearNotify();  // The "Making" message
 		} else {
 			await api.getText(`/${kind}?path=${encodeURIComponent(entry.path)}`);
 			notify(kind === "zip" ? `${entry.name} zipped` : `${entry.name} deleted`);
@@ -165,9 +166,10 @@ function size(bytes) {
 }
 
 const when = (seconds) => new Date(seconds * 1000).toLocaleString();
-const details = (entry) => entry.isDir
-	? `${entry.images ? `${entry.images} images` : "Folder"} · ${when(entry.modified)}`
-	: `${size(entry.size)} · ${when(entry.modified)}`;
+// What a folder holds, e.g. "40 images, 2 videos"
+const contents = (entry) => [entry.images ? `${entry.images} images` : "", entry.videos ? `${entry.videos} ${entry.videos === 1 ? "video" : "videos"}` : ""]
+	.filter(Boolean).join(", ") || "Folder";
+const details = (entry) => entry.isDir ? `${contents(entry)} · ${when(entry.modified)}` : `${size(entry.size)} · ${when(entry.modified)}`;
 
 onMounted(() => open(remembered(sessionStorage, "duetLapse3.path", "")));
 </script>
@@ -260,7 +262,7 @@ onMounted(() => open(remembered(sessionStorage, "duetLapse3.path", "")));
 							<div class="pa-2 flex-grow-1" style="min-width: 0">
 								<div class="text-body-2 font-weight-medium text-truncate" :title="entry.name">{{ entry.name }}</div>
 								<div class="text-caption text-medium-emphasis text-truncate">
-									{{ entry.isDir ? (entry.images ? `${entry.images} images` : "Folder") : size(entry.size) }}
+									{{ entry.isDir ? contents(entry) : size(entry.size) }}
 								</div>
 							</div>
 							<v-progress-circular v-if="busy === entry.path" indeterminate size="18" width="2" class="me-1"></v-progress-circular>

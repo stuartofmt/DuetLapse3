@@ -84,7 +84,6 @@ The main settings are:
 | `ip` | | Set by duetLapse3 to this computer's IP address. You don't need to change it |
 | `M3291` | `M3291` | Name of the message macro, if you renamed `M3291.g` |
 | `execkey` | | Prefix for messages that run a command on the SBC |
-| `vidparam1`, `vidparam2` | | Advanced: override the video commands |
 | `instances` | `single` | `single`: only one duetLapse3 can run. `oneip`: one for each settings folder. `many`: no limit |
 | `duet` | (blank) | The printer's address (SBC or standalone). Blank = the computer duetLapse3 runs on, which is right for the plugin |
 | `duetport` | `80` | The printer's port. Blank or 0 = 80 |
@@ -105,12 +104,11 @@ USB and Pi cameras need a camera server to give them a URL, for example multiCam
 
 ## The duetLapse3 page
 
-Open **Plugins → duetLapse3** in DWC. The page has the same look as DWC 3.7 and follows its light or dark theme. It also works on its own in a browser, at the address shown on the Info tab and in the log. It has seven tabs:
+Open **Plugins → duetLapse3** in DWC. The page has the same look as DWC 3.7 and follows its light or dark theme. It also works on its own in a browser, at the address shown on the Info tab and in the log. It has six tabs:
 
-- **Status:** what duetLapse3 is doing, and the last image.
-- **Controls:** start, standby, pause, continue, restart and terminate.
-- **Video:** the images captured by each camera against the number needed for a video, make a video now (**Snapshot**, one for each camera when there are two), and the video settings (the Video and Overrides sections of `duetLapse3.json`). **Save** saves them and starts using them straight away.
-- **Files:** browse the images, videos and zip files, as a list or a grid with thumbnails, with search and sorting. Images and videos open in a viewer. Each item's menu has download, make a video, zip and delete.
+- **Status:** the controls (start, standby, pause, continue, restart and terminate), what duetLapse3 is doing, and the last image.
+- **Video:** the images captured by each camera against the number needed for a video, make a video now (**Snapshot**, one for each camera when there are two), and the video settings (the Video section of `duetLapse3.json`). **Save** saves them and starts using them straight away.
+- **Files:** browse the images, videos and zip files. Each print has a folder with a folder for each camera, holding its `images` and `videos`. Browse them as a list or a grid with thumbnails, with search and sorting. Images and videos open in a viewer. Each item's menu has download, make a video, zip and delete.
 - **Info:** the settings in use and where files are kept.
 - **Cameras:** the URL of each camera, with a preview, and a switch to turn the camera on or off (the URL is kept). **Preview** shows a new image from the URL in the box, and **Save** saves the URLs to `duetLapse3.json` and starts using them straight away.
 - **Config:** the other settings in `duetLapse3.json`. **Save** checks every value first and saves nothing if any are wrong. Restart duetLapse3 for the changes to take effect.

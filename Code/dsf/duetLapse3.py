@@ -105,13 +105,17 @@ Fixed gcode messages being ignored after the printer was reset (its message numb
 Fixed the printer password being shown on the Info tab and written to the log
 Fixed timed capture (dontwait, or detect none with seconds) showing Waiting instead of Capturing when the printer is idle
 Cameras can be switched off (enable1, enable2) without losing their url
-Each camera's images are kept in its own subfolder of the print's folder (Camera1/, Camera2/) - older folders still work
+Each camera has a folder in the print's folder, with images/ and videos/ folders: <print>/Camera1/images, <print>/Camera1/videos
+Clean up at startup, deletepics and standby delete images but keep videos
 Snapshot can make a video for one camera (/snapshot?camera=1 or 2) - the Video tab has a button for each camera
+The page announces each video made (or not), wherever it was started - e.g. at the end of a print
 New web page in Vue 3 + Vuetify 4 (built from ui/ into static/app) with the DWC 3.7 look - it follows DWC's light / dark theme
 The page reads JSON from /api/... - the html tab routes (/tab/...) and the old ?display... calls are removed
 ffmpeg: computed thread limit (ffmpegthreads, 0 = automatic), low priority (nice), -preset veryfast, -pix_fmt yuv420p, no shell
 Added a Cameras tab - the camera urls, with a preview of each.  Saved urls are used straight away
-The Video tab shows the Video and Overrides settings - saved to duetLapse3.json and used straight away
+The Video tab shows the Video settings - saved to duetLapse3.json and used straight away
+Removed vidparam1 and vidparam2 (never used)
+The controls are on the Status tab (the Controls tab is gone)
 If port = 0 (or the port is in use) a free port is selected
 The ip address in use is saved to duetLapse3.json and published to DWC as plugin data
 The web server always runs
@@ -222,7 +226,6 @@ DEFAULTS = {
                   'movehead': [0, 0], 'rest': 1, 'standby': False, 'restart': False},
     'Camera': {'weburl1': '', 'enable1': True, 'weburl2': '', 'enable2': True},
     'Video': {'extratime': 0, 'fps': 10, 'minvideo': 5, 'maxvideo': 0, 'ffmpegthreads': 0},
-    'Overrides': {'vidparam1': '', 'vidparam2': ''},
     'UI': {'port': 0, 'ip': '', 'hidebuttons': False},
     'Special Functions': {'execkey': '', 'M3291': 'M3291'},
 }
@@ -262,8 +265,6 @@ HELP = {
     'minvideo': 'Shortest video to make (seconds)',
     'maxvideo': 'Fixed video length in seconds (0 = off)',
     'ffmpegthreads': 'Threads for each video (0 = automatic, from the free cpu cores)',
-    'vidparam1': 'Advanced: override the Camera1 video command',
-    'vidparam2': 'Advanced: override the Camera2 video command',
     'port': 'Port for this page (0 = pick a free port)',
     'ip': 'Set by duetLapse3 - the ip address of this computer',
     'hidebuttons': 'Only show the buttons that can be used now',
@@ -553,14 +554,6 @@ def init():
     state.ffmpegthreads = max(0, args['ffmpegthreads'])
     state.inputs.update({'ffmpegthreads': str(state.ffmpegthreads)})
 
-    # Overrides
-    state.inputs.update({'# Overrides': ''})
-
-    state.vidparam1 = args['vidparam1']
-    state.inputs.update({'vidparam1': str(state.vidparam1)})
-
-    state.vidparam2 = args['vidparam2']
-    state.inputs.update({'vidparam2': str(state.vidparam2)})
 
     # UI
     state.inputs.update({'# UI': ''})
@@ -949,41 +942,68 @@ def cameraFolder(directory):
     name = os.path.basename(os.path.normpath(directory))
     return name if re.fullmatch(r'Camera[0-9]', name) else ''
 
+def printFolder(directory):
+    # (print folder, CameraN or '') for a print's folder, one of its CameraN folders, or a CameraN/images or CameraN/videos folder
+    d = os.path.normpath(directory)
+    name = os.path.basename(d)
+    if name in ['images', 'videos'] and cameraFolder(os.path.dirname(d)):
+        return os.path.dirname(os.path.dirname(d)), cameraFolder(os.path.dirname(d))
+    if cameraFolder(d):
+        return os.path.dirname(d), name
+    return d, ''
+
+def imageFolder(jobdir, cameraname):
+    return os.path.join(jobdir, cameraname, 'images')
+
+def videoFolder(jobdir, cameraname):
+    return os.path.join(jobdir, cameraname, 'videos')
+
 def countImages(folder, cameraname):
     try:
         return sum(1 for f in os.listdir(folder) if f.startswith(cameraname + '_') and f.endswith('.jpeg'))
     except OSError:
         return 0
 
+videoEventsLock = threading.Lock()
+
+def videoEvent(ok, message, camera = '', file = ''):
+    # The result of making a video, for the page - it announces each one, wherever the video was started
+    # (end of a print, restart, gcode, or the page).  The last 10 are kept
+    with videoEventsLock:
+        state.videoSeq += 1
+        event = {'seq': state.videoSeq, 'time': time.time(), 'ok': ok, 'camera': camera,
+                 'file': file, 'name': os.path.basename(file), 'message': message}
+        state.videoEvents = (state.videoEvents + [event])[-10:]
+
 def createVideo(directory, cameras = None):
     # Make a video for each camera with images (or just the cameras listed e.g. ['Camera2']).
-    # directory is a print's folder - each camera's images are in its CameraN subfolder (earlier versions: in the
-    # folder itself) - or one camera's subfolder
+    # directory is a print's folder, or one camera's folder (CameraN, CameraN/images or CameraN/videos).
+    # Images are in <print>/CameraN/images - videos go in <print>/CameraN/videos
     logger.info('Create Video from ' + str(directory))
     if not os.path.isdir(directory):
         msg = 'Error: No permission or directory not found'
         logger.info(msg)
+        videoEvent(False, msg)
         return msg
 
-    jobdir = directory
-    if cameraFolder(directory):  # One camera's subfolder - only that camera
-        jobdir = os.path.dirname(os.path.normpath(directory))
-        cameras = [cameraFolder(directory)]
+    jobdir, camera = printFolder(directory)
+    if camera:  # One camera's folder - only that camera
+        cameras = [camera]
 
     found = {}  # cameraname: (folder with its images, number of images)
     for cameraname in ['Camera1', 'Camera2']:
         if cameras and cameraname not in cameras:
             continue
-        for folder in [os.path.join(jobdir, cameraname), jobdir]:
-            count = countImages(folder, cameraname)
-            if count:
-                found[cameraname] = (folder, count)
-                break
+        folder = imageFolder(jobdir, cameraname)
+        count = countImages(folder, cameraname)
+        if count:
+            found[cameraname] = (folder, count)
 
     if not found:
         msg = 'Cannot create a video.\n\
               Are there any images captured?'
         logger.info(msg)
+        videoEvent(False, 'Cannot create a video - there are no images in ' + os.path.basename(jobdir))
         return msg
 
     for cameraname, (folder, frame) in found.items():
@@ -1000,6 +1020,7 @@ def createVideo(directory, cameras = None):
             msg = 'Error: ' + cameraname + ': Cannot create video shorter than ' + str(state.minvideo) + ' second(s).\n Length would have been ' + str(frame/thisfps) + ' second(s).' 
             logger.info(msg)
             logger.info('frame = ' + str(frame) + ' thisfps = ' + str(thisfps) + ' fps = ' + str(state.fps) + ' maxvideo = ' + str(state.maxvideo) + ' minvideo = ' + str(state.minvideo))
+            videoEvent(False, cameraname + ': not enough images for a video (' + str(frame) + ' - ' + str(imagesForVideo()) + ' needed)', cameraname)
             return msg
 
         logger.info(cameraname + ': now making ' + str(frame) + ' frames into a video with fps = ' +str(thisfps))
@@ -1008,8 +1029,16 @@ def createVideo(directory, cameras = None):
 
         timestamp = time.strftime('%a-%H-%M', time.localtime())
 
-        fn = jobdir + '_' + cameraname + '_' + timestamp + '.mp4'  # Next to the print's folder
-        tmpfn = os.path.join(folder, '_tmpvideo.mp4')
+        videos = videoFolder(jobdir, cameraname)
+        try:
+            os.makedirs(videos, exist_ok=True)
+        except OSError as e:
+            msg = 'Error: could not create ' + videos + ' -- ' + str(e)
+            logger.info(msg)
+            videoEvent(False, msg, cameraname)
+            return msg
+        fn = os.path.join(videos, os.path.basename(jobdir) + '_' + cameraname + '_' + timestamp + '.mp4')
+        tmpfn = os.path.join(videos, '.tmpvideo.mp4')  # Hidden from the Files tab until it is finished
         location = os.path.join(folder, cameraname + '_%08d.jpeg')
 
         cmd = ffmpegCommand(thisfps, location, tmpfn)
@@ -1029,8 +1058,9 @@ def createVideo(directory, cameras = None):
 
 
         if runsubprocess(cmd) is False:
-            msg = ('!!!!!  There was a  creating the video for '+cameraname+' !!!!!')
+            msg = ('!!!!!  There was a problem creating the video for '+cameraname+' !!!!!')
             logger.info(msg)
+            videoEvent(False, 'There was a problem creating the video for ' + cameraname + ' (see the log)', cameraname)
             if os.path.isfile(tmpfn): 
                 try:
                     os.remove(tmpfn)
@@ -1043,9 +1073,11 @@ def createVideo(directory, cameras = None):
                 logger.info('Video processing completed for ' + cameraname)
                 logger.info('Video is in file ' + fn)                
                 msg = 'Video(s) successfully created'
+                videoEvent(True, 'Video created', cameraname, fn)
             except shutil.Error as e:
                 msg = 'Error on move of temp video file ' + str(e)
                 logger.info(msg)
+                videoEvent(False, msg, cameraname)
  
     return msg
 
@@ -1172,15 +1204,17 @@ def cleanupFiles(phase):
 
             if dirpid not in pidlist:  # only if not running
                 fn = os.path.join(state.topDir, dirs)
-                if os.path.isdir(fn):  # a directory
-                    deleteFileFolder(fn)
+                if os.path.isdir(fn):  # a print's folder - its videos are kept
+                    deleteImages(fn)
                 elif (not state.keeplogs) and dirs.endswith('.log'):  # logfiles
                     deleteFileFolder(fn)
 
     elif phase == 'standby':  # deleted images directory will be recreated on first capture
         if state.workingDirStatus != -1:
-            deleteFileFolder(state.workingDir)
+            deleteImages(state.workingDir)
             state.workingDirStatus = -1
+            if os.path.isdir(state.workingDir):  # It has a video - the next images go in a new folder
+                setNextWorkingDir()
 
     elif phase == 'restart':  # new image directory will be created on first capture
         pass
@@ -1191,8 +1225,8 @@ def cleanupFiles(phase):
         if state.deletepics:
             for dirs in dirlist:
                 fn = os.path.join(state.topDir, dirs)
-                if os.path.isdir(fn):
-                    deleteFileFolder(fn)
+                if os.path.isdir(fn):  # a print's folder - its videos are kept
+                    deleteImages(fn)
                     state.workingDirStatus = -1
             # Assume sucess even if error from above
             state.workingDirStatus = -1
@@ -1365,9 +1399,10 @@ def unPause():  # Only gets called if duetStatus = paused
 
 
 def setCameraFiles():
-    # Each camera's images go in its own subfolder of the print's folder: <print>/Camera1/Camera1_00000001.jpeg
+    # Each camera's images go in its own folder in the print's folder: <print>/Camera1/images/Camera1_00000001.jpeg
+    # (and its videos in <print>/Camera1/videos)
     for number in ['1', '2']:
-        setattr(state, 'camfile' + number, os.path.join(state.workingDir, 'Camera' + number, 'Camera' + number + '_'))
+        setattr(state, 'camfile' + number, os.path.join(state.workingDir, 'Camera' + number, 'images', 'Camera' + number + '_'))
 
 def onePhoto(cameraname, weburl):
 
@@ -1652,6 +1687,18 @@ def changeMaxvideo(thismaxvideo):
         logger.info('-maxvideo changed to: ' + str(state.maxvideo))
     except ValueError as e:
         logger.info('Error changing maxvideo: ' + str(e))
+
+def deleteImages(folder):
+    # Delete a print's images and keep its videos.  Folders left empty are removed (including the print's folder)
+    for cameraname in ['Camera1', 'Camera2']:
+        deleteFileFolder(imageFolder(folder, cameraname))
+    for dirpath, dirnames, filenames in os.walk(folder, topdown=False):  # Remove empty folders, deepest first
+        try:
+            if not os.listdir(dirpath):
+                os.rmdir(dirpath)
+        except OSError:
+            pass
+    logger.debug('Deleted the images in ' + folder)
 
 def deleteFileFolder(fname):
     fn = pathlib.Path(fname)  #  fn is a pathlib object
@@ -2265,6 +2312,7 @@ def main():
     # Set in startup code
 
     state.terminateState = -1  # 1 while terminating
+    state.videoEvents, state.videoSeq = [], 0  # Videos made (or not) - announced by the page
     state.connectionState = state.restarting = False
     state.workingDirStatus = -1
 

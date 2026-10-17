@@ -1,6 +1,6 @@
 # duetLapse3 web interface
 
-The duetLapse3 page (Status, Controls, Video, Files, Info, Cameras and Config tabs), written as Vue 3 single-file components with Vuetify 4 and built with Vite. It's the same setup as duetPrintGuard's `ui/`, so it has the DWC 3.7 look and follows DWC's light / dark theme when shown inside DWC.
+The duetLapse3 page (Status, Video, Files, Info, Cameras and Config tabs), written as Vue 3 single-file components with Vuetify 4 and built with Vite. It's the same setup as duetPrintGuard's `ui/`, so it has the DWC 3.7 look and follows DWC's light / dark theme when shown inside DWC.
 
 `npm run build` writes the page and its assets to `Code/dsf/static/app/`, which duetLapse3 serves at `/`. The built files are committed, so the plugin needs no Node.js or internet access. **After changing anything in `ui/`, run `npm run build` and commit `Code/dsf/static/app/` with the change.**
 
@@ -32,6 +32,7 @@ and open <http://localhost:5173/static/app/index.html>. Changes show as soon as 
 | `src/App.vue` | The tab bar, the shown tab, the message bar and the confirm dialog |
 | `src/tabs/` | One component per tab |
 | `src/components/SettingsForm.vue` | The settings cards used by the Video and Config tabs |
+| `src/components/ControlsCard.vue` | The controls (start, pause, ... terminate) on the Status tab |
 | `src/vuetify.js` | Vuetify set up as DWC 3.7 does, and following DWC's theme when shown inside DWC |
 | `src/status.js` | `/api/status`, read every 3 seconds while the page is visible, for every tab |
 | `src/visibility.js` | Whether the page is being shown, so it stops polling while hidden |
