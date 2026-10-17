@@ -50,6 +50,8 @@ restart = None
 # Cameras
 weburl1 = None
 weburl2 = None
+enable1 = None  # Camera1 is used
+enable2 = None  # Camera2 is used
 
 # Video
 extratime = None

@@ -23,19 +23,24 @@
     "detect": "none",
     "pause": "no",
     "numlayers": 1,
-    "movehead": [0, 0],
+    "movehead": [
+      0,
+      0
+    ],
     "rest": 1,
     "standby": false,
     "restart": false
   },
   "Camera": {
     "weburl1": "http://192.168.30.41:8082/Camera1/snapshot",
-    "weburl2": ""
+    "enable1": true,
+    "weburl2": "http://192.168.30.41:8082/Camera2/snapshot",
+    "enable2": false
   },
   "Video": {
     "extratime": 0,
-    "fps": 10,
-    "minvideo": 5,
+    "fps": 5,
+    "minvideo": 2,
     "maxvideo": 0,
     "ffmpegthreads": 0
   },

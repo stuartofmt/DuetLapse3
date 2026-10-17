@@ -1,0 +1,3 @@
+# Launchers' line endings: Linux ones for .sh, Windows ones for .bat (added by Prep_and_Package)
+*.sh text eol=lf
+*.bat text eol=crlf

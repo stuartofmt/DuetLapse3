@@ -14,6 +14,23 @@ const errors = reactive({});
 const configFile = ref("");
 const alert = reactive({ text: "", type: "success" });
 const saving = ref(false);
+const enabled = reactive({});    // enableKey: true / false
+const switching = reactive({});
+
+// Switch a camera on or off - saved and used straight away (the url is kept)
+async function setEnabled(c, on) {
+	switching[c.enableKey] = true;
+	try {
+		const result = await api.postJson("/cameras/enable", { key: c.enableKey, enabled: on });
+		enabled[c.enableKey] = on;
+		notify(result.message, on ? "success" : "info");
+		refreshStatus();
+	} catch (err) {
+		notify(`Could not switch Camera${c.number}: ${err.message}`, "error", 6000);
+	} finally {
+		switching[c.enableKey] = false;
+	}
+}
 
 // duetLapse3 fetches the image, so logins in the url, and http cameras inside an https DWC page, work
 function preview(key) {
@@ -29,6 +46,7 @@ async function load() {
 		configFile.value = data.configFile;
 		for (const c of data.cameras) {
 			urls[c.key] = c.url;
+			enabled[c.enableKey] = c.enabled;
 			preview(c.key);
 		}
 		if (data.error) {
@@ -71,12 +89,19 @@ onMounted(load);
 		<v-row>
 			<v-col v-for="c in cameras" :key="c.key" cols="12" md="6">
 				<v-card>
-					<v-card-title>Camera{{ c.number }}</v-card-title>
+					<v-card-title class="d-flex align-center">
+						Camera{{ c.number }}
+						<v-chip v-if="!enabled[c.enableKey]" size="small" class="ms-2" variant="tonal">Off</v-chip>
+						<v-spacer></v-spacer>
+						<v-switch :model-value="enabled[c.enableKey]" :loading="switching[c.enableKey]" color="success" inset hide-details
+								  density="compact" :label="enabled[c.enableKey] ? 'On' : 'Off'" class="flex-grow-0"
+								  @update:model-value="setEnabled(c, $event)"></v-switch>
+					</v-card-title>
 					<v-card-text>
 						<v-text-field v-model="urls[c.key]" :label="`${c.key} - camera url`" :hint="c.help" persistent-hint
 									  :error-messages="errors[c.key]" placeholder="http://..." persistent-placeholder
 									  variant="outlined" density="comfortable" class="mb-4" @keydown.enter="preview(c.key)"></v-text-field>
-						<div class="dl3-media">
+						<div class="dl3-media" :style="enabled[c.enableKey] ? '' : 'opacity: 0.45'">
 							<a v-if="previews[c.key] && !failed[c.key]" :href="previews[c.key]" target="_blank">
 								<img :src="previews[c.key]" alt="Camera preview" @error="failed[c.key] = true">
 							</a>

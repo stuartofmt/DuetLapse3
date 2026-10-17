@@ -103,6 +103,10 @@ Fixed fast repeated login attempts when the printer is off at startup
 Normal terminate exits cleanly instead of kill -9
 Fixed gcode messages being ignored after the printer was reset (its message numbers start again)
 Fixed the printer password being shown on the Info tab and written to the log
+Fixed timed capture (dontwait, or detect none with seconds) showing Waiting instead of Capturing when the printer is idle
+Cameras can be switched off (enable1, enable2) without losing their url
+Each camera's images are kept in its own subfolder of the print's folder (Camera1/, Camera2/) - older folders still work
+Snapshot can make a video for one camera (/snapshot?camera=1 or 2) - the Video tab has a button for each camera
 New web page in Vue 3 + Vuetify 4 (built from ui/ into static/app) with the DWC 3.7 look - it follows DWC's light / dark theme
 The page reads JSON from /api/... - the html tab routes (/tab/...) and the old ?display... calls are removed
 ffmpeg: computed thread limit (ffmpegthreads, 0 = automatic), low priority (nice), -preset veryfast, -pix_fmt yuv420p, no shell
@@ -144,6 +148,8 @@ import pathlib
 import stat
 import signal
 import base64
+import re
+import math
 import urllib.parse
 
 import state  # Shared state - always use state.<name>
@@ -214,7 +220,7 @@ DEFAULTS = {
                     'deletepics': False, 'maxffmpeg': 2, 'keepfiles': False},
     'Execution': {'dontwait': False, 'seconds': 0, 'detect': 'layer', 'pause': 'no', 'numlayers': 1,
                   'movehead': [0, 0], 'rest': 1, 'standby': False, 'restart': False},
-    'Camera': {'weburl1': '', 'weburl2': ''},
+    'Camera': {'weburl1': '', 'enable1': True, 'weburl2': '', 'enable2': True},
     'Video': {'extratime': 0, 'fps': 10, 'minvideo': 5, 'maxvideo': 0, 'ffmpegthreads': 0},
     'Overrides': {'vidparam1': '', 'vidparam2': ''},
     'UI': {'port': 0, 'ip': '', 'hidebuttons': False},
@@ -247,8 +253,10 @@ HELP = {
     'rest': 'Seconds to wait after parking, before the image',
     'standby': 'Wait for a start command before doing anything',
     'restart': 'Get ready for the next print when this one finishes',
-    'weburl1': 'Required. Camera1 snapshot url (preferred) or MJPEG stream url',
+    'weburl1': 'Camera1 snapshot url (preferred) or MJPEG stream url',
     'weburl2': 'Optional second camera url',
+    'enable1': 'Camera1 is used (off keeps the url but takes no images)',
+    'enable2': 'Camera2 is used (off keeps the url but takes no images)',
     'extratime': 'Seconds to hold the last image at the end of the video',
     'fps': 'Video frames per second',
     'minvideo': 'Shortest video to make (seconds)',
@@ -517,6 +525,12 @@ def init():
     state.weburl2 = args['weburl2']
     state.inputs.update({'weburl2': str(state.weburl2)})
 
+    state.enable1 = args['enable1']
+    state.inputs.update({'enable1': str(state.enable1)})
+
+    state.enable2 = args['enable2']
+    state.inputs.update({'enable2': str(state.enable2)})
+
     # Video
     state.inputs.update({'# Video': ''})
 
@@ -664,9 +678,9 @@ def init():
             logger.info('Use a snapshot url (preferred) or an MJPEG stream url - set it on the Cameras tab')
             logger.info('************************************************************************************\n')
             setattr(state, key, '')
-    if state.weburl1 == '':
+    if cameraUrl(1) == '' and cameraUrl(2) == '':
         logger.info('************************************************************************************')
-        logger.info('No url for Camera1 (weburl1) - no images will be captured until it is set on the Cameras tab')
+        logger.info('No camera in use - no images will be captured until one is set (and on) on the Cameras tab')
         logger.info('************************************************************************************\n')
 
     checkDependencies()  # Exits if ffmpeg is missing
@@ -930,51 +944,49 @@ def make_archive(source):
         logger.info(msg)
     return msg
 
-def createVideo(directory):
-    # loop through directory count # files and detect if Camera1 / Camera2
+def cameraFolder(directory):
+    # The CameraN name if directory is a camera's subfolder of a print's folder, else ''
+    name = os.path.basename(os.path.normpath(directory))
+    return name if re.fullmatch(r'Camera[0-9]', name) else ''
+
+def countImages(folder, cameraname):
+    try:
+        return sum(1 for f in os.listdir(folder) if f.startswith(cameraname + '_') and f.endswith('.jpeg'))
+    except OSError:
+        return 0
+
+def createVideo(directory, cameras = None):
+    # Make a video for each camera with images (or just the cameras listed e.g. ['Camera2']).
+    # directory is a print's folder - each camera's images are in its CameraN subfolder (earlier versions: in the
+    # folder itself) - or one camera's subfolder
     logger.info('Create Video from ' + str(directory))
     if not os.path.isdir(directory):
         msg = 'Error: No permission or directory not found'
         logger.info(msg)
         return msg
 
-    # Scan the directory and count the number of images
+    jobdir = directory
+    if cameraFolder(directory):  # One camera's subfolder - only that camera
+        jobdir = os.path.dirname(os.path.normpath(directory))
+        cameras = [cameraFolder(directory)]
 
-    f1 = f2 = 0
-    Cameras = []
-    C1 = C2 = False
+    found = {}  # cameraname: (folder with its images, number of images)
+    for cameraname in ['Camera1', 'Camera2']:
+        if cameras and cameraname not in cameras:
+            continue
+        for folder in [os.path.join(jobdir, cameraname), jobdir]:
+            count = countImages(folder, cameraname)
+            if count:
+                found[cameraname] = (folder, count)
+                break
 
-    try:
-        listdir = os.listdir(directory)
-    except FileNotFoundError as e:
-        msg = 'Error: Could not list video directory'
-        logger.info(msg)
-        logger.info(str(e))
-        return msg
-
-    for fn in listdir:
-        if fn.startswith('Camera1_') and fn.endswith('.jpeg'):
-            C1 = True
-            f1 += 1
-        elif fn.startswith('Camera2_') and fn.endswith('.jpeg'):
-            C2 = True
-            f2 += 1
-    
-    if C1 is False and C2 is False:
+    if not found:
         msg = 'Cannot create a video.\n\
               Are there any images captured?'
         logger.info(msg)
         return msg
 
-    if C1: Cameras.append('Camera1')
-    if C2: Cameras.append('Camera2')
-
-    for cameraname in Cameras:
-        if cameraname == 'Camera1':
-            frame = f1
-        elif cameraname == 'Camera2':
-            frame = f2
-
+    for cameraname, (folder, frame) in found.items():
         if state.maxvideo > 0:
             if frame < state.maxvideo:
                 thisfps = 1.0                         #  make it as long as we can     
@@ -996,9 +1008,9 @@ def createVideo(directory):
 
         timestamp = time.strftime('%a-%H-%M', time.localtime())
 
-        fn = directory + '_' + cameraname + '_' + timestamp + '.mp4'
-        tmpfn = os.path.join(directory, '_tmpvideo.mp4')
-        location = os.path.join(directory, cameraname + '_%08d.jpeg')
+        fn = jobdir + '_' + cameraname + '_' + timestamp + '.mp4'  # Next to the print's folder
+        tmpfn = os.path.join(folder, '_tmpvideo.mp4')
+        location = os.path.join(folder, cameraname + '_%08d.jpeg')
 
         cmd = ffmpegCommand(thisfps, location, tmpfn)
 
@@ -1352,18 +1364,20 @@ def unPause():  # Only gets called if duetStatus = paused
     return
 
 
+def setCameraFiles():
+    # Each camera's images go in its own subfolder of the print's folder: <print>/Camera1/Camera1_00000001.jpeg
+    for number in ['1', '2']:
+        setattr(state, 'camfile' + number, os.path.join(state.workingDir, 'Camera' + number, 'Camera' + number + '_'))
+
 def onePhoto(cameraname, weburl):
 
     if state.workingDirStatus == -1: # Create as late as possible
         state.workingDir = createworkingDir()
-        state.camfile1 = os.path.join(state.workingDir, 'Camera1_')
+        setCameraFiles()
 
-        state.camfile2 = os.path.join(state.workingDir, 'Camera2_')
-    
     if state.workingDirStatus == 0: # Keep checking until jobname is known
         state.workingDir = renameworkingDir(state.workingDir)
-        state.camfile1 = state.workingDir + '/Camera1_'
-        state.camfile2 = state.workingDir + '/Camera2_'
+        setCameraFiles()
 
     if cameraname == 'Camera1':
         state.frame1 += 1
@@ -1373,6 +1387,11 @@ def onePhoto(cameraname, weburl):
         state.frame2 += 1
         s = str(state.frame2).zfill(8)
         fn = state.camfile2 + s + '.jpeg'
+
+    try:
+        os.makedirs(os.path.dirname(fn), exist_ok=True)  # The camera's subfolder - made with its first image
+    except OSError as e:
+        logger.info('Could not create folder for ' + fn + ' -- ' + str(e))
 
     if state.simulate in ['all','camera']:
         with open(fn, 'wb') as outputfile:
@@ -1461,42 +1480,54 @@ def oneInterval(cameraname, weburl, finalframe = False):
                 state.seconds) + ' seconds')
         onePhoto(cameraname, weburl)
 
+def cameraUrl(number):
+    # The url of a camera that is in use - '' if it has no url or is switched off
+    if not getattr(state, 'enable' + str(number)):
+        return ''
+    return getattr(state, 'weburl' + str(number))
+
+def imagesForVideo():
+    # The fewest images that make a video - createVideo refuses one shorter than minvideo seconds
+    if state.maxvideo > 0:  # Fewer images than maxvideo seconds are shown at 1 per second
+        return max(1, int(state.minvideo))
+    return max(1, math.ceil(state.minvideo * state.fps))
+
 def getVideoMsg():
     if state.maxvideo > 0:
         if state.frame1 > state.maxvideo:
             videolength = 'Video will be ' + str(state.maxvideo) + ' seconds long'
-        elif state.frame1 > state.minvideo:
+        elif state.frame1 >= state.minvideo:  # As createVideo - minvideo seconds is enough
             videolength = 'Video will be ' + str(state.frame1) + ' seconds long'
         else:
             videolength = 'Not enough images for video to be created'
     else:
-        if state.frame1/state.fps > state.minvideo:
+        if state.frame1 > 0 and state.frame1/state.fps >= state.minvideo:  # As createVideo - minvideo seconds is enough
             videolength = 'Video will be ' + str(state.frame1/state.fps) + ' seconds long'
         else:
             videolength = 'Insufficient images for video to be created'
     return videolength        
 
-def makeVideo(directory, xtratime = False):  #  Adds and extra frame
+def makeVideo(directory, xtratime = False, cameras = None):  #  Adds and extra frame
     try:
         # Get a final frame
         # Make copies if appropriate
 
         if xtratime and state.extratime >= 1: #  Do not add images if called from snapshot or video
-            if state.weburl1 != '':   #  Camera 1
+            if cameraUrl(1) != '':   #  Camera 1
                 logger.debug('For Camera1')
-                oneInterval('Camera1', state.weburl1, True)
+                oneInterval('Camera1', cameraUrl(1), True)
                 ## if extratime != 0 and frame1/fps > minvideo:
                 if state.frame1 > 0:
                     state.frame1 = copyLastFrame(state.camfile1, state.frame1)
 
-            if state.weburl2 != '':   #  Camera 2
+            if cameraUrl(2) != '':   #  Camera 2
                 logger.debug('For Camera2')
-                oneInterval('Camera2', state.weburl2, True)
+                oneInterval('Camera2', cameraUrl(2), True)
                 ## if extratime != 0 and frame2/fps > minvideo:
                 if state.frame2 > 0:
                     state.frame2 = copyLastFrame(state.camfile2, state.frame2)
 
-        result = createVideo(directory)
+        result = createVideo(directory, cameras)
         return result
     except Exception as e:
         logger.info('!!!!!#####!!!!! UNRECOVERABLE ERROR ENCOUNTERED IN MAKE VIDEO -- ' + str(e))
@@ -1743,11 +1774,11 @@ def wakeControlLoop():
     # Called by duet_printer when the SBC pushes a status, layer or message change
     commandQueue.put((WAKE, None))
 
-def startMakeVideo(directory, xtratime = False, thread = True):
-    # Make the video(s) on the video worker.  thread = False waits for the result
+def startMakeVideo(directory, xtratime = False, thread = True, cameras = None):
+    # Make the video(s) on the video worker.  thread = False waits for the result.  cameras e.g. ['Camera2'] - default all
     if state.terminateState == 1: # Block it if terminating
         return 'Cannot create video when Terminating'
-    state.videoJob = videoWorker.submit(makeVideo, directory, xtratime)
+    state.videoJob = videoWorker.submit(makeVideo, directory, xtratime, cameras)
     if thread:
         return
     return state.videoJob.result()
@@ -1835,6 +1866,8 @@ def stateMachine(currentState):
             pass
         elif state.duetStatus == 'busy':
             pass
+        elif state.dontwait or 'none' in state.detect:  # Timed capture - carries on whatever the printer is doing
+            pass
         else:
             newState = 'Waiting'
     elif currentState == 'Completed':
@@ -1871,12 +1904,12 @@ def capturePass():
     state.printState = stateMachine(state.printState)
 
     if state.printState == 'Capturing' and state.action == 'start':  # pause stops images - but not the end of print check
-        if state.weburl1 != '':
+        if cameraUrl(1) != '':
             logger.debug('Calling oneInterval for Camera 1')
-            oneInterval('Camera1', state.weburl1)
-        if state.weburl2 != '':
+            oneInterval('Camera1', cameraUrl(1))
+        if cameraUrl(2) != '':
             logger.debug('Calling oneInterval for Camera 2')
-            oneInterval('Camera2', state.weburl2)
+            oneInterval('Camera2', cameraUrl(2))
         state.duetStatus, _ = getDuet('pause check loop', Status)  #  latest state to avoid polling delay
         if state.duetStatus == 'paused' and (state.pause == 'yes' or state.detect == state.pause): # will be ignored if a manual pause
             unPause()  # Nothing should be paused at this point

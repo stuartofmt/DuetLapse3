@@ -10,7 +10,7 @@ const rows = computed(() => s.value ? [
 	{ label: "duetLapse3 state", value: s.value.action },
 	{ label: "Capture status", value: s.value.printState },
 	{ label: "Printer status", value: s.value.connected ? s.value.duetStatus : "not connected" },
-	{ label: "Images captured", value: s.value.frames },
+	{ label: "Images captured", value: s.value.camera2 || s.value.frames2 ? `Camera1 ${s.value.frames}, Camera2 ${s.value.frames2}` : s.value.frames },
 	{ label: "Current layer", value: s.value.layer ?? "None" },
 	{ label: "Video", value: s.value.videoMessage },
 	{ label: "Printer", value: `${s.value.printer} (firmware ${s.value.printerVersion ?? "unknown"})` },
@@ -45,7 +45,7 @@ const imageSrc = computed(() => s.value?.lastImage ? `${s.value.lastImage}&n=${s
 						<a v-if="imageSrc" :href="imageSrc" target="_blank"><img :src="imageSrc" alt="Last image"></a>
 						<div v-else class="dl3-media-overlay">
 							<v-icon :icon="mdiCameraOff" size="40"></v-icon>
-							<span v-if="!s.camera1">No camera url - set it on the Cameras tab</span>
+							<span v-if="!s.camera1 && !s.camera2">No camera in use - set one on the Cameras tab</span>
 							<span v-else>Waiting for the first image to be captured</span>
 						</div>
 					</div>

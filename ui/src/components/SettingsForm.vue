@@ -3,7 +3,7 @@
 	Every card's Save button saves the whole form. tab picks the sections (see /api/settings).
 -->
 <script setup>
-import { onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import { api } from "../api.js";
 import { notify } from "../notify.js";
 import { mdiContentSave, mdiEye, mdiEyeOff } from "../icons.js";
@@ -11,6 +11,8 @@ import { mdiContentSave, mdiEye, mdiEyeOff } from "../icons.js";
 const props = defineProps({
 	tab: { type: String, required: true },      // config or video
 	saveUrl: { type: String, required: true },
+	check: { type: Function, default: null },   // (values) => { setting: error } for checks across settings
+	limits: { type: Function, default: null },  // (values, key) => { min, max } for a number setting's arrows
 });
 const emit = defineEmits(["saved"]);
 
@@ -21,6 +23,11 @@ const configFile = ref("");
 const alert = reactive({ text: "", type: "success" });
 const saving = ref(false);
 const showPassword = ref(false);
+
+// Errors from checks across settings, shown as the values are typed
+const crossErrors = computed(() => (props.check ? props.check(values) : {}));
+const errorFor = (key) => errors[key] || crossErrors.value[key];
+const limitsFor = (key) => ({ min: 0, ...(props.limits ? props.limits(values, key) : {}) });
 
 function setErrors(newErrors = {}) {
 	Object.keys(errors).forEach((key) => delete errors[key]);
@@ -47,6 +54,11 @@ async function load() {
 
 async function save() {
 	setErrors();
+	if (Object.keys(crossErrors.value).length) {
+		Object.assign(alert, { text: "Some settings don't go together (marked in red) - nothing was saved.", type: "error" });
+		notify("Some settings don't go together - nothing was saved.", "error", 6000);
+		return;
+	}
 	const settings = {};
 	for (const section of sections.value) {
 		for (const setting of section.settings) {
@@ -91,12 +103,12 @@ onMounted(load);
 				<v-card-text>
 					<template v-for="setting in section.settings" :key="setting.key">
 						<v-switch v-if="setting.type === 'bool'" v-model="values[setting.key]" :label="setting.key"
-								  :hint="setting.help" persistent-hint :error-messages="errors[setting.key]"
+								  :hint="setting.help" persistent-hint :error-messages="errorFor(setting.key)"
 								  color="primary" density="comfortable" inset class="mb-2"></v-switch>
 
 						<v-select v-else-if="setting.choices" v-model="values[setting.key]" :label="setting.key"
 								  :items="setting.choices" :hint="setting.help" persistent-hint
-								  :error-messages="errors[setting.key]" variant="outlined" density="comfortable" class="mb-3"></v-select>
+								  :error-messages="errorFor(setting.key)" variant="outlined" density="comfortable" class="mb-3"></v-select>
 
 						<div v-else-if="setting.type === 'list'" class="mb-3">
 							<div class="d-flex ga-2">
@@ -111,11 +123,13 @@ onMounted(load);
 						<v-text-field v-else-if="setting.type === 'password'" v-model="values[setting.key]" :label="setting.key"
 									  :type="showPassword ? 'text' : 'password'" :hint="setting.help" persistent-hint
 									  :append-inner-icon="showPassword ? mdiEyeOff : mdiEye" @click:append-inner="showPassword = !showPassword"
-									  :error-messages="errors[setting.key]" variant="outlined" density="comfortable" class="mb-3"></v-text-field>
+									  :error-messages="errorFor(setting.key)" variant="outlined" density="comfortable" class="mb-3"></v-text-field>
 
 						<v-text-field v-else v-model="values[setting.key]" :label="setting.key"
 									  :type="setting.type === 'int' ? 'number' : 'text'" :readonly="setting.readonly"
-									  :hint="setting.help" persistent-hint :error-messages="errors[setting.key]"
+									  :min="setting.type === 'int' ? limitsFor(setting.key).min : undefined"
+									  :max="setting.type === 'int' ? limitsFor(setting.key).max : undefined"
+									  :hint="setting.help" persistent-hint :error-messages="errorFor(setting.key)"
 									  variant="outlined" density="comfortable" class="mb-3"></v-text-field>
 					</template>
 				</v-card-text>

@@ -42,9 +42,12 @@ def status_data():
         'action': state.action,
         'duetStatus': state.duetStatus,
         'frames': state.frame1,
+        'frames2': state.frame2,
+        'imagesNeeded': dl3.imagesForVideo(),  # The fewest images (per camera) that make a video
         'layer': None if state.zo1 is None or state.zo1 < 0 else state.zo1,
         'lastImage': state.lastImage,
-        'camera1': state.weburl1 != '',
+        'camera1': dl3.cameraUrl(1) != '',  # In use - has a url and is switched on
+        'camera2': dl3.cameraUrl(2) != '',
         'videoMessage': dl3.getVideoMsg(),
         'imagesAvailable': state.workingDirStatus != -1,
         'allowed': dl3.allowedNextAction(state.action),  # The commands that can be used now
@@ -84,6 +87,7 @@ def files_data(path):
 
     jpegfiles = ['.jpeg', '.jpg']
     deletablefiles = ['.mp4', '.zip', '.log']
+    kinds = {'.jpeg': 'image', '.jpg': 'image', '.png': 'image', '.mp4': 'video', '.zip': 'zip', '.log': 'log'}
     dirPid = str(state.pid) + '_' + str(state.pidIncrement)  # The current job - not deletable
 
     entries = []
@@ -94,24 +98,48 @@ def files_data(path):
         except OSError:
             continue
         isDir = os.path.isdir(full)
-        ext = os.path.splitext(name)[1]
-        deletable = images = False
+        ext = os.path.splitext(name)[1].lower()
+        deletable = False
+        imageFiles = []
         if isDir:
-            if dirPid not in full:
-                deletable = True
-                try:
-                    images = any(os.path.splitext(f)[1] in jpegfiles for f in os.listdir(full))
-                except OSError as e:
-                    logger.info('Subdirectory error:' + str(e))
+            imageFiles = folderImages(full, jpegfiles)
+            deletable = dirPid not in full
         elif ext in deletablefiles and name != 'startup.log' and dirPid not in full:
             deletable = True
-        entries.append({'name': name, 'path': full, 'isDir': isDir, 'size': None if isDir else info.st_size,
-                        'modified': info.st_mtime, 'canDelete': deletable, 'canZip': deletable and images,
-                        'canVideo': deletable and images})
+        images = len(imageFiles) > 0
+        entries.append({'name': name, 'path': full, 'isDir': isDir, 'kind': 'folder' if isDir else kinds.get(ext, 'file'),
+                        'size': None if isDir else info.st_size, 'modified': info.st_mtime,
+                        'images': len(imageFiles) if isDir else None,
+                        'thumbnail': thumbnail(full, imageFiles) if images else (full if kinds.get(ext) == 'image' else None),
+                        'canDelete': deletable, 'canZip': deletable and images, 'canVideo': deletable and images})
     entries.sort(key = lambda e: -e['modified'])  # Newest first
 
     isTop = os.path.realpath(path) == os.path.realpath(state.topDir)
     return {'path': path, 'top': state.topDir, 'parent': None if isTop else os.path.dirname(path), 'entries': entries}
+
+def folderImages(folder, jpegfiles):
+    # The images (full paths) in a folder and in its Camera1 / Camera2 subfolders - where a print's images are kept
+    found = []
+    try:
+        names = os.listdir(folder)
+    except OSError as e:
+        logger.info('Subdirectory error:' + str(e))
+        return found
+    for name in names:
+        full = os.path.join(folder, name)
+        if os.path.splitext(name)[1].lower() in jpegfiles:
+            found.append(full)
+        elif dl3.cameraFolder(full) and os.path.isdir(full):
+            try:
+                found += [os.path.join(full, f) for f in os.listdir(full) if os.path.splitext(f)[1].lower() in jpegfiles]
+            except OSError:
+                pass
+    return sorted(found, key = os.path.basename)
+
+def thumbnail(folder, imageFiles):
+    # The latest Camera1 image (or the latest image if there is no Camera1 image)
+    camera1 = [f for f in imageFiles if os.path.basename(f).startswith('Camera1_')]
+    return (camera1 or imageFiles)[-1]
 
 def get_file(path):
     if not os.path.isfile(path):
@@ -122,8 +150,8 @@ def get_file(path):
         return FileResponse(path, filename=fn)  # must be downloaded
     return FileResponse(path, filename=fn, content_disposition_type='inline')  # Can be displayed in browser
 
-def make_video(path, xtratime):
-    return dl3.startMakeVideo(path, xtratime, False) or ''  # False => waits for the video
+def make_video(path, xtratime, cameras = None):
+    return dl3.startMakeVideo(path, xtratime, False, cameras) or ''  # False => waits for the video
 
 
 ###########################
@@ -134,6 +162,7 @@ def make_video(path, xtratime):
 cameraSection = 'Camera'  # Cameras tab
 videoSections = ['Video', 'Overrides']  # Video tab
 cameraUrls = ['weburl1', 'weburl2']  # Camera1, Camera2
+cameraEnables = ['enable1', 'enable2']
 
 def config_values():
     # ({setting: value} from duetLapse3.json, error message or '')
@@ -215,11 +244,27 @@ def save_config(settings):
     errors = update_config_file(settings)
     return save_result(errors, 'Saved. Restart duetLapse3 for the changes to take effect.')
 
+def video_length_errors(settings):
+    # minvideo can't be more than maxvideo (unless maxvideo is 0 - off)
+    values, _ = config_values()
+    defaults = dl3.flatDefaults()
+    try:
+        minvideo = dl3.checkSetting('minvideo', settings.get('minvideo', values.get('minvideo', defaults['minvideo'])), defaults['minvideo'])
+        maxvideo = dl3.checkSetting('maxvideo', settings.get('maxvideo', values.get('maxvideo', defaults['maxvideo'])), defaults['maxvideo'])
+    except ValueError:
+        return {}  # Reported when the values are checked
+    if maxvideo > 0 and minvideo > maxvideo:
+        return {'minvideo': 'minvideo (' + str(minvideo) + ') can not be more than maxvideo (' + str(maxvideo) + ')',
+                'maxvideo': 'maxvideo must be 0 (off) or at least minvideo (' + str(minvideo) + ')'}
+    return {}
+
 def save_video(settings):
     # Save the Video and Overrides settings to duetLapse3.json and use them straight away
     keys = [key for section in videoSections for key in dl3.DEFAULTS[section]]
     settings = {key: value for key, value in settings.items() if key in keys}
-    errors = update_config_file(settings)
+    errors = video_length_errors(settings)
+    if not errors:
+        errors = update_config_file(settings)
     if not errors:
         defaults = dl3.flatDefaults()
         for key, value in settings.items():
@@ -240,15 +285,18 @@ def save_video(settings):
 def cameras_data():
     values, error = config_values()
     return {'configFile': state.configfile, 'error': error,
-            'cameras': [{'number': number, 'key': key, 'url': values.get(key, ''), 'help': dl3.HELP.get(key, '')}
+            'cameras': [{'number': number, 'key': key, 'url': values.get(key, ''), 'help': dl3.HELP.get(key, ''),
+                         'enableKey': cameraEnables[number - 1], 'enabled': values.get(cameraEnables[number - 1], True) is not False}
                         for number, key in enumerate(cameraUrls, start = 1)]}
 
 def save_cameras(settings):
     # Save the camera urls to duetLapse3.json and use them straight away
     urls = {key: str(settings.get(key, '')).strip() for key in cameraUrls}
     errors = {}
-    if not camera.is_http_url(urls['weburl1']):
-        errors['weburl1'] = 'Camera1 needs an http url (a snapshot url or an MJPEG stream url)'
+    if state.enable1 and not camera.is_http_url(urls['weburl1']):
+        errors['weburl1'] = 'Camera1 needs an http url (a snapshot url or an MJPEG stream url) - or switch it off'
+    elif urls['weburl1'] != '' and not camera.is_http_url(urls['weburl1']):
+        errors['weburl1'] = 'Camera1 url must be an http url, or blank'
     if urls['weburl2'] != '' and not camera.is_http_url(urls['weburl2']):
         errors['weburl2'] = 'Camera2 url must be an http url, or blank for no second camera'
     if not errors:
@@ -261,6 +309,16 @@ def save_cameras(settings):
                 logger.info(key + ' changed to ' + url)
                 setattr(state, key, url)
     return save_result(errors, 'Saved. The cameras are in use now.')
+
+def enable_camera(key, enabled):
+    # Switch a camera on or off - saved to duetLapse3.json and used straight away
+    if key not in cameraEnables:
+        return JSONResponse({'saved': False, 'errors': {'': 'Unknown camera ' + str(key)}, 'message': 'Not saved'}, status_code=400)
+    errors = update_config_file({key: bool(enabled)})
+    if not errors:
+        setattr(state, key, bool(enabled))
+        logger.info('Camera' + key[-1] + (' switched on' if enabled else ' switched off'))
+    return save_result(errors, 'Camera' + key[-1] + (' is on' if enabled else ' is off - no images will be taken from it'))
 
 def preview_image(url):
     if state.simulate in ['all', 'camera']:
@@ -355,6 +413,10 @@ def video_save(settings: dict = Body(...)):  # {setting: value}
 def cameras_save(settings: dict = Body(...)):  # {weburl1: url, weburl2: url}
     return save_cameras(settings)
 
+@router.post('/cameras/enable')
+def cameras_enable(settings: dict = Body(...)):  # {key: enable1 | enable2, enabled: true | false}
+    return enable_camera(settings.get('key'), settings.get('enabled'))
+
 @router.get('/camera/preview')
 def camera_preview(url: str):  # One image from the camera url, fetched by duetLapse3
     return preview_image(url)
@@ -375,9 +437,9 @@ def terminate(ttype: str):  # terminateg (graceful), terminatef (forced) or term
     return Response(status_code=204)
 
 @router.get('/snapshot', response_class=PlainTextResponse)
-def snapshot():
+def snapshot(camera: int = 0):  # camera 1 or 2 makes a video for that camera only - default both
     if state.workingDirStatus != -1:
-        return make_video(state.workingDir, False)  # False => no extratime
+        return make_video(state.workingDir, False, ['Camera' + str(camera)] if camera in [1, 2] else None)  # False => no extratime
     return 'There are no images captured yet.\nTry again later.'
 
 @router.get('/makevideo', response_class=PlainTextResponse)

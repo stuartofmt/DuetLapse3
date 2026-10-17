@@ -56,6 +56,7 @@ The main settings are:
 | --- | --- | --- |
 | `weburl1` | | Required. URL of camera1: a snapshot URL (preferred) or an MJPEG stream URL |
 | `weburl2` | | URL of an optional second camera |
+| `enable1`, `enable2` | `true` | Whether each camera is used. Off keeps its URL but takes no images |
 | `detect` | `layer` | When to take images: `layer`, `pause` or `none` |
 | `seconds` | `0` | Also take an image every n seconds (0 = off) |
 | `numlayers` | `1` | Take an image every n layers |
@@ -108,10 +109,10 @@ Open **Plugins → duetLapse3** in DWC. The page has the same look as DWC 3.7 an
 
 - **Status:** what duetLapse3 is doing, and the last image.
 - **Controls:** start, standby, pause, continue, restart and terminate.
-- **Video:** make a video now (**Snapshot**), and the video settings (the Video and Overrides sections of `duetLapse3.json`). **Save** saves them and starts using them straight away.
-- **Files:** download, zip, delete or make videos from earlier images and videos.
+- **Video:** the images captured by each camera against the number needed for a video, make a video now (**Snapshot**, one for each camera when there are two), and the video settings (the Video and Overrides sections of `duetLapse3.json`). **Save** saves them and starts using them straight away.
+- **Files:** browse the images, videos and zip files, as a list or a grid with thumbnails, with search and sorting. Images and videos open in a viewer. Each item's menu has download, make a video, zip and delete.
 - **Info:** the settings in use and where files are kept.
-- **Cameras:** the URL of each camera, with a preview. **Preview** shows a new image from the URL in the box, and **Save** saves the URLs to `duetLapse3.json` and starts using them straight away.
+- **Cameras:** the URL of each camera, with a preview, and a switch to turn the camera on or off (the URL is kept). **Preview** shows a new image from the URL in the box, and **Save** saves the URLs to `duetLapse3.json` and starts using them straight away.
 - **Config:** the other settings in `duetLapse3.json`. **Save** checks every value first and saves nothing if any are wrong. Restart duetLapse3 for the changes to take effect.
 
 Inside DWC, the plugin page shows a message if duetLapse3 stops, and shows the page again when it restarts.
@@ -157,7 +158,7 @@ The duetLapse3 page uses these URLs, and you can call them yourself, for example
 | URL | What it does |
 | --- | --- |
 | `/command/<command>` | `start`, `standby`, `pause`, `continue` or `restart` |
-| `/snapshot` | Make a video of the images so far |
+| `/snapshot` | Make a video of the images so far (`?camera=1` or `?camera=2` for one camera) |
 | `/makevideo?path=<folder>&xtratime=false` | Make a video from an image folder |
 | `/videosettings?fps=<n>&minvideo=<n>&maxvideo=<n>` | Change the video settings (give any of them) |
 | `/getfile?path=<file>` | Download a file |
