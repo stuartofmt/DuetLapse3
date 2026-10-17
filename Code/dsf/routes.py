@@ -14,6 +14,7 @@ from fastapi import APIRouter, Body, Request
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, Response
 
 import camera
+import duet_printer  # Communication with the printer
 import state  # Shared state - always use state.<name>
 from logger_module import logger
 
@@ -139,8 +140,8 @@ def terminate_process(ttype):
         dl3.startnextAction('completed')
         #  dl3.startnextAction('terminate')
     elif ttype == 'terminatef':
-        if dl3.isPlugin(state.apiModel):
-            dl3.stopPlugin(state.apiModel, 'duetLapse3')
+        if duet_printer.isPlugin(state.apiModel):
+            duet_printer.stopPlugin(state.apiModel, 'duetLapse3')
         else:
             dl3.quit_forcibly()
 
