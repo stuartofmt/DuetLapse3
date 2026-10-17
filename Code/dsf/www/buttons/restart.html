@@ -1,9 +1,0 @@
-<!-- Controls tab.  Placeholders: {{disabled}}
-     The alert text must stay on one line - use \n for line breaks -->
-<div class="inline">
-<button class="button" style="background-color:yellow" onclick="(async () => {
-let response = await fetch('/command/restart');
-alert('Restarting.\nWill try to create a video.\n\nAll captured images will be deleted.\nUnless -keepfiles was set');
-await repeatDisplayStatus();
-})()" {{disabled}} >Restart</button>
-</div>

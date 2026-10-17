@@ -7,7 +7,7 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
 - Renamed from **DuetLapse3** to **duetLapse3**. The plugin id has changed, so it installs as a new plugin.
 - All settings are in **`duetLapse3.json`**. There are no command-line options any more.
 - **Only http cameras**, using a snapshot URL or an MJPEG stream URL. USB and Pi cameras need a camera server.
-- **New web page**, served with FastAPI and uvicorn: new **Cameras**, **Video** and **Config** tabs, with settings saved from the page.
+- **New web page** in **Vue 3 and Vuetify 4** with the DWC 3.7 look, following DWC's light / dark theme. It's served with FastAPI and uvicorn, with new **Cameras**, **Video** and **Config** tabs, and settings saved from the page.
 - On an SBC, the printer is followed over **DSF's WebSocket**, so **images are taken at the moment the layer changes**.
 - Long-standing bugs fixed: pause didn't stop images, `extratime` was never added, gcode messages didn't work on standalone printers, Continue never returned, and others (see [Bug fixes](#bug-fixes)).
 
@@ -40,16 +40,18 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
 
 ## The web page
 
-- **Rebuilt** on FastAPI and uvicorn. It's at `/` (and `/index`), and the API is listed at `/docs`.
+- **Rebuilt** as a Vue 3 and Vuetify 4 page with the DWC 3.7 look: DWC's tab bar, cards, fields, Roboto font and icons. It follows DWC's light or dark theme, including when you change it. It's built from `ui/` (see `ui/README.md`) into `Code/dsf/static/app`, and the built files are committed, so the plugin needs no Node.js.
+- **Served** with FastAPI and uvicorn at `/` (and `/index`). The API is listed at `/docs`.
+- **Data as JSON.** The page reads `/api/status`, `/api/info`, `/api/files`, `/api/settings` and `/api/cameras`. Saving replies with any errors per setting, which are shown in red under the field.
+- **Removed:** the old HTML templates (`dsf/www/`), the `/tab/...` routes and the old `?displayStatus` style calls.
 - **Tabs:** Status, Controls, Video, Files, Info, **Cameras**, **Config**.
   - **Cameras:** each camera's URL with a preview. Saving checks the URLs, writes them to the json and starts using them straight away.
   - **Video:** Snapshot, plus the Video and Overrides settings. Saving writes them to the json and starts using them straight away.
   - **Config:** every other setting, with checking before saving. Changes take effect after a restart.
   - **Info:** shows the page address.
-- **New URLs** for the tabs (`/tab/...`) and actions (`/command/...`, `/snapshot`, `/makevideo`, `/getfile`, `/zip`, `/delete`, `/terminate/...`, `/videosettings`).
-- **Old URLs still work,** such as `/?command=start` and `/?displayStatus=true`. Other query parameters, such as the DWC page's `?theme=`, are ignored.
-- **The HTML** is in template files under `dsf/www/`, so it can be edited without touching the Python. Templates are read on every request.
+- **Action URLs:** `/command/...`, `/snapshot`, `/makevideo`, `/getfile`, `/zip`, `/delete`, `/terminate/...` and `/videosettings`. Old action URLs such as `/?command=start` still work.
 - **Relative addresses.** The page uses relative URLs, so it works whatever address it's opened on (IP, hostname, VPN, localhost).
+- **Tab in the address.** `?tab=<name>` opens a tab directly.
 
 ## Cameras
 
@@ -106,6 +108,7 @@ Bugs that existed before this work:
 - **Startup checks:** the startup dependency check never ran.
 - **Camera2 URL check:** Camera2's URL was checked against Camera1's setting.
 - **DWC page:** the page inside DWC would not have loaded (`?theme=` was treated as an unknown API call).
+- **Password:** the printer password was shown on the Info tab and written to the log at startup.
 
 ## Code structure
 
@@ -120,7 +123,7 @@ For maintainers: `duetLapse3.py` is split into modules.
 | `camera.py` | Image capture from http cameras |
 | `routes.py` | Web page and API routes |
 | `printer_status.py` | Reference for printer statuses and what they mean to duetLapse3 (not used by the program yet) |
-| `www/` | HTML templates |
+| `static/app/` | The built web page (from `ui/` at the top of the repository) |
 
 ## Testing so far
 
@@ -133,7 +136,8 @@ Everything above was tested against a fake printer (SBC with WebSocket, SBC with
 - starting with the printer off;
 - gcode messages;
 - graceful terminate and Ctrl-C;
-- the Config, Cameras and Video tabs.
+- the Config, Cameras and Video tabs;
+- the new page in headless Chromium: every tab in light, dark and phone width, and clicking through Controls, Config and Files.
 
 **None of it has been tried on a real printer or inside DWC yet.**
 

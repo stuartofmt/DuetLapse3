@@ -6,3 +6,5 @@
 plugin.zip
 **/venv/
 .idea
+ui/node_modules/
+__pycache__/

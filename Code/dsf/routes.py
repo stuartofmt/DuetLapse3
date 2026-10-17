@@ -1,18 +1,16 @@
 """
 FastAPI routes for the duetLapse3 web page
 
-The page (www/index.html) loads each tab from a /tab/... route and calls the action routes.
-The older API, http://<ip>:<port>/?<api>=<value> (e.g. ?command=start), still works - see legacy_api.
+The page is built from ui/ (Vue 3 + Vuetify 4, built with Vite) into static/app - see ui/README.md.
+It reads its data from the /api/... routes (JSON) and uses the action routes (/command/..., /snapshot, ...).
+The older API, http://<ip>:<port>/?<api>=<value> (e.g. ?command=start), still works for the actions - see legacy_api.
 """
-import html
 import os
-import re
 import threading
-import time
 import urllib.parse
 
 from fastapi import APIRouter, Body, Request
-from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 
 import camera
 import duet_printer  # Communication with the printer
@@ -25,254 +23,95 @@ dl3 = None
 
 router = APIRouter()
 
-# html templates are in the www sub directory
-wwwDir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'www')
-
-def render_html(template, **values):
-    # Fill {{name}} placeholders in a www template.  <!-- comments --> are removed.
-    # Templates are read on every call so they can be edited without a restart
-    with open(os.path.join(wwwDir, template), encoding='utf-8') as f:
-        content = f.read()
-    content = re.sub(r'<!--.*?-->\n?', '', content, flags=re.DOTALL).strip()
-    return re.sub(r'\{\{(\w+)\}\}', lambda m: str(values[m.group(1)]), content)
+# The built page (see ui/README.md)
+appDir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'static', 'app')
 
 
 ###########################
-# Building the tabs
+# Data for the page
 ###########################
 
-def display_controls():
-    allowed_buttons = dl3.allowedNextAction(state.action)
-    allbuttons = ['start', 'standby', 'pause', 'continue', 'restart']
+def status_data():
+    return {
+        'version': dl3.duetLapse3Version,
+        'printerVersion': state.printerVersion,
+        'printer': duet_printer.printerAddress(),
+        'connected': bool(state.connectionState),
+        'pid': state.pid,
+        'printState': state.printState,
+        'action': state.action,
+        'duetStatus': state.duetStatus,
+        'frames': state.frame1,
+        'layer': None if state.zo1 is None or state.zo1 < 0 else state.zo1,
+        'lastImage': state.lastImage,
+        'camera1': state.weburl1 != '',
+        'videoMessage': dl3.getVideoMsg(),
+        'imagesAvailable': state.workingDirStatus != -1,
+        'allowed': dl3.allowedNextAction(state.action),  # The commands that can be used now
+        'hideButtons': bool(state.hidebuttons),
+        'canTerminate': state.apiModel != 'SBC',  # DSF stops the plugin itself
+        'restart': bool(state.restart),
+        'poll': state.poll,
+    }
 
-    if state.hidebuttons:  # hide buttons if option was set
-        shown = [button for button in allowed_buttons if button in allbuttons]
-    else:
-        shown = allbuttons
-
-    buttons = ''
-    for button in shown:
-        if button in allowed_buttons:
-            disable = ''
-        else:
-            disable = 'disabled'
-        buttons += render_html('buttons/' + button + '.html', disabled = disable)
-
-    if state.apiModel != 'SBC':
-        buttons += render_html('buttons/terminate.html')
-
-    return buttons
-
-
-def display_video():
-    values, message = config_values()
-    return render_html('video.html', videomsg = dl3.getVideoMsg(), configfile = escape(state.configfile),
-                       message = message, sections = settings_sections(videoSections, values))
-
-
-def display_status():
-    localtime = time.strftime('%A - %H:%M', time.localtime())
-    if state.zo1 < 0:
-        thislayer = 'None'
-    else:
-        thislayer = str(state.zo1)
-
-    if state.lastImage != '':
-        image = render_html('status_image.html', src = state.lastImage)
-    elif state.weburl1 == '':
-        image = render_html('status_nocamera.html')
-    else:
-        image = render_html('status_noimage.html')
-
-    return render_html('status.html', version = dl3.duetLapse3Version, duet3d_version = state.printerVersion,
-                       duet = duet_printer.printerAddress(), pid = state.pid, localtime = localtime,
-                       print_state = state.printState, action = state.action,
-                       duet_status = state.duetStatus, frames = state.frame1,
-                       layer = thislayer, image = image)
-
-
-def display_info():
-    if state.workingDirStatus != -1:
-        imagelocation = state.workingDir
-    else:
-        imagelocation = 'Waiting for first image to be created'
-
-    options = dl3.getOptions()
-
-    optionlist = ''
-    count = 0
-    for label, value in options.items():
-        if label.startswith('#'):  #  Omit the section info
+def info_data():
+    options = []
+    for label, value in dl3.getOptions().items():
+        if label.startswith('#'):  # Section names
             continue
-        if (count % 3) == 0: # 3 columns
-            optionlist += render_html('info_newrow.html')
-        optionlist += render_html('info_option.html', label = label, value = value)
-        count += 1
+        options.append({'label': label, 'value': str(value)})
+    return {
+        'pid': state.pid,
+        'pageAddress': 'http://' + str(state.ip) + ':' + str(state.port),
+        'options': options,
+        'topDir': state.topDir,
+        'imageLocation': state.workingDir if state.workingDirStatus != -1 else '',
+        'logFile': state.logfilename,
+        'configFile': state.configfile,
+    }
 
-    return render_html('info.html', pid = state.pid, pageaddress = escape('http://' + str(state.ip) + ':' + str(state.port)),
-                       options = optionlist, topdir = state.topDir,
-                       imagelocation = imagelocation, logfilename = state.logfilename)
-
-
-def update_command(command):
-    # start / standby / pause / continue / restart - carried out by the control loop, one at a time.
-    # Wait (up to 10 seconds) until it is done, so the page shows the new state
-    if command in ['start', 'standby', 'pause', 'continue', 'restart']:
-        done = threading.Event()
-        dl3.queueAction(command, done)
-        done.wait(10)
-
-    elif command == 'terminate':  #command=terminate - backward compatible
-        terminate_process('terminatehttp')
-    return
-
-
-def terminate_process(ttype):
-    if ttype not in ['terminatehttp','terminateg', 'terminatef']:
-       logger.info (ttype + ' invalid terminate requested')
-       return
-
-    if ttype == 'terminatehttp':
-        dl3.queueAction('completed')
-    elif ttype == 'terminateg':
-        dl3.queueAction('completed')
-    elif ttype == 'terminatef':
-        if duet_printer.isPlugin(state.apiModel):
-            duet_printer.stopPlugin(state.apiModel, 'duetLapse3')
-        else:
-            dl3.quit_forcibly()
-
-    return
-
-
-def display_terminate_buttons():
-    if state.restart:
-        restartmsg = '\\nA restart will occur after the Terminate'
-        pageaction = "repeatDisplayStatus();"
-    else:
-        restartmsg = ''
-        pageaction = "document.body.innerHTML = '';"
-
-    if state.workingDirStatus != -1:
-        vidmsg = dl3.getVideoMsg()
-    else:
-        vidmsg = 'There are no images available'
-
-    return render_html('terminate.html', vidmsg = vidmsg,
-                       restartmsg = restartmsg, pageaction = pageaction)
-
-
-def display_files(path):
-    if path == 'true':
+def files_data(path):
+    # The files and folders in path ('' = the top folder), and what can be done with each
+    if path in ['', 'true']:
         path = state.topDir
-
-    if os.path.isdir(path):  # if its a dir then list it
-        response = list_dir(path)
-        return response
-    else:
-        return 'Requested path ' + path + ' is not a dir.'
-
-
-def list_dir(path):
-    # Pass the directory tree and determine what can be done with each file / dir
-    logger.debug('list_dir called with path = ' + path)
+    if not os.path.isdir(path):
+        return None
+    try:
+        names = os.listdir(path)
+    except OSError as e:
+        logger.info('No files found: ' + str(e))
+        names = []
 
     jpegfiles = ['.jpeg', '.jpg']
-    deletablefiles = ['.mp4','.zip', '.log'] #  Different to startDuetLapse3
-    fullfilenames = []
-    jpegfolder = []
-    deletelist = []
+    deletablefiles = ['.mp4', '.zip', '.log']
+    dirPid = str(state.pid) + '_' + str(state.pidIncrement)  # The current job - not deletable
 
-    try:
-        displaypath = urllib.parse.unquote(path, errors='surrogatepass')
-    except UnicodeDecodeError:
-        displaypath = urllib.parse.unquote(path)
-
-    displaypath = html.escape(displaypath, quote=False)                   # this is to handle differences between html and OS representations
-
-    # Parse the directory tree and determine what can be done with each file / dir
-    try:
-        listdir = os.listdir(path)
-    except FileNotFoundError as e:
-        logger.info('No files found: ' + str(e))
-        return render_html('files/nofiles.html', path = displaypath)
-
-    #  sort the list by datetime last modified
-    listdir.sort(key=lambda fn: -os.path.getmtime(os.path.join(path, fn))) # Sort in reverse order
-
-    dirPid = str(state.pid) + '_' + str(state.pidIncrement)  # get current pid + suffix
-
-    for sfn in listdir:
-        fn = os.path.join(path, sfn)
-        fullfilenames.append(fn)
-        fn_elements =  os.path.splitext(fn)
-        ext = fn_elements[1]
-        if os.path.isdir(fn):
-            if dirPid not in fn:
-                deletelist.append(fn)
+    entries = []
+    for name in names:
+        full = os.path.join(path, name)
+        try:
+            info = os.stat(full)
+        except OSError:
+            continue
+        isDir = os.path.isdir(full)
+        ext = os.path.splitext(name)[1]
+        deletable = images = False
+        if isDir:
+            if dirPid not in full:
+                deletable = True
                 try:
-                    fndir = os.listdir(fn)  #  Check the subdirectory
-                except FileNotFoundError as e:
+                    images = any(os.path.splitext(f)[1] in jpegfiles for f in os.listdir(full))
+                except OSError as e:
                     logger.info('Subdirectory error:' + str(e))
-                for jp in fndir:  # break if we find one
-                    jp_elements =  os.path.splitext(jp)
-                    jpext = jp_elements[1]
-                    if jpext in jpegfiles:
-                        jpegfolder.append(fn)
-                        break
-        elif ext in deletablefiles:
-            if sfn == 'startup.log':  # use the short filename
-                continue
-            if dirPid not in fn:
-                if ext in ['mp4']:  # can delete mp4 from current print snapshot
-                    continue
-                deletelist.append(fn)
+        elif ext in deletablefiles and name != 'startup.log' and dirPid not in full:
+            deletable = True
+        entries.append({'name': name, 'path': full, 'isDir': isDir, 'size': None if isDir else info.st_size,
+                        'modified': info.st_mtime, 'canDelete': deletable, 'canZip': deletable and images,
+                        'canVideo': deletable and images})
+    entries.sort(key = lambda e: -e['modified'])  # Newest first
 
-    #  get the structure information
-
-    if path == state.topDir:
-        child_dir = False
-    else:
-        parentdir = os.path.split(path)[0]
-        child_dir = True
-
-    rows = ''
-
-    # add parent dir to the html
-    if child_dir:
-        displayname = './'
-        rows += render_html('files/parent.html', path = parentdir.replace('\\', '\\\\'), name = html.escape(displayname, quote=False))
-
-
-    # Add actions to files / dirs 
-    for fullname in fullfilenames:          
-        if os.path.islink(fullname):   # A link to a directory displays with @
-            displayname = fullname + "@"
-
-        displayname = os.path.split(fullname)[1]
-        jsname = fullname.replace('\\', '\\\\')
-
-        buttons = ''
-        if fullname in deletelist:
-            buttons += render_html('files/delete.html', path = jsname)
-            if fullname in jpegfolder:
-                buttons += render_html('files/zip.html', path = jsname)
-                buttons += render_html('files/video.html', path = jsname)
-
-        if os.path.isdir(fullname):
-            rows += render_html('files/dir.html', path = jsname, name = html.escape(displayname, quote=False), buttons = buttons)
-        else:
-            rows += render_html('files/file.html', path = urllib.parse.quote(fullname, errors='surrogatepass'),
-                                name = html.escape(displayname, quote=False), buttons = buttons)
-
-    dir_table = render_html('files/table.html', rows = rows)
-
-    logger.debug('Finished parsing the files directory')
-    return dir_table
-
-    """
-        end of requesthandler
-    """
+    isTop = os.path.realpath(path) == os.path.realpath(state.topDir)
+    return {'path': path, 'top': state.topDir, 'parent': None if isTop else os.path.dirname(path), 'entries': entries}
 
 def get_file(path):
     if not os.path.isfile(path):
@@ -283,79 +122,69 @@ def get_file(path):
         return FileResponse(path, filename=fn)  # must be downloaded
     return FileResponse(path, filename=fn, content_disposition_type='inline')  # Can be displayed in browser
 
+def make_video(path, xtratime):
+    return dl3.startMakeVideo(path, xtratime, False) or ''  # False => waits for the video
+
 
 ###########################
-# Config tab - duetLapse3.json
+# Settings - duetLapse3.json
 ###########################
-
-def escape(value):
-    return html.escape(str(value), quote=True)
-
-def config_input(key, value, default):
-    # The input for one setting - its type comes from the default
-    if key in dl3.configExtras:  # Set by duetLapse3
-        return render_html('config/readonly.html', value = escape(value))
-    if isinstance(default, bool):
-        checked = 'checked' if str(value).lower() == 'true' else ''
-        return render_html('config/bool.html', key = key, checked = checked)
-    if key in dl3.CHOICES:
-        options = ''
-        for choice in dl3.CHOICES[key]:
-            selected = 'selected' if choice == value else ''
-            options += render_html('config/option.html', value = escape(choice), selected = selected)
-        return render_html('config/select.html', key = key, options = options)
-    if isinstance(default, list):
-        values = value if isinstance(value, list) and len(value) == len(default) else default
-        return ''.join(render_html('config/list_item.html', key = key, value = escape(v)) for v in values)
-    if isinstance(default, int):
-        return render_html('config/number.html', key = key, value = escape(value))
-    if key == 'password':
-        return render_html('config/password.html', key = key, value = escape(value))
-    return render_html('config/text.html', key = key, value = escape(value))
 
 # Sections of DEFAULTS shown on their own tab instead of the Config tab
 cameraSection = 'Camera'  # Cameras tab
 videoSections = ['Video', 'Overrides']  # Video tab
+cameraUrls = ['weburl1', 'weburl2']  # Camera1, Camera2
 
 def config_values():
-    # ({setting: value} from duetLapse3.json, message) - the message is shown if the file can't be read
+    # ({setting: value} from duetLapse3.json, error message or '')
     try:
         config = dl3.readConfig(state.configfile)
     except (OSError, ValueError) as e:
-        return {}, render_html('config/message.html', color = 'red',
-                               message = escape('Could not read the settings file - showing the defaults. ' + str(e)))
+        return {}, 'Could not read the settings file - showing the defaults. ' + str(e)
     return {k: v for section in config.values() if isinstance(section, dict) for k, v in section.items()}, ''
 
-def settings_sections(names, values):
-    # The inputs for the named sections of DEFAULTS, with their values
-    sections = ''
-    for section in names:
-        rows = ''
-        for key, default in dl3.DEFAULTS[section].items():
-            rows += render_html('config/row.html', key = key, input = config_input(key, values.get(key, default), default),
-                                help = escape(dl3.HELP.get(key, '')))
-        sections += render_html('config/section.html', name = escape(section), rows = rows)
-    return sections
+def setting_type(key, default):
+    if isinstance(default, bool):  # Before int - bool is a kind of int
+        return 'bool'
+    if isinstance(default, int):
+        return 'int'
+    if isinstance(default, list):
+        return 'list'
+    if key == 'password':
+        return 'password'
+    return 'str'
 
-def display_config():
-    values, message = config_values()
-    names = [name for name in dl3.DEFAULTS if name != cameraSection and name not in videoSections]
-    return render_html('config/config.html', configfile = escape(state.configfile), message = message,
-                       sections = settings_sections(names, values))
+def settings_data(names):
+    # The settings in the named sections of DEFAULTS - their values, type, choices and help
+    values, error = config_values()
+    sections = []
+    for name in names:
+        settings = []
+        for key, default in dl3.DEFAULTS[name].items():
+            settings.append({'key': key, 'value': values.get(key, default), 'default': default,
+                             'type': setting_type(key, default), 'choices': dl3.CHOICES.get(key),
+                             'help': dl3.HELP.get(key, ''), 'readonly': key in dl3.configExtras})
+        sections.append({'name': name, 'settings': settings})
+    return {'configFile': state.configfile, 'error': error, 'sections': sections}
+
+def tab_sections(tab):
+    if tab == 'video':
+        return videoSections
+    return [name for name in dl3.DEFAULTS if name != cameraSection and name not in videoSections]
 
 def update_config_file(settings):
     # Check every value in settings, then save them all to duetLapse3.json - or nothing if any are invalid
     # Settings stay in the section they are in.  Keys duetLapse3 does not know are kept
-    # Returns a list of errors ([] if saved)
+    # Returns {setting: error} ({} if saved) - '' is used for an error that is not about one setting
     try:
         config = dl3.readConfig(state.configfile)
     except FileNotFoundError:
         config = {}
     except (OSError, ValueError) as e:
-        return ['Could not read the settings file. ' + str(e)]
+        return {'': 'Could not read the settings file. ' + str(e)}
     location = {key: name for name, section in config.items() if isinstance(section, dict) for key in section}
 
-    errors = []
+    errors = {}
     for section, keys in dl3.DEFAULTS.items():
         for key, default in keys.items():
             if key in dl3.configExtras or key not in settings:
@@ -363,7 +192,7 @@ def update_config_file(settings):
             try:
                 value = dl3.checkSetting(key, settings[key], default)
             except ValueError as e:
-                errors.append(str(e))
+                errors[key] = str(e)
                 continue
             config.setdefault(location.get(key, section), {})[key] = value
 
@@ -372,14 +201,19 @@ def update_config_file(settings):
     try:
         dl3.writeConfig(state.configfile, config)
     except OSError as e:
-        return [str(e)]
+        return {'': str(e)}
     logger.info('Settings saved to ' + state.configfile + ': ' + ', '.join(settings))
-    return []
+    return {}
 
-def save_message(errors, success):
+def save_result(errors, success):
+    # The reply to a save - 400 with the errors if nothing was saved
     if errors:
-        return render_html('config/message.html', color = 'red', message = 'Not saved:<br>' + '<br>'.join(escape(e) for e in errors))
-    return render_html('config/message.html', color = 'green', message = success)
+        return JSONResponse({'saved': False, 'errors': errors, 'message': 'Not saved - some settings are invalid'}, status_code=400)
+    return {'saved': True, 'errors': {}, 'message': success}
+
+def save_config(settings):
+    errors = update_config_file(settings)
+    return save_result(errors, 'Saved. Restart duetLapse3 for the changes to take effect.')
 
 def save_video(settings):
     # Save the Video and Overrides settings to duetLapse3.json and use them straight away
@@ -401,45 +235,22 @@ def save_video(settings):
                 setattr(state, key, value)
         if state.maxvideo > 0 and state.maxvideo < state.minvideo:  # As at startup
             state.maxvideo = state.minvideo
-    return save_message(errors, 'Saved. The video settings are in use now.')
+    return save_result(errors, 'Saved. The video settings are in use now.')
 
-def save_config(settings):
-    errors = update_config_file(settings)
-    return save_message(errors, 'Saved. Restart duetLapse3 for the changes to take effect.')
-
-
-###########################
-# Cameras tab - the camera urls in duetLapse3.json, each with a preview
-###########################
-
-cameraUrls = ['weburl1', 'weburl2']  # Camera1, Camera2
-
-def display_cameras():
-    try:
-        config = dl3.readConfig(state.configfile)
-    except (OSError, ValueError):
-        config = {}
-    values = {k: v for section in config.values() if isinstance(section, dict) for k, v in section.items()}
-
-    cameras = ''
-    for number, key in enumerate(cameraUrls, start = 1):
-        url = values.get(key, '')
-        if url:
-            preview = render_html('cameras/preview.html', number = number, src = escape('/camera/preview?url=' + urllib.parse.quote(url, safe = '')))
-        else:
-            preview = render_html('cameras/nopreview.html', number = number)
-        cameras += render_html('cameras/camera.html', number = number, key = key, value = escape(url),
-                               help = escape(dl3.HELP.get(key, '')), preview = preview)
-    return render_html('cameras/cameras.html', configfile = escape(state.configfile), cameras = cameras)
+def cameras_data():
+    values, error = config_values()
+    return {'configFile': state.configfile, 'error': error,
+            'cameras': [{'number': number, 'key': key, 'url': values.get(key, ''), 'help': dl3.HELP.get(key, '')}
+                        for number, key in enumerate(cameraUrls, start = 1)]}
 
 def save_cameras(settings):
     # Save the camera urls to duetLapse3.json and use them straight away
     urls = {key: str(settings.get(key, '')).strip() for key in cameraUrls}
-    errors = []
+    errors = {}
     if not camera.is_http_url(urls['weburl1']):
-        errors.append('Camera1 needs an http url (a snapshot url or an MJPEG stream url)')
+        errors['weburl1'] = 'Camera1 needs an http url (a snapshot url or an MJPEG stream url)'
     if urls['weburl2'] != '' and not camera.is_http_url(urls['weburl2']):
-        errors.append('Camera2 url must be an http url, or blank for no second camera')
+        errors['weburl2'] = 'Camera2 url must be an http url, or blank for no second camera'
     if not errors:
         errors = update_config_file(urls)
     if not errors:
@@ -449,7 +260,7 @@ def save_cameras(settings):
             if getattr(state, key) != url:
                 logger.info(key + ' changed to ' + url)
                 setattr(state, key, url)
-    return save_message(errors, 'Saved. The cameras are in use now.')
+    return save_result(errors, 'Saved. The cameras are in use now.')
 
 def preview_image(url):
     if state.simulate in ['all', 'camera']:
@@ -462,73 +273,91 @@ def preview_image(url):
     return Response(data, media_type = 'image/jpeg', headers = {'Cache-Control': 'no-store'})
 
 
-def make_video(path, xtratime):
-    return dl3.startMakeVideo(path, xtratime, False) or ''  # False => nothread therefore blocking
+###########################
+# Commands
+###########################
+
+def update_command(command):
+    # start / standby / pause / continue / restart - carried out by the control loop, one at a time.
+    # Wait (up to 10 seconds) until it is done, so the page shows the new state
+    if command in ['start', 'standby', 'pause', 'continue', 'restart']:
+        done = threading.Event()
+        dl3.queueAction(command, done)
+        done.wait(10)
+
+    elif command == 'terminate':  #command=terminate - backward compatible
+        terminate_process('terminatehttp')
+    return
+
+def terminate_process(ttype):
+    if ttype not in ['terminatehttp','terminateg', 'terminatef']:
+       logger.info (ttype + ' invalid terminate requested')
+       return
+
+    if ttype in ['terminatehttp', 'terminateg']:
+        dl3.queueAction('completed')
+    elif ttype == 'terminatef':
+        if duet_printer.isPlugin(state.apiModel):
+            duet_printer.stopPlugin(state.apiModel, 'duetLapse3')
+        else:
+            dl3.quit_forcibly()
+    return
 
 
 ###########################
-# Page and tabs
+# The page
 # The routes are plain def (not async) so FastAPI runs them in a thread - several of them wait
 ###########################
 
-@router.get('/', response_class=HTMLResponse)
-@router.get('/index', response_class=HTMLResponse)  # Same as duetPrintGuard
+@router.get('/')
+@router.get('/index')  # Same as duetPrintGuard
 def index(request: Request):
-    # Other query parameters (e.g. ?theme=dark&mobile=true from the DWC page) are ignored
+    # Other query parameters (e.g. ?theme=dark&mobile=true from the DWC page) are for the page
     if any(api in legacyPages or api in legacyActions or api == 'getfile' for api in request.query_params):
         return legacy_api(request)  # The older ?<api>=<value> form
-    return render_html('index.html', poll_ms = state.poll*1000)
+    page = os.path.join(appDir, 'index.html')
+    if not os.path.isfile(page):
+        return PlainTextResponse('The duetLapse3 page has not been built - see ui/README.md', status_code=500)
+    return FileResponse(page, headers = {'Cache-Control': 'no-cache'})  # So an updated plugin's page is used
 
-@router.get('/tab/status', response_class=HTMLResponse)
-def tab_status():
-    return display_status()
+@router.get('/api/status')
+def api_status():
+    return status_data()
 
-@router.get('/tab/controls', response_class=HTMLResponse)
-def tab_controls():
-    return display_controls()
+@router.get('/api/info')
+def api_info():
+    return info_data()
 
-@router.get('/tab/video', response_class=HTMLResponse)
-def tab_video():
-    return display_video()
+@router.get('/api/files')
+def api_files(path: str = ''):  # '' = the top folder
+    data = files_data(path)
+    if data is None:
+        return JSONResponse({'detail': 'Requested path ' + path + ' is not a folder.'}, status_code=404)
+    return data
 
-@router.get('/tab/files', response_class=HTMLResponse)
-def tab_files(path: str = 'true'):  # 'true' = the top directory
-    return display_files(path)
+@router.get('/api/settings')
+def api_settings(tab: str = 'config'):  # config or video
+    return settings_data(tab_sections(tab))
 
-@router.get('/tab/info', response_class=HTMLResponse)
-def tab_info():
-    return display_info()
+@router.get('/api/cameras')
+def api_cameras():
+    return cameras_data()
 
-@router.get('/tab/terminate', response_class=HTMLResponse)
-def tab_terminate():
-    if state.apiModel == 'SBC':  # Not available with SBC
-        return ''
-    return display_terminate_buttons()
+@router.post('/config/save')
+def config_save(settings: dict = Body(...)):  # {setting: value}
+    return save_config(settings)
 
-
-@router.get('/tab/config', response_class=HTMLResponse)
-def tab_config():
-    return display_config()
-
-@router.post('/video/save', response_class=HTMLResponse)
-def video_save(settings: dict = Body(...)):  # {setting: value} from saveVideo() in index.html
+@router.post('/video/save')
+def video_save(settings: dict = Body(...)):  # {setting: value}
     return save_video(settings)
 
-@router.get('/tab/cameras', response_class=HTMLResponse)
-def tab_cameras():
-    return display_cameras()
-
-@router.post('/cameras/save', response_class=HTMLResponse)
-def cameras_save(settings: dict = Body(...)):  # {weburl1: url, weburl2: url} from saveCameras() in index.html
+@router.post('/cameras/save')
+def cameras_save(settings: dict = Body(...)):  # {weburl1: url, weburl2: url}
     return save_cameras(settings)
 
 @router.get('/camera/preview')
 def camera_preview(url: str):  # One image from the camera url, fetched by duetLapse3
     return preview_image(url)
-
-@router.post('/config/save', response_class=HTMLResponse)
-def config_save(settings: dict = Body(...)):  # {setting: value} from saveConfig() in index.html
-    return save_config(settings)
 
 
 ###########################
@@ -584,14 +413,8 @@ def getfile(path: str):
 # The older API - http://<ip>:<port>/?<api>=<value>
 ###########################
 
-# Calls that return something to display
+# Calls that return something
 legacyPages = {
-    'displayStatus': lambda args: display_status(),
-    'displayControls': lambda args: display_controls(),
-    'displayVideo': lambda args: display_video(),
-    'displayFiles': lambda args: display_files(args),
-    'displayInfo': lambda args: display_info(),
-    'displayTerminate': lambda args: tab_terminate(),
     'snapshot': lambda args: snapshot(),
     'video': lambda args: make_video(args[0], args[1] == 'True'),  # ?video=<path>&video=True|False
 }
@@ -619,9 +442,6 @@ def legacy_api(request):
             result = legacyPages[api](args)
         elif api in legacyActions:
             legacyActions[api](args)
-        else:
-            return HTMLResponse('The API call "' + api + '" with value "' + str(args) + '" is not supported\
-                                <br><br>' + str(query) + '<br>')
     if result is not None:
-        return HTMLResponse(result)
+        return PlainTextResponse(result)
     return Response(status_code=204)

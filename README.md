@@ -104,7 +104,7 @@ USB and Pi cameras need a camera server to give them a URL, for example multiCam
 
 ## The duetLapse3 page
 
-Open **Plugins → duetLapse3** in DWC. It has seven tabs:
+Open **Plugins → duetLapse3** in DWC. The page has the same look as DWC 3.7 and follows its light or dark theme. It also works on its own in a browser, at the address shown on the Info tab and in the log. It has seven tabs:
 
 - **Status:** what duetLapse3 is doing, and the last image.
 - **Controls:** start, standby, pause, continue, restart and terminate.
@@ -114,7 +114,7 @@ Open **Plugins → duetLapse3** in DWC. It has seven tabs:
 - **Cameras:** the URL of each camera, with a preview. **Preview** shows a new image from the URL in the box, and **Save** saves the URLs to `duetLapse3.json` and starts using them straight away.
 - **Config:** the other settings in `duetLapse3.json`. **Save** checks every value first and saves nothing if any are wrong. Restart duetLapse3 for the changes to take effect.
 
-The page shows a message if the plugin stops, and shows the page again when the plugin restarts.
+Inside DWC, the plugin page shows a message if duetLapse3 stops, and shows the page again when it restarts.
 
 ## Controlling duetLapse3 from gcode
 
@@ -166,6 +166,14 @@ The duetLapse3 page uses these URLs, and you can call them yourself, for example
 | `/terminate/terminateg` | Make the video and terminate |
 | `/terminate/terminatef` | Terminate straight away, without a video |
 
-The tabs of the page are at `/tab/status`, `/tab/controls`, `/tab/video`, `/tab/files`, `/tab/info`, `/tab/cameras`, `/tab/config` and `/tab/terminate`. The Config tab saves with a POST of the settings as JSON to `/config/save`, the Video tab to `/video/save`, and the Cameras tab with a POST of `weburl1` and `weburl2` to `/cameras/save`. `/camera/preview?url=<camera url>` returns one image from a camera url.
+The page reads its data as JSON, which scripts can use too:
 
-URLs from earlier versions, such as `http://<this computer>:<port>/?command=start`, still work.
+| URL | What it returns |
+| --- | --- |
+| `/api/status` | What duetLapse3 and the printer are doing, images captured, layer, last image |
+| `/api/info` | The page address, where files are kept, and the settings in use |
+| `/api/files?path=<folder>` | The files in a folder (blank = the top folder) |
+
+The Config, Video and Cameras tabs save with a POST of the settings as JSON to `/config/save`, `/video/save` and `/cameras/save`. `/camera/preview?url=<camera url>` returns one image from a camera url. The page itself is built from `ui/` (see `ui/README.md`).
+
+Action URLs from earlier versions, such as `http://<this computer>:<port>/?command=start`, still work. The old `?displayStatus` style calls, which returned parts of the old page, have been removed; use `/api/status` and the other JSON URLs instead.

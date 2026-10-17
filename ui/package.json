@@ -1,0 +1,21 @@
+{
+  "name": "duetlapse3-ui",
+  "private": true,
+  "version": "1.0.0",
+  "description": "duetLapse3 web interface (Vue 3 + Vuetify 4). Builds into Code/dsf/static/app.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@mdi/js": "^7.4.47",
+    "vue": "^3.5.44",
+    "vuetify": "^4.2.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.10",
+    "vite": "^8.3.4",
+    "vite-plugin-vuetify": "^2.1.3"
+  }
+}

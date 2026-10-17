@@ -102,6 +102,9 @@ Fixed extratime not being added to the video at the end of a print
 Fixed fast repeated login attempts when the printer is off at startup
 Normal terminate exits cleanly instead of kill -9
 Fixed gcode messages being ignored after the printer was reset (its message numbers start again)
+Fixed the printer password being shown on the Info tab and written to the log
+New web page in Vue 3 + Vuetify 4 (built from ui/ into static/app) with the DWC 3.7 look - it follows DWC's light / dark theme
+The page reads JSON from /api/... - the html tab routes (/tab/...) and the old ?display... calls are removed
 ffmpeg: computed thread limit (ffmpegthreads, 0 = automatic), low priority (nice), -preset veryfast, -pix_fmt yuv420p, no shell
 Added a Cameras tab - the camera urls, with a preview of each.  Saved urls are used straight away
 The Video tab shows the Video and Overrides settings - saved to duetLapse3.json and used straight away
@@ -110,7 +113,7 @@ The ip address in use is saved to duetLapse3.json and published to DWC as plugin
 The web server always runs
 Removed the firmware version check
 Version is read from the plugin manifest
-Shared state moved to state.py, logging to logger_module.py, html to www/, printer communication to duet_printer.py
+Shared state moved to state.py, logging to logger_module.py, printer communication to duet_printer.py
 Printer status, layer, job name and position come from one object model read (shared for up to 1 second)
 Standalone: one rr_model?flags=d99fn read per poll - job and global only re-read when their seqs counter changes
 Fixed M3291 gcode messages not working on standalone printers (global was never read)
@@ -745,6 +748,8 @@ def issue_warnings():
 
 def getOptions():
     for var in state.inputs: # update the values
+        if var == 'password':  # Keep the masked value set in init() - never shown or logged
+            continue
         if hasattr(state, var):
             val = getattr(state, var)
             newvalue = {var:val}
@@ -1604,7 +1609,7 @@ def changeFps(thisfps):
 def changeMinvideo(thisminvideo):
     try:
         thisminvideo = int(thisminvideo)
-        state.minvideo = max(1,thisminvideo)
+        state.minvideo = max(0, thisminvideo)  # 0 is allowed, as at startup
         logger.info('-minvideo changed to: ' + str(state.minvideo))
     except ValueError as e:
         logger.info('Error changing minvideo: ' + str(e))
@@ -1662,8 +1667,18 @@ def startHttpListener():
     from fastapi import FastAPI
     import routes
 
+    from fastapi.staticfiles import StaticFiles
+
+    class RevalidatedStaticFiles(StaticFiles):
+        # The browser checks (a quick 304 if unchanged) before using a cached copy - so an updated plugin's page is used
+        async def get_response(self, path, scope):
+            response = await super().get_response(path, scope)
+            response.headers['Cache-Control'] = 'no-cache'
+            return response
+
     routes.dl3 = sys.modules[__name__]  # Gives the routes access to this module's functions
     app = FastAPI(title='duetLapse3', version=duetLapse3Version)
+    app.mount('/static/app', RevalidatedStaticFiles(directory=routes.appDir, check_dir=False), name='app')  # The built page (ui/)
     app.include_router(routes.router)
 
     config = uvicorn.Config(app, host='0.0.0.0', port=state.port,  # Every address of this computer - state.ip is the one shown
