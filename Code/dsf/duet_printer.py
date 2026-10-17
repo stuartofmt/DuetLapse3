@@ -7,7 +7,9 @@ state.apiModel - and publishing the page address to the DSF plugin data.
 duetLapse3 sets the hooks below at startup, so this module does not depend on the rest of the program.
 """
 import json
+import threading
 import time
+import urllib.parse
 
 import requests
 
@@ -237,82 +239,128 @@ def getDuetVersion(model):
         logger.info('!!!!! THIS SHOULD NEVER HAPPEN !!!!!')
         return ''  # Failed to determine API and firmware version
 
+###########################
+# Object model - one read is shared by Status, Layer, Jobname and Position
+###########################
+
+MODEL_MAX_AGE = 1.0  # Seconds.  Reads within this time share one request.  Sending gcode starts a new read
+_model = None        # The last object model read from the printer
+_modelTime = 0       # When it was read
+_seqs = None         # Standalone - the change counters from the last read
+_modelLock = threading.Lock()  # Read from more than one thread (mainLoop, the web page, makeVideo)
+
+def invalidateModel():
+    global _modelTime
+    _modelTime = 0
+
+def getModel(maxAge = MODEL_MAX_AGE):
+    # The printer's object model - read again if older than maxAge seconds.  None if the printer did not answer
+    global _model, _modelTime
+    with _modelLock:
+        if _model is not None and time.time() - _modelTime <= maxAge:
+            return _model
+        model = readModel()
+        if model is not None:
+            _model, _modelTime = model, time.time()
+        return model
+
+def readModel():
+    if state.apiModel == 'SBC':
+        return getJson('/machine/status')  # The whole object model in one request
+    if state.apiModel == 'rr_model':
+        return readStandaloneModel()
+    return None
+
+def getJson(path):
+    r = urlCall('http://' + state.duet + path, False)
+    if not r.ok:
+        return None
+    try:
+        return json.loads(r.text)
+    except ValueError as e:
+        logger.debug('Could not read ' + path + ' -- ' + str(e))
+        return None
+
+def rrModel(key, flags):
+    # rr_model is the http version of M409
+    j = getJson('/rr_model?key=' + key + '&flags=' + flags)
+    if not isinstance(j, dict) or 'result' not in j:
+        return None
+    return j['result']
+
+def merge(old, new):
+    # old with the values in new added (new values win) - used to add the live values to the full ones
+    if isinstance(old, dict) and isinstance(new, dict):
+        result = dict(old)
+        for key, value in new.items():
+            result[key] = merge(old.get(key), value)
+        return result
+    if isinstance(old, list) and isinstance(new, list) and len(old) == len(new):
+        return [merge(o, n) for o, n in zip(old, new)]
+    return new
+
+def readStandaloneModel():
+    # Usually one request: the frequently changing values (status, layer, position) and the seqs change counters
+    # - the same way DWC reads a standalone board.  job and global are only read again when their counter changes
+    global _seqs
+    live = rrModel('', 'd99fn')
+    if not isinstance(live, dict):
+        return None
+    model = merge(_model or {}, live)
+    seqs = live.get('seqs')
+    for key in ['job', 'global']:  # job.file.fileName and global (the M3291 messages) are not live values
+        changed = not isinstance(seqs, dict) or not isinstance(_seqs, dict) or seqs.get(key) != _seqs.get(key)
+        if changed or key not in model:
+            value = rrModel(key, 'd99vn')
+            if value is None:
+                return None
+            model[key] = merge(value, live.get(key, {}))
+    if 'state' not in live:  # Should always be there
+        value = rrModel('state', 'd99vn')
+        if value is None:
+            return None
+        model['state'] = value
+    _seqs = seqs
+    return model
+
+
+###########################
+# Values from the object model
+###########################
+
 def Jobname():
     # Used to get the print jobname from Duet
     if state.simulate in ['all','printer']:
         return 'simulated_job'
-    if state.apiModel == 'rr_model':
-        URL = ('http://' + state.duet + '/rr_model?key=job.file.fileName')
-        r = urlCall(URL,  False)
-        if r.ok:
-            try:
-                j = json.loads(r.text)
-                jobname = j['result']
-                if jobname is None:
-                    jobname = ''
-                return jobname
-            except Exception as e:
-                logger.debug('Could not get jobname')
-                logger.debug(str(e))
-
-    elif state.apiModel == 'SBC':
-        URL = ('http://' + state.duet + '/machine/status')
-        r = urlCall(URL,  False)
-        if r.ok:
-            try:
-                j = json.loads(r.text)
-                jobname = j['job']['file']['fileName']
-                if jobname is None:
-                    jobname = ''
-                return jobname
-            except Exception as e:
-                logger.debug('Could not get jobname')
-                logger.debug(str(e))
-
+    model = getModel()
+    try:
+        jobname = model['job']['file']['fileName']
+        if jobname is None:
+            jobname = ''
+        return jobname
+    except (TypeError, KeyError) as e:
+        logger.debug('Could not get jobname')
+        logger.debug(str(e))
     return 'disconnected'
 
 def Status():
     state.lastStatusCall = time.time()
     # Used to get the status information from Duet
     # Note return "disconnected" in different place than ususal due to post processing of messages
-    status = ''
     if state.simulate in ['all','printer']:
         logger.info('Simulated status is Idle')
         return 'idle', ''
-    
-    j = {}
-    messages = None
-    if state.apiModel == 'rr_model':
-        URL = ('http://' + state.duet + '/rr_model?key=state')
-        r = urlCall(URL,  False)
-        if r.ok:
-            try:
-                j = json.loads(r.text)
-                status = j['result']['status']
-                logger.debug('Standalone Status is ' + status)  
-            except Exception as e:
-                logger.debug('Could not get Standalone Status')
-                logger.debug(str(e))
-                return 'disconnected', '' 
-        else:
-            return 'disconnected', ''      
 
-    elif state.apiModel == 'SBC':
-        URL = ('http://' + state.duet + '/machine/status')
-        # while True: #  The max queue depth is 8 so we clear as many messages as we can in one go
-        r = urlCall(URL,  False)
-        if r.ok:
-            try:
-                j = json.loads(r.text)
-                status = j['state']['status']
-                logger.debug('SBC Status is ' + status)     
-            except Exception as e:
-                logger.debug('Could not get SBC Status')
-                logger.debug(str(e))
-                return 'disconnected', '' 
-        else:
-            return 'disconnected', ''
-    
+    j = getModel()
+    messages = None
+    try:
+        status = j['state']['status']
+        logger.debug(state.apiModel + ' Status is ' + status)
+    except (TypeError, KeyError) as e:
+        logger.debug('Could not get Status')
+        logger.debug(str(e))
+        return 'disconnected', ''
+
     #  Check for message commands
     try:
         queue = []
@@ -335,76 +383,35 @@ def Status():
 
     return status, ''
 
-
-
 def Layer():
     # Used to get the the current layer
     if state.simulate in ['all','printer']:
         return -1
-    if state.apiModel == 'rr_model':
-        URL = ('http://' + state.duet + '/rr_model?key=job.layer')
-        r = urlCall(URL,  False)
-        if r.ok:
-            try:
-                j = json.loads(r.text)
-                layer = j['result']
-                if layer is None:
-                    layer = -1
-                logger.debug('Current Layer is ' + str(layer))
-                return layer
-            except Exception as e:
-                logger.debug('Could not get Layer Info')
-                logger.debug(str(e))
-
-    elif state.apiModel == 'SBC':
-        URL = ('http://' + state.duet + '/machine/status')
-        r = urlCall(URL,  False)
-        if r.ok:
-            try:
-                j = json.loads(r.text)
-                layer = j['job']['layer']
-                if layer is None:
-                    layer = -1
-                logger.debug('Current Layer is ' + str(layer))    
-                return layer
-            except Exception as e:
-                logger.debug('Could not get Layer Info')
-                logger.debug(str(e))
-
+    model = getModel()
+    try:
+        layer = model['job']['layer']
+        if layer is None:
+            layer = -1
+        logger.debug('Current Layer is ' + str(layer))
+        return layer
+    except (TypeError, KeyError) as e:
+        logger.debug('Could not get Layer Info')
+        logger.debug(str(e))
     return 'disconnected'
 
-
 def Position():
-    # Used to get the current head position from Duet
+    # Used to get the current head position from Duet - always read fresh, as it is used to wait for the head to move
     if state.simulate in ['all', 'printer']:
         return 0,0,0
-    if state.apiModel == 'rr_model':
-        URL = ('http://' + state.duet + '/rr_model?key=move.axes')
-        r = urlCall(URL,  False)
-        if r.ok:
-            try:
-                j = json.loads(r.text)
-                Xpos = j['result'][0]['machinePosition']
-                Ypos = j['result'][1]['machinePosition']
-                Zpos = j['result'][2]['machinePosition']
-                return Xpos, Ypos, Zpos
-            except Exception as e:
-                logger.debug('Could not get Position Info')
-                logger.debug(str(e))
-    elif state.apiModel == 'SBC':
-        URL = ('http://' + state.duet + '/machine/status')
-        r = urlCall(URL,  False)
-        if r.ok:
-            try:
-                j = json.loads(r.text)
-                Xpos = j['move']['axes'][0]['machinePosition']
-                Ypos = j['move']['axes'][1]['machinePosition']
-                Zpos = j['move']['axes'][2]['machinePosition']
-                return Xpos, Ypos, Zpos
-            except Exception as e:
-                logger.debug('Could not get Position Info')
-                logger.debug(str(e))
-
+    model = getModel(maxAge = 0)
+    try:
+        if model is not None and 'move' not in model and state.apiModel == 'rr_model':
+            model = {'move': {'axes': rrModel('move.axes', 'd99vn')}}  # Not in this firmware's live values
+        axes = model['move']['axes']
+        return axes[0]['machinePosition'], axes[1]['machinePosition'], axes[2]['machinePosition']
+    except (TypeError, KeyError, IndexError) as e:
+        logger.debug('Could not get Position Info')
+        logger.debug(str(e))
     return 'disconnected'
 
 
@@ -413,11 +420,12 @@ def sendDuetGcode(model, command):
     if state.simulate in ['all','printer']:
         return
     if model == 'rr_model':
-        URL = 'http://' + state.duet + '/rr_gcode?gcode=' + command
+        URL = 'http://' + state.duet + '/rr_gcode?gcode=' + urllib.parse.quote(command, safe = '')  # e.g. # or & in the gcode
         r = urlCall(URL,  False)
     else:
         URL = 'http://' + state.duet + '/machine/code'
         r = urlCall(URL,  command)
+    invalidateModel()  # The gcode may change the printer - read it again next time
 
     if r.ok:
         return

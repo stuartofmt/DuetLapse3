@@ -103,6 +103,10 @@ The web server always runs
 Removed the firmware version check
 Version is read from the plugin manifest
 Shared state moved to state.py, logging to logger_module.py, html to www/, printer communication to duet_printer.py
+Printer status, layer, job name and position come from one object model read (shared for up to 1 second)
+Standalone: one rr_model?flags=d99fn read per poll - job and global only re-read when their seqs counter changes
+Fixed M3291 gcode messages not working on standalone printers (global was never read)
+Fixed standalone gcode not being url encoded
 gcode commands accept duetLapse3. or DuetLapse3. (any case)
 Web server is now FastAPI / uvicorn - the routes are in routes.py
 New URLs for the page and API (/tab/..., /command/..., etc) - the older ?<api>=<value> URLs still work
