@@ -27,6 +27,7 @@ def printerAddress():
 # Hooks - set by duetLapse3
 onDisconnected = None  # Called when the printer has stopped answering (after 3 tries)
 onMessages = None      # Called with (queue, dellist) when the printer's M3291 message queue has something new
+onChange = None        # SBC - called when the WebSocket brings a change to the status, layer or M3291 messages
 
 
 def getDuet(calledfrom, function): #  Helper function to call other specific getDuet(x) calls
@@ -365,6 +366,17 @@ def startWebSocket():
         _wsThread = threading.Thread(name='webSocket', target=_wsReader, daemon=True)
         _wsThread.start()
 
+def _watched(model):
+    # The parts of the object model the control loop reacts to straight away
+    def get(*path):
+        value = model
+        for key in path:
+            if not isinstance(value, dict):
+                return None
+            value = value.get(key)
+        return value
+    return (get('state', 'status'), get('job', 'layer'), json.dumps(get('global', 'DL3msg')), json.dumps(get('global', 'DL3del')))
+
 def _wsUrl():
     key = state.urlHeaders.get('X-Session-Key', '') if isinstance(state.urlHeaders, dict) else ''
     return 'ws://' + printerAddress() + '/machine' + ('?sessionKey=' + urllib.parse.quote(key) if key else '')
@@ -380,6 +392,8 @@ def _wsReader():
                 raise ValueError('The first message was not the object model')
             _wsModel = model
             _ws.send('OK\n')  # Ready for the next update
+            if onChange is not None:
+                onChange()
             connected = True
             logger.info('WebSocket connected to ' + printerAddress() + ' - printer updates are pushed, not polled')
             _ws.settimeout(WS_PING_INTERVAL)
@@ -392,8 +406,11 @@ def _wsReader():
                 if not message or message.startswith('PONG'):
                     continue
                 patch = json.loads(message)
+                before = _wsModel
                 _wsModel = merge(_wsModel, patch)  # A new object - readers never see a half-applied patch
                 _ws.send('OK\n')
+                if onChange is not None and _watched(before) != _watched(_wsModel):
+                    onChange()  # Wake the control loop - e.g. a layer change, so the image is taken now
         except (websocket.WebSocketException, OSError, ValueError) as e:
             if connected:
                 logger.info('WebSocket to ' + printerAddress() + ' lost (' + str(e) + ') - using http until it reconnects')
@@ -459,6 +476,9 @@ def Status():
             if j['global'].get('DL3del') != None: # something to delete
                 dellist = j['global']['DL3del']
                 logger.debug(f'DL3del queue = {dellist}')  
+            if queue[0] < state.lastMessageSeq:  # The printer was reset - its message numbers start again
+                logger.info('The printer message queue was reset - message numbers start again from ' + str(queue[0]))
+                state.lastMessageSeq = 0
             if queue[0] > state.lastMessageSeq or len(dellist) > 0:
                 messages = (queue, dellist)
     except Exception as e:

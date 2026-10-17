@@ -7,6 +7,7 @@ The older API, http://<ip>:<port>/?<api>=<value> (e.g. ?command=start), still wo
 import html
 import os
 import re
+import threading
 import time
 import urllib.parse
 
@@ -114,16 +115,12 @@ def display_info():
 
 
 def update_command(command):
-    # start / standby / pause / continue / restart
-    # Wait (except for start) until nextAction has changed state.action, so the page shows the new state
-    waitfor = {'standby': ['standby'], 'pause': ['pause'],
-               'continue': ['start'],  # continue returns to the start state
-               'restart': ['start', 'standby']}
+    # start / standby / pause / continue / restart - carried out by the control loop, one at a time.
+    # Wait (up to 10 seconds) until it is done, so the page shows the new state
     if command in ['start', 'standby', 'pause', 'continue', 'restart']:
-        dl3.startnextAction(command)
-        if command in waitfor:
-            while state.action not in waitfor[command]: # Dont return until success
-                time.sleep(0.1)
+        done = threading.Event()
+        dl3.queueAction(command, done)
+        done.wait(10)
 
     elif command == 'terminate':  #command=terminate - backward compatible
         terminate_process('terminatehttp')
@@ -136,10 +133,9 @@ def terminate_process(ttype):
        return
 
     if ttype == 'terminatehttp':
-        dl3.startnextAction('completed')
+        dl3.queueAction('completed')
     elif ttype == 'terminateg':
-        dl3.startnextAction('completed')
-        #  dl3.startnextAction('terminate')
+        dl3.queueAction('completed')
     elif ttype == 'terminatef':
         if duet_printer.isPlugin(state.apiModel):
             duet_printer.stopPlugin(state.apiModel, 'duetLapse3')

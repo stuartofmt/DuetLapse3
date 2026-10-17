@@ -112,16 +112,11 @@ printerVersion = None
 urlHeaders = None  # SBC session key
 
 ###########################
-# Thread / loop status flags - set in main()
-# -1 = not running, 0 = stop requested, 1 = running
+# Control - set in main(), terminate() and startMakeVideo()
 ###########################
 
-nextActionState = None
-makeVideoState = None
-captureLoopState = None
-mainLoopState = None
-terminateState = None
-checkforconnectionState = None
+terminateState = None  # 1 while terminating
+videoJob = None  # The last video given to the video worker (a Future)
 restarting = None
 
 ###########################

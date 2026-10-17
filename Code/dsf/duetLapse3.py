@@ -95,6 +95,13 @@ One logfile (duetLapse3.log) for the whole run, instead of a logfile for each pr
 basedir blank = the settings folder (argument 1, or the program's folder) - the plugin's images are no longer inside the plugin folder
 instances = oneip now means one instance per settings folder
 Added a Config tab to view and change duetLapse3.json
+One control loop (main thread) and a video worker replace the mainLoop, nextAction, checkforConnection, terminate and makeVideo threads
+Images are taken as soon as the layer or printer status changes (SBC: pushed by the WebSocket; standalone: at each status check)
+Fixed pause (from the page or gcode) not stopping images
+Fixed extratime not being added to the video at the end of a print
+Fixed fast repeated login attempts when the printer is off at startup
+Normal terminate exits cleanly instead of kill -9
+Fixed gcode messages being ignored after the printer was reset (its message numbers start again)
 ffmpeg: computed thread limit (ffmpegthreads, 0 = automatic), low priority (nice), -preset veryfast, -pix_fmt yuv420p, no shell
 Added a Cameras tab - the camera urls, with a preview of each.  Saved urls are used straight away
 The Video tab shows the Video and Overrides settings - saved to duetLapse3.json and used straight away
@@ -126,6 +133,8 @@ import platform
 import time
 import socket
 import threading
+import queue
+import concurrent.futures
 import psutil
 import shutil
 import pathlib
@@ -147,7 +156,7 @@ from duet_printer import (getDuet, loginPrinter, getDuetVersion, Jobname, Status
 def setstartvalues():
     logger.debug('*****  Initializing state and counters  *****')
     state.printState = 'Waiting'
-    stopCaptureLoop()
+    state.lastPrintState = 'Waiting'
     state.duetStatus = 'Printer is not connected'
 
     # initialize timers
@@ -825,19 +834,29 @@ def checkDependencies():
     #########################################################################
     """
 
+RECONNECT_QUICK = 4     # Quick attempts (every mainLoopPoll seconds) before slowing down
+RECONNECT_SLOW = 3*60   # Then try every 3 minutes
+
+def reconnectDelay(attempts):
+    return state.mainLoopPoll if attempts <= RECONNECT_QUICK else RECONNECT_SLOW
+
 def checkforPrinter():
-    # Get the initial connection to the printer.    
-    while state.apiModel == '' and state.terminateState != 1: #  Keep trying until connected or terminating
+    # The first connection to the printer.  Keeps trying until connected (or terminated)
+    attempts = 0
+    while state.apiModel == '' and state.terminateState != 1:
         Model = loginPrinter()[0]
         if Model == '': #  Could not connect
-            logger.info('#########################################################')
-            logger.info('The printer at ' + duet_printer.printerAddress() + ' is not responding')
-            logger.info('Check the ip address or logical printer name is correct\n')
-            logger.info('Is the printer turned on?')
-            logger.info('Duet software must support rr_model or /machine/status')
-            logger.info('########################################################\n')
+            if attempts == 0:
+                logger.info('#########################################################')
+                logger.info('The printer at ' + duet_printer.printerAddress() + ' is not responding')
+                logger.info('Check the ip address or logical printer name is correct\n')
+                logger.info('Is the printer turned on?')
+                logger.info('Duet software must support rr_model or /machine/status')
+                logger.info('########################################################\n')
             state.connectionState = False
-            startcheckforConnection()
+            attempts += 1
+            logger.info('Will try to connect again in ' + str(reconnectDelay(attempts)) + ' seconds')
+            time.sleep(reconnectDelay(attempts))
             continue
 
         if state.firstConnect is None:
@@ -857,43 +876,21 @@ def checkforPrinter():
         return
 
 
-def checkforConnection():
-    try:
-        state.checkforconnectionState = 1
-        state.connectionState = False
-        elapsed = 0
-        shortcheck = state.mainLoopPoll
-        quickcheck = state.mainLoopPoll*4  # check up to 4 times
-        longcheck = 3*60 # every 3 minutes
-        checking = True
-        logger.info('----------------  Waiting for printer to reconnect -----------------')
-        while checking and state.terminateState != 1:
-            if elapsed <= quickcheck: # Check every shortcheck
-                model, code = loginPrinter(state.apiModel)
-                if code != 200: # Still not connected
-                    #terminate()
-                    logger.debug('Retrying connection every ' + str(shortcheck) + ' seconds')
-                    time.sleep(shortcheck)
-                    elapsed = elapsed + shortcheck
-                else:
-                    checking = False
-            else:  #  Check every longcheck
-                model, code = loginPrinter(state.apiModel)
-                if code != 200: # Still not connected
-                    logger.debug('Retrying connection every ' + str(longcheck) + ' seconds')
-                    time.sleep(longcheck)
-                else:
-                    checking = False
+def printerLost():
+    # Called by duet_printer when the printer has stopped answering - the control loop reconnects
+    logger.info('----------------  Waiting for printer to reconnect -----------------')
 
-        state.apiModel = model
-        state.connectionState = True
-        logger.info('-----------------------  Reconnected to printer ----------------------')    
-        startnextAction('reconnected')
-        state.checkforconnectionState = -1
-        return
-    except Exception as e:
-        logger.info('!!!!!#####!!!!! UNRECOVERABLE ERROR ENCOUNTERED IN CHECK FOR CONNECTION -- ' + str(e))
-        quit_forcibly()        
+
+def reconnectPrinter():
+    # Called by the control loop while the printer is not connected.  True when connected again
+    model, code = loginPrinter(state.apiModel)
+    if code != 200:
+        return False
+    state.apiModel = model
+    state.connectionState = True
+    logger.info('-----------------------  Reconnected to printer ----------------------')
+    logger.info('Carrying on in the ' + str(state.action) + ' state')
+    return True
 
 
 #####################################################
@@ -929,13 +926,11 @@ def make_archive(source):
     return msg
 
 def createVideo(directory):
-    state.makeVideoState = 1  # Can be called from makeVideo or directly from http server
     # loop through directory count # files and detect if Camera1 / Camera2
     logger.info('Create Video from ' + str(directory))
     if not os.path.isdir(directory):
         msg = 'Error: No permission or directory not found'
         logger.info(msg)
-        state.makeVideoState = -1
         return msg
 
     # Scan the directory and count the number of images
@@ -964,7 +959,6 @@ def createVideo(directory):
         msg = 'Cannot create a video.\n\
               Are there any images captured?'
         logger.info(msg)
-        state.makeVideoState = -1
         return msg
 
     if C1: Cameras.append('Camera1')
@@ -989,7 +983,6 @@ def createVideo(directory):
             msg = 'Error: ' + cameraname + ': Cannot create video shorter than ' + str(state.minvideo) + ' second(s).\n Length would have been ' + str(frame/thisfps) + ' second(s).' 
             logger.info(msg)
             logger.info('frame = ' + str(frame) + ' thisfps = ' + str(thisfps) + ' fps = ' + str(state.fps) + ' maxvideo = ' + str(state.maxvideo) + ' minvideo = ' + str(state.minvideo))
-            state.makeVideoState = -1
             return msg
 
         logger.info(cameraname + ': now making ' + str(frame) + ' frames into a video with fps = ' +str(thisfps))
@@ -1026,7 +1019,6 @@ def createVideo(directory):
                     os.remove(tmpfn)
                 except OSError as e:
                     logger.info('Error deleting file ' + str(e))
-            state.makeVideoState = -1
             return msg
         else:
             try:
@@ -1038,7 +1030,6 @@ def createVideo(directory):
                 msg = 'Error on move of temp video file ' + str(e)
                 logger.info(msg)
  
-    state.makeVideoState = -1
     return msg
 
 
@@ -1482,7 +1473,6 @@ def getVideoMsg():
 
 def makeVideo(directory, xtratime = False):  #  Adds and extra frame
     try:
-        state.makeVideoState = 1
         # Get a final frame
         # Make copies if appropriate
 
@@ -1502,7 +1492,6 @@ def makeVideo(directory, xtratime = False):  #  Adds and extra frame
                     state.frame2 = copyLastFrame(state.camfile2, state.frame2)
 
         result = createVideo(directory)
-        state.makeVideoState = -1
         return result
     except Exception as e:
         logger.info('!!!!!#####!!!!! UNRECOVERABLE ERROR ENCOUNTERED IN MAKE VIDEO -- ' + str(e))
@@ -1535,22 +1524,15 @@ def restartAction():
         startup() # Warp speed Mr Sulu
 
 def terminate():
-    # Force verbose messaging
-    setdebug(True)
+    # Runs in the control loop.  The video (if any) is finished first
+    setdebug(True)  # Force verbose messaging
 
     state.terminateState = 1
     logger.info('Terminating')
-    # Gracefully stop the captureLoop
-    stopCaptureLoop()
-    waitforcaptureLoop()
 
     #  Make sure video creation is complete
     logger.debug('Wait for video to complete')
     waitforMakeVideo()
-
-    # Make sure anything called from nextAction is complete
-    # This is more for log timing / sequencing 
-    waitforNextAction()
 
     cleanupFiles('terminate')
 
@@ -1578,14 +1560,12 @@ def terminate():
         state.terminateState = -1
         restartAction()
     else:
-        stopmainLoop()
-        waitformainLoop()
         closeHttpListener()
         logger.info('Program Terminated')
         if isPlugin(state.apiModel):
-            stopPlugin(state.apiModel, 'duetLapse3')
-        else:
-            quit_forcibly()
+            stopPlugin(state.apiModel, 'duetLapse3')  # DSF stops this program
+            time.sleep(10)
+        exitProgram(0)
 
 def quit_sigint(*args):
     logger.info('Terminating because of Ctl + C (SIGINT)')
@@ -1598,7 +1578,16 @@ def quit_sigterm(*args):
 def quit_forcibly():
     state.restart = False
     logger.info('!!!!! Forced Termination !!!!!')
-    os.kill(os.getpid(), 9)  # Brutal but effective
+    exitProgram(1)
+
+def exitProgram(code):
+    # Write out the log, then end the program and all its threads straight away
+    for handler in logger.handlers:
+        try:
+            handler.flush()
+        except Exception:
+            pass
+    os._exit(code)
 
 ###########################
 # Integral Web Server - the routes are in routes.py
@@ -1716,132 +1705,100 @@ def execRun(displaymessage):
 
 
 ###################################
-#  Thread and Function Controls
-##################################
-# Threads and blocking functions have tri-states
-# -1 is stopped
-# 0 is request to stop
-# 1 is running
+#  Control
+#  One control loop, in the main thread, does everything in order: commands (from the web page,
+#  gcode messages and the end of a print), checking the printer, capture passes and reconnecting.
+#  Videos are made one at a time by the video worker.  The web server and the SBC WebSocket have their own threads
+###################################
 
-def startCaptureLoop():
-    #  global captureLoopState
-    captureLoopState = 1
+commandQueue = queue.Queue()  # (command, done) - done is a threading.Event set once the command is carried out, or None
+WAKE = 'wake'                 # Not a command - wakes the control loop (the printer status, layer or messages changed)
+videoWorker = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix='makeVideo')  # One video at a time, in order
 
-def stopCaptureLoop():
-    if state.captureLoopState == 1:
-        state.captureLoopState = 0  # Signals capture loop to stop
-
-def waitforcaptureLoop():
-    if state.captureLoopState == -1:
-        logger.debug('captureLoop is not running')
-        return
-    loopcounter = 0
-    while state.captureLoopState != -1 and loopcounter < state.poll*3:  # wait for up to 3 poll intervals
-        logger.debug('********* captureLoopState is ' + str(state.captureLoopState) + ' - Waiting to complete *********')
-        time.sleep(state.poll/4) # Check 4 times per poll interval
-        loopcounter += 1
-    if state.captureLoopState != -1:
-        state.captureLoopState = -1  # Forced
-        logger.debug('Timed out trying to exit captureLoop')
-
-def startmainLoop():
-    #  global mainLoopState
-    if state.mainLoopState == 1 or state.terminateState == 1:  #  Already running so don't start
-        return
-    threading.Thread(name='mainLoop', target=mainLoop, args=(), daemon=False).start()
-
-def stopmainLoop():
-    if state.mainLoopState == 1:
-        state.mainLoopState = 0  # Signals capture thread to shutdown
-
-def waitformainLoop():
-    if state.mainLoopState == -1:
-        logger.debug('mainLoop is not running')
-        return
-    loopcounter = 0
-    while state.mainLoopState != -1 and loopcounter < state.mainLoopPoll*3:  # wait for up to 3 poll intervals
-        logger.debug('********* mainLoopState is ' + str(state.mainLoopState) + ' - Waiting to complete *********')
-        time.sleep(state.mainLoopPoll/4) # Check 4 times per poll interval
-        loopcounter += 1
-    if state.mainLoopState != -1:
-        state.mainLoopState = -1  # Forced
-        logger.debug('Timed out trying to exit mainLoop')
-
-
-def startnextAction(command): # Does not run in a loop
+def queueAction(command, done = None):
+    # Ask the control loop to carry out command (start, standby, pause, continue, restart, completed).  From any thread
     if state.terminateState == 1: # Block it if terminating
+        logger.info(command + ' ignored - terminating')
+        if done is not None:
+            done.set()
         return
-    waitforNextAction()  
-    threading.Thread(name='nextAction', target=nextAction, args=(command,), daemon=False).start()
+    commandQueue.put((command, done))
 
+def wakeControlLoop():
+    # Called by duet_printer when the SBC pushes a status, layer or message change
+    commandQueue.put((WAKE, None))
 
-def waitforNextAction():
-    if state.nextActionState == -1:
-        logger.info('nextAction is available')
+def startMakeVideo(directory, xtratime = False, thread = True):
+    # Make the video(s) on the video worker.  thread = False waits for the result
+    if state.terminateState == 1: # Block it if terminating
+        return 'Cannot create video when Terminating'
+    state.videoJob = videoWorker.submit(makeVideo, directory, xtratime)
+    if thread:
         return
-    while state.nextActionState != -1:  # Only one thread at a time may cause delay in http page update
-        logger.debug('********* nextActionState is ' + str(state.nextActionState) + ' - Waiting to complete *********')
-        time.sleep(1)
-
-    logger.debug('nextaction is ready')
-    
-
-def startcheckforConnection():
-    if state.checkforconnectionState == 1 or state.terminateState == 1:  #  Already running or don't start
-        return
-    threading.Thread(name='checkforConnection', target=checkforConnection, args=(), daemon=False).start()
-
-def terminateThread(): # Can only be run once - but called as a thread to allow other threads to finish
-    if state.terminateState == 1: #    Already Terminating
-        return
-    threading.Thread(name='terminate', target=terminate, args=(), daemon=False).start()
-
+    return state.videoJob.result()
 
 def waitforMakeVideo():
-    while state.makeVideoState >= 0: # wait till its completed
-        time.sleep(state.mainLoopPoll)  # Makevideo is fairly slow
-        logger.debug('********* Waiting for makeVideo thread to finish *********')
+    job = state.videoJob
+    if job is not None:
+        logger.debug('********* Waiting for makeVideo to finish *********')
+        try:
+            job.result()
+        except Exception as e:
+            logger.info('Error making video ' + str(e))
     logger.debug('makeVideo is not running')
 
 
-def startMakeVideo(directory, xtratime = False, thread = True): # Does not run in a loop - so we block it before running it
-    if state.terminateState == 1: # Block it if terminating
-        return 'Cannot create video when Terminating'
-    waitforMakeVideo()
-    if thread:      
-        threading.Thread(name='makeVideo', target=makeVideo, args=(directory,), daemon=False).start()
-        return
-    else:
-        return makeVideo(directory, xtratime)
+def controlLoop():
+    # Runs until duetLapse3 ends.  Sleeps until a command arrives, the printer changes (SBC), or something is due:
+    #   a status check every mainLoopPoll seconds, a capture pass every poll seconds, or a reconnect attempt
+    # A capture pass also runs straight away when the printer status or layer changes - so layer images are taken at the layer change
+    logger.info('###########################')
+    logger.info('Starting control loop')
+    logger.info('###########################\n')
+    lastSeen = None     # (status, layer) at the last capture pass
+    connected = state.connectionState
+    reconnectAt = 0
+    reconnectAttempts = 0
+    while True:
+        try:
+            if connected and not state.connectionState:  # Lost since the last time round
+                reconnectAt, reconnectAttempts = time.time(), 0
+            connected = state.connectionState
 
+            due = state.lastCaptureLoop + state.poll
+            due = min(due, state.lastStatusCall + state.mainLoopPoll) if connected else min(due, reconnectAt)
+            try:
+                command, done = commandQueue.get(timeout = max(0.05, due - time.time()))
+            except queue.Empty:
+                command, done = None, None
 
-###################################
-#  Main Control Functions
-###################################
+            if command is not None and command != WAKE:
+                nextAction(command)
+                if done is not None:
+                    done.set()
+                continue
 
-def mainLoop():
-    # Used for handling direct DL3 Messages
-    # Runs continously except during terminate processing
-    state.duetStatus = 'unknown'
-    try:
-        if state.connectionState is False:
-            return
-        state.mainLoopState = 1 # Running
-        logger.info('###########################')
-        logger.info('Starting mainLoop')
-        logger.info('###########################\n')
-        while state.mainLoopState == 1 and state.terminateState != 1 and state.connectionState:  # Setting to 0 stops
-            if time.time() >= state.lastStatusCall + state.mainLoopPoll:  # within 30 seconds   
-                state.duetStatus, _ = getDuet('mainLoop', Status)
-            if time.time() >= state.lastCaptureLoop + state.poll:
-                captureLoop()
-            if state.mainLoopState == 1:
-                time.sleep(state.mainLoopIterate)
-        state.mainLoopState = -1 # Not Running
-        return
-    except Exception as e:
-        logger.info('!!!!! UNRECOVERABLE ERROR ENCOUNTERED IN MAIN LOOP -- ' + str(e))
-        quit_forcibly()
+            if not state.connectionState:
+                if time.time() >= reconnectAt:
+                    if reconnectPrinter():
+                        lastSeen = None
+                    else:
+                        reconnectAttempts += 1
+                        reconnectAt = time.time() + reconnectDelay(reconnectAttempts)
+                continue
+
+            if command == WAKE or time.time() >= state.lastStatusCall + state.mainLoopPoll:
+                state.duetStatus, _ = getDuet('controlLoop', Status)
+                if not state.connectionState:
+                    continue
+
+            seen = (state.duetStatus, Layer())  # Layer comes from the same object model read - no extra request
+            if seen != lastSeen or time.time() >= state.lastCaptureLoop + state.poll:
+                lastSeen = seen
+                capturePass()
+        except Exception as e:
+            logger.info('!!!!! UNRECOVERABLE ERROR ENCOUNTERED IN CONTROL LOOP -- ' + str(e))
+            quit_forcibly()
 
 def stateMachine(currentState):
     newState = currentState
@@ -1884,141 +1841,102 @@ def stateMachine(currentState):
         logger.info('****** Print State changed to: ' + newState + ' from ' + currentState + '*****')
     return newState        
 
-def captureLoop():  # Single instance only
+def capturePass():
+    # One look at the printer: update the print state, take any images that are due, and end the job when the print has finished
 
-    if state.connectionState is False or state.captureLoopState == 0 or state.action == 'standby':
+    if state.connectionState is False or state.action == 'standby':
         logger.debug('No Capture needed')
         state.printState = 'Waiting'
-        state.captureLoopState = -1
         state.lastCaptureLoop = time.time()
         return
 
-    try:
-        state.captureLoopState = 1
+    if state.duetStatus != state.lastDuetStatus:
+        logger.info('****** Duet status changed to: ' + str(state.duetStatus) + ' from ' + str(state.lastDuetStatus) + ' *****')
 
-        if state.duetStatus != state.lastDuetStatus:
-            logger.info('****** Duet status changed to: ' + str(state.duetStatus) + ' from ' + str(state.lastDuetStatus) + ' *****')
+    state.printState = stateMachine(state.printState)
 
+    if state.printState == 'Capturing' and state.action == 'start':  # pause stops images - but not the end of print check
+        if state.weburl1 != '':
+            logger.debug('Calling oneInterval for Camera 1')
+            oneInterval('Camera1', state.weburl1)
+        if state.weburl2 != '':
+            logger.debug('Calling oneInterval for Camera 2')
+            oneInterval('Camera2', state.weburl2)
+        state.duetStatus, _ = getDuet('pause check loop', Status)  #  latest state to avoid polling delay
+        if state.duetStatus == 'paused' and (state.pause == 'yes' or state.detect == state.pause): # will be ignored if a manual pause
+            unPause()  # Nothing should be paused at this point
         state.printState = stateMachine(state.printState)
 
-        if state.printState == 'Capturing':
-            if state.weburl1 != '':
-                logger.debug('Calling oneInterval for Camera 1')
-                oneInterval('Camera1', state.weburl1)
-            if state.weburl2 != '':
-                logger.debug('Calling oneInterval for Camera 2')
-                oneInterval('Camera2', state.weburl2)
-                state.duetStatus, _ = getDuet('pause check loop', Status)
-            if state.duetStatus == 'paused' and (state.pause == 'yes' or state.detect == state.pause): # will be ignored if a manual pause
-                unPause()  # Nothing should be paused at this point
-            #  latest state to avoid polling delay
-            state.printState = stateMachine(state.printState)
+    if state.printState == 'Completed' and state.lastPrintState != 'Completed':  # Once - later passes may run before it is carried out
+        logger.info('Print Job Completed')
+        queueAction('completed')
 
-        if state.printState == 'Completed':
-            logger.info('Print Job Completed')
-            # printState = 'Waiting'
-            # use a thread here as it will allow this thread to close.
-            startnextAction('completed')
-            logger.info('Exiting captureLoop')  
-    except Exception as e:
-        logger.info('!!!!!#####!!!!! UNRECOVERABLE ERROR ENCOUNTERED IN CAPTURE LOOP -- ' + str(e))
-        quit_forcibly()
-        
     state.lastPrintState = state.printState
     state.lastDuetStatus = state.duetStatus
     state.lastCaptureLoop = time.time()
-    state.captureLoopState = -1  # not running           
 
-def nextAction(nextaction):  # can be run as a thread
-    
+def nextAction(nextaction):
+    # Carry out a command - in the control loop (or at startup)
+
     logger.debug('Calling nextaction ' + nextaction + ' from ' + currentFuncName(2) + ' --> '  + currentFuncName(1) + ' --> '  + currentFuncName(0))
+    logger.info('++++++ ' + nextaction + ' state requested ++++++')
 
-    if state.nextActionState == 0:
-        logger.debug('nextAction stopped')
-        state.nextActionState = -1
+    if state.connectionState is False: #traps any requests during a disconnect
+        logger.info('nextaction ignored - the printer is not connected')
         return
 
-    try:
-        logger.info('++++++ ' + nextaction + ' state requested ++++++')
-        # All nextactions need the capture thread to be shut down
-        logger.debug('nextAction requested stopCaptureLoop')
-        stopCaptureLoop()
-        waitforcaptureLoop()
-        logger.debug('nextAction satisfied waitforCaptureLoop')
+    state.action = nextaction  # default
 
-        # This section needs to ge first as it checks for reconnection after network issue
-        if nextaction == 'waitforconnection': # Go into connection check loop
-            logger.info('nextAction waiting for lost connection')
-            startcheckforConnection() 
-            state.nextActionState = -1
-            return
-        elif nextaction == 'reconnected':
-            startmainLoop() # restart the main loop
-            time.sleep(state.mainLoopPoll) # Give the mainloop time to get next status
-            nextaction = state.lastaction
-            logger.info('nextAction resuming after reconnect target = ' + nextaction)
+    # This test is positionally sensitive
+    if nextaction == 'completed':  # end of a print job
+        state.printState = 'Completed'  # Update may have come from message Q
+        if state.novideo:
+            logger.info('Video creation was skipped')
+        else:
+            if state.workingDirStatus != -1:  startMakeVideo(state.workingDir, True)  # Add extratime if appropriate
+        nextaction = 'terminate'
 
-        if state.connectionState is False: #traps any requests during a disconnect
-            state.nextActionState = -1
-            logger.debug('nextaction aborted because connectionState is False')
-            return
+    logger.debug('++++++ Determining next logical action ++++++')
 
-        state.nextActionState = 1
-        state.action = nextaction  # default
+    if nextaction == 'start':
+        state.action = 'start'
 
-        # This test is positionally sensitive
-        if nextaction == 'completed':  # end of a print job
-            state.printState = 'Completed'  # Update may have come from message Q
-            if state.novideo:
-                logger.info('Video creation was skipped')
-            else:
-                if state.workingDirStatus != -1:  startMakeVideo(state.workingDir, True)  # Add extratime if appropriate
-            nextaction = 'terminate'
+    elif nextaction == 'standby':
+        cleanupFiles(nextaction)  # clean up and start again
+        setstartvalues()
+        state.action = 'standby'
 
-        logger.debug('++++++ Determining next logical action ++++++')
+    elif nextaction == 'pause':
+        state.action = 'pause'
 
-        if nextaction == 'start':
-            startCaptureLoop()
-            state.action = 'start'
+    elif nextaction == 'continue':
+        state.action = 'start'
 
-        elif nextaction == 'standby':
-            cleanupFiles(nextaction)  # clean up and start again
-            setstartvalues()
+    elif nextaction == 'restart':
+        if state.novideo:
+            logger.info('Video creation was skipped')
+        else:
+            if state.workingDirStatus != -1:
+                startMakeVideo(state.workingDir, True) # Add extratime if appropriate
+            waitforMakeVideo() # Wait until done before deleting files
+            restartAction()
+
+        if state.standby:
             state.action = 'standby'
-
-        elif nextaction == 'pause':
-            state.action = 'pause'
-    
-        elif nextaction == 'continue':
-            startCaptureLoop()
+        else:
             state.action = 'start'
 
-        elif nextaction == 'restart':
-            if state.novideo:
-                logger.info('Video creation was skipped')
-            else:
-                if state.workingDirStatus != -1:
-                    startMakeVideo(state.workingDir, True) # Add extratime if appropriate
-                waitforMakeVideo() # Wait until done before deleting files
-                restartAction()
-
-            if state.standby:
-                state.action = 'standby'
-            else:
-                state.action = 'start'
-                startCaptureLoop()
-        elif nextaction == 'terminate':
-            terminateThread() #  Allows nextAction to finish
-            state.action = 'terminate'
-
-        logger.info('++++++ Entering ' + state.action + ' state ++++++')
+    elif nextaction == 'terminate':
+        state.action = 'terminate'
+        logger.info('++++++ Entering terminate state ++++++')
         state.lastaction = state.action
-        logger.debug('nextAction exiting normally')
-        state.nextActionState = -1
+        terminate()  # On restart, this sets the new state
         return
-    except Exception as e:
-        logger.info('!!!!!#####!!!!! UNRECOVERABLE ERROR ENCOUNTERED IN NEXT ACTION -- ' + str(e))
-        quit_forcibly()
+
+    logger.info('++++++ Entering ' + state.action + ' state ++++++')
+    state.lastaction = state.action
+    logger.debug('nextAction exiting normally')
+    return
 
 ###################################
 #  Utility Functions
@@ -2077,15 +1995,15 @@ def actionM3291(displaymessage):
             return
 
         if nextaction == 'graceful':
-            startnextAction('completed')
+            queueAction('completed')
         elif nextaction == 'forced':
             quit_forcibly()
         elif nextaction in allowedNextAction(state.action) or nextaction == 'completed':
-            logger.debug ('DL3msg queue sending to startnextAction: ' + nextaction)
-            startnextAction(nextaction)
+            logger.debug ('DL3msg queue sending to queueAction: ' + nextaction)
+            queueAction(nextaction)
         elif nextaction.startswith('snapshot'):
             if state.workingDirStatus != -1:
-                startMakeVideo(state.workingDir, False, False)
+                startMakeVideo(state.workingDir)  # On the video worker - the control loop carries on
         elif nextaction.startswith('change.'):
             command = nextaction.split('change.')[1]
             changehandling(command)
@@ -2281,16 +2199,15 @@ def startup():
 
     logger.info('Initializing DL3msg queue')
     sendDuetGcode(state.apiModel,state.M3291 + ' B"Clear"') # Clear the message queue
-     
-    startmainLoop()
 
     logger.info('Initiating with action set to ' + state.action)
     nextAction(state.action)
 
 def main():
     # Hooks for the printer communication module
-    duet_printer.onDisconnected = lambda: startnextAction('waitforconnection')
+    duet_printer.onDisconnected = printerLost
     duet_printer.onMessages = handleMessages
+    duet_printer.onChange = wakeControlLoop  # SBC - wake the control loop when the printer changes
 
     # Allow process running in background or foreground to be forcibly
     # shutdown with SIGINT (kill -2 <pid> or SIGTERM)
@@ -2299,8 +2216,7 @@ def main():
     # Globals
     # Set in startup code
 
-    # Status flag for threads
-    state.nextActionState = state.captureLoopState = state.makeVideoState = state.mainLoopState = state.terminateState = state.checkforconnectionState =  -1  #  All set as not running
+    state.terminateState = -1  # 1 while terminating
     state.connectionState = state.restarting = False
     state.workingDirStatus = -1
 
@@ -2342,6 +2258,7 @@ def main():
     issue_warnings()
     startMessages()
     startup()
+    controlLoop()  # Runs until duetLapse3 ends
 
 ###########################
 # Program  begins here
