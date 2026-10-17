@@ -3,6 +3,8 @@
     "simulate": "off"
   },
   "Environment": {
+    "duet": "",
+    "duetport": 80,
     "password": "reprap",
     "basedir": "",
     "poll": 12,

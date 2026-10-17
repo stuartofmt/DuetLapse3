@@ -21,14 +21,14 @@ configfile = None  # duetLapse3.json in configdir
 simulate = None
 
 # Environment
-duet = None
+duet = None  # Printer address - blank in the settings = this computer
+duetport = None  # Printer port
 password = None
 basedir = None
 poll = None
 instances = None
 nolog = None
 verbose = None
-host = None
 port = None
 keeplogs = None
 novideo = None

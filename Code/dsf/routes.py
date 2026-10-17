@@ -84,7 +84,7 @@ def display_status():
         image = render_html('status_noimage.html')
 
     return render_html('status.html', version = dl3.duetLapse3Version, duet3d_version = state.printerVersion,
-                       duet = state.duet, pid = state.pid, localtime = localtime,
+                       duet = duet_printer.printerAddress(), pid = state.pid, localtime = localtime,
                        print_state = state.printState, action = state.action,
                        duet_status = state.duetStatus, frames = state.frame1,
                        layer = thislayer, image = image)
@@ -108,7 +108,8 @@ def display_info():
         optionlist += render_html('info_option.html', label = label, value = value)
         count += 1
 
-    return render_html('info.html', pid = state.pid, options = optionlist, topdir = state.topDir,
+    return render_html('info.html', pid = state.pid, pageaddress = escape('http://' + str(state.ip) + ':' + str(state.port)),
+                       options = optionlist, topdir = state.topDir,
                        imagelocation = imagelocation, logfilename = state.logfilename)
 
 
@@ -368,8 +369,6 @@ def update_config_file(settings):
             except ValueError as e:
                 errors.append(str(e))
                 continue
-            if key in dl3.configOmit and key not in location and value == default:
-                continue  # Not in the file and not changed - leave it out
             config.setdefault(location.get(key, section), {})[key] = value
 
     if errors:

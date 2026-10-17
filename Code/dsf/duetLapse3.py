@@ -92,6 +92,7 @@ Renamed to duetLapse3 (plugin id, files, config folder and route)
 Settings are read from duetLapse3.json - no command line options (argparse removed, including -file)
 Argument 1 is the folder for duetLapse3.json and duetLapse3.log - default is the program's folder
 One logfile (duetLapse3.log) for the whole run, instead of a logfile for each print job
+basedir blank = the settings folder (argument 1, or the program's folder) - the plugin's images are no longer inside the plugin folder
 instances = oneip now means one instance per settings folder
 Added a Config tab to view and change duetLapse3.json
 ffmpeg: computed thread limit (ffmpegthreads, 0 = automatic), low priority (nice), -preset veryfast, -pix_fmt yuv420p, no shell
@@ -107,6 +108,8 @@ Printer status, layer, job name and position come from one object model read (sh
 Standalone: one rr_model?flags=d99fn read per poll - job and global only re-read when their seqs counter changes
 Fixed M3291 gcode messages not working on standalone printers (global was never read)
 Fixed standalone gcode not being url encoded
+duet (printer address, blank = this computer) and duetport (blank or 0 = 80) - host removed, the page listens on every address
+SBC: the object model is kept up to date by DSF's WebSocket (as DWC does) - http is used when it is not connected
 gcode commands accept duetLapse3. or DuetLapse3. (any case)
 Web server is now FastAPI / uvicorn - the routes are in routes.py
 New URLs for the page and API (/tab/..., /command/..., etc) - the older ?<api>=<value> URLs still work
@@ -194,7 +197,7 @@ logFileName = 'duetLapse3.log'
 # The sections match duetLapse3.json - they are only for readability
 DEFAULTS = {
     'Simulate': {'simulate': 'off'},
-    'Environment': {'duet': 'localhost', 'host': '0.0.0.0', 'password': 'reprap', 'basedir': '', 'poll': 12,
+    'Environment': {'duet': '', 'duetport': 80, 'password': 'reprap', 'basedir': '', 'poll': 12,
                     'instances': 'single', 'nolog': False, 'verbose': False, 'keeplogs': False, 'novideo': False,
                     'deletepics': False, 'maxffmpeg': 2, 'keepfiles': False},
     'Execution': {'dontwait': False, 'seconds': 0, 'detect': 'layer', 'pause': 'no', 'numlayers': 1,
@@ -210,10 +213,10 @@ CHOICES = {'simulate': ['off', 'all', 'printer', 'camera'], 'instances': ['singl
 # Shown on the Config tab
 HELP = {
     'simulate': 'For testing: all, printer or camera are simulated',
-    'duet': 'The printer address - only needed when not running as a plugin',
-    'host': 'The address the page listens on',
+    'duet': 'Printer address (SBC or standalone).  Blank = this computer',
+    'duetport': 'Printer port.  Blank or 0 = 80',
     'password': 'Printer password',
-    'basedir': 'Where images and videos go (blank = the program folder)',
+    'basedir': 'Where images and videos go (blank = the settings folder, with duetLapse3.json and the log)',
     'poll': 'Seconds between printer status checks',
     'instances': 'single: only one duetLapse3.  oneip: one per settings folder.  many: no limit',
     'nolog': 'No logfile',
@@ -247,7 +250,6 @@ HELP = {
     'execkey': 'Prefix for messages that run a command on the SBC',
     'M3291': 'Name of the message macro, if you renamed M3291.g',
 }
-configOmit = ['duet', 'host']  # Left out of a new config file - only needed when not running as a plugin
 configExtras = ['ip']  # Written by duetLapse3, not read as a setting
 
 def flatDefaults():
@@ -268,6 +270,8 @@ def badSetting(filename, message):
 
 def checkSetting(key, val, default):
     # Returns val as the same type as default.  Raises ValueError (with the reason) if it can't be
+    if key == 'duetport' and val in ['', None, 0, '0']:  # Blank means the standard http port
+        return 80
     if isinstance(default, bool):  # Must be before int (bool is a kind of int)
         if isinstance(val, bool):
             return val
@@ -298,7 +302,7 @@ def loadSettings(filename):
     # If the file does not exist, it is created from the defaults
     if not os.path.isfile(filename):
         logger.warning('No config file found at ' + filename + ' - creating it with default values')
-        config = {section: {k: v for k, v in keys.items() if k not in configOmit} for section, keys in DEFAULTS.items()}
+        config = {section: dict(keys) for section, keys in DEFAULTS.items()}
         try:
             writeConfig(filename, config)
         except OSError as e:
@@ -405,10 +409,13 @@ def init():
     # Environment
     state.inputs.update({'# Environment':''})
     
-    state.duet = args['duet']
+    state.duet = args['duet'].strip() or localIp()  # Blank = this computer
     if state.simulate in ['all','printer']:
         state.duet = 'SIMULATED'
     state.inputs.update({'duet': str(state.duet)})
+
+    state.duetport = args['duetport']
+    state.inputs.update({'duetport': str(state.duetport)})
 
     state.password = args['password']  
     #  password is not displayed
@@ -434,9 +441,6 @@ def init():
     
     state.verbose = args['verbose']
     state.inputs.update({'verbose': str(state.verbose)})
-
-    state.host = args['host']
-    state.inputs.update({'host': str(state.host)})
 
     state.port = args['port']
     state.inputs.update({'port': str(state.port)})
@@ -582,8 +586,8 @@ def init():
 
     # set directories for files
     state.pidIncrement = 0 # Used to create a new path for each job.
-    if state.basedir == '':
-        state.basedir = os.path.dirname(os.path.realpath(__file__))
+    if state.basedir == '':  # The settings folder - argument 1, or this program's folder
+        state.basedir = state.configdir
     # clean up the separators
     state.basedir = state.basedir.replace('\\', '/')
     if state.basedir.startswith('.'):  #  this little trick so as not to drop ./ or ../
@@ -827,7 +831,7 @@ def checkforPrinter():
         Model = loginPrinter()[0]
         if Model == '': #  Could not connect
             logger.info('#########################################################')
-            logger.info('The printer at ' + state.duet + ' is not responding')
+            logger.info('The printer at ' + duet_printer.printerAddress() + ' is not responding')
             logger.info('Check the ip address or logical printer name is correct\n')
             logger.info('Is the printer turned on?')
             logger.info('Duet software must support rr_model or /machine/status')
@@ -846,7 +850,7 @@ def checkforPrinter():
         state.connectionState = True
         state.apiModel = Model # We have a good connection
         logger.info('###############################################################')
-        logger.info('Connected to printer at ' + state.duet)
+        logger.info('Connected to printer at ' + duet_printer.printerAddress())
         logger.info('Using Duet version ' + state.printerVersion)
         logger.info('Using API interface ' + state.apiModel)
         logger.info('###############################################################\n')
@@ -1673,7 +1677,7 @@ def startHttpListener():
     app = FastAPI(title='duetLapse3', version=duetLapse3Version)
     app.include_router(routes.router)
 
-    config = uvicorn.Config(app, host=state.host, port=state.port,
+    config = uvicorn.Config(app, host='0.0.0.0', port=state.port,  # Every address of this computer - state.ip is the one shown
                             log_config=None, access_log=False,
                             timeout_graceful_shutdown=2)  # Don't wait long for open connections on shutdown
     state.listener = uvicorn.Server(config)
@@ -1691,6 +1695,7 @@ def startHttpListener():
 
     logger.info('##########################################################')
     logger.info(f"""***** Started http listener on port {state.port}*****""")
+    logger.info('duetLapse3 page: http://' + state.ip + ':' + str(state.port))
     logger.info('##########################################################\n')
 
 
@@ -2215,19 +2220,22 @@ def port_in_use(ip_address, port):
         return sock.connect_ex((ip_address, port)) == 0
 
 
-def validate_port(port=0, start_port=17800, max_tries=100):
-    #  Get the local ip address
-    this_ip_address = ''
+def localIp():
+    # The ip address of this computer on the network
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         s.connect(('10.255.255.255', 1))  # doesn't even have to be reachable
-        this_ip_address = s.getsockname()[0]
+        return s.getsockname()[0]
     except Exception as e:
         logger.critical(f'''Unknown error trying to get the local IP address''')
         logger.critical(f'''{e}''')
         force_quit(1)
     finally:
         s.close()
+
+
+def validate_port(port=0, start_port=17800, max_tries=100):
+    this_ip_address = localIp()
 
     if port:
         #  A port was provided - check that it is available

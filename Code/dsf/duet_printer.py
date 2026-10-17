@@ -1,8 +1,9 @@
 """
 Communication with the printer
 
-All the http requests to the Duet - the standalone rr_ api or the SBC /machine api, chosen by
+All the requests to the Duet - the standalone rr_ api or the SBC /machine api, chosen by
 state.apiModel - and publishing the page address to the DSF plugin data.
+For an SBC, the object model is kept up to date by DSF's WebSocket, with http used whenever it is not connected.
 
 duetLapse3 sets the hooks below at startup, so this module does not depend on the rest of the program.
 """
@@ -12,9 +13,16 @@ import time
 import urllib.parse
 
 import requests
+import websocket  # websocket-client
 
 import state  # Shared state - always use state.<name>
 from logger_module import logger, currentFuncName
+
+def printerAddress():
+    # host[:port] of the printer.  A port in the duet setting (the old way, e.g. 192.168.1.5:8080) is still used
+    if ':' in state.duet or state.duetport in [80, None]:
+        return state.duet
+    return state.duet + ':' + str(state.duetport)
 
 # Hooks - set by duetLapse3
 onDisconnected = None  # Called when the printer has stopped answering (after 3 tries)
@@ -123,9 +131,9 @@ def loginPrinter(model = ''):
     logger.info('Logging in to Printer')
 
     if model == '' or model == 'rr_model':
-        URL = ('http://' + state.duet + '/rr_disconnect') # Close any open session
+        URL = ('http://' + printerAddress() + '/rr_disconnect') # Close any open session
         r = urlCall(URL,  False)
-        URL = ('http://' + state.duet + '/rr_connect?password=' + state.password) # Connect with password
+        URL = ('http://' + printerAddress() + '/rr_connect?password=' + state.password) # Connect with password
         r = urlCall(URL,  False)
         code = r.status_code
         if code == 200:
@@ -135,7 +143,7 @@ def loginPrinter(model = ''):
                 if j['apiLevel'] != None: # Check to see if in SBC emulation mode
                     if j['apiLevel'] == 1:
                         logger.debug('Emulation mode detected - Disconnect and try SBC')
-                        URL = ('http://' + state.duet + '/rr_disconnect') # Close any open session
+                        URL = ('http://' + printerAddress() + '/rr_disconnect') # Close any open session
                         r = urlCall(URL,  False)
                     else: # in case standalone returns apiLevel: False in future
                         logger.debug('!!!!! Connected to printer Standalone !!!!!')
@@ -155,9 +163,9 @@ def loginPrinter(model = ''):
             logger.info('!!!!!  Could not connect. code = ' + str(code) + ' reason = ' + r.reason + ' !!!!!')
 
     if model == '' or model == 'SBC':
-        URL = ('http://' + state.duet + '/machine/disconnect') # Close any open session
+        URL = ('http://' + printerAddress() + '/machine/disconnect') # Close any open session
         r = urlCall(URL,  False)
-        URL = ('http://' + state.duet + '/machine/connect?password=' + state.password) # Connect with password
+        URL = ('http://' + printerAddress() + '/machine/connect?password=' + state.password) # Connect with password
         r = urlCall(URL,  False)
         code = r.status_code
         if code == 200:
@@ -166,6 +174,7 @@ def loginPrinter(model = ''):
             sessionKey = j['sessionKey']
             state.urlHeaders = {'X-Session-Key': sessionKey}
             model = 'SBC'
+            startWebSocket()
 
             #  Could not connect to printer   
         elif code == 403:
@@ -186,7 +195,7 @@ def getDuetVersion(model):
     # Get the firmware version
     logger.info('!!!!! Getting the firmware version !!!!!')
     if model == 'rr_model':
-        URL = ('http://' + state.duet + '/rr_model?key=boards')
+        URL = ('http://' + printerAddress() + '/rr_model?key=boards')
         r = urlCall(URL,  False)
         if r.status_code == 200:
             j = {}
@@ -211,7 +220,7 @@ def getDuetVersion(model):
             logger.info('!!!!! Error getting rr_model?key=boards code = ' + str(r.status_code) + '!!!!!') 
 
     elif model == 'SBC':       
-        URL = ('http://' + state.duet + '/machine/status')
+        URL = ('http://' + printerAddress() + '/machine/status')
         r = urlCall(URL,  False)
         if r.status_code == 200:
             j = {}
@@ -256,6 +265,9 @@ def invalidateModel():
 def getModel(maxAge = MODEL_MAX_AGE):
     # The printer's object model - read again if older than maxAge seconds.  None if the printer did not answer
     global _model, _modelTime
+    live = wsModel()
+    if live is not None:  # SBC with the WebSocket connected - always up to date, no request needed
+        return live
     with _modelLock:
         if _model is not None and time.time() - _modelTime <= maxAge:
             return _model
@@ -266,13 +278,13 @@ def getModel(maxAge = MODEL_MAX_AGE):
 
 def readModel():
     if state.apiModel == 'SBC':
-        return getJson('/machine/status')  # The whole object model in one request
+        return getJson('/machine/status')  # The whole object model in one request - used when the WebSocket is not connected
     if state.apiModel == 'rr_model':
         return readStandaloneModel()
     return None
 
 def getJson(path):
-    r = urlCall('http://' + state.duet + path, False)
+    r = urlCall('http://' + printerAddress() + path, False)
     if not r.ok:
         return None
     try:
@@ -289,14 +301,16 @@ def rrModel(key, flags):
     return j['result']
 
 def merge(old, new):
-    # old with the values in new added (new values win) - used to add the live values to the full ones
+    # old with the values in new added (new values win) - used to add the live values to the full ones,
+    # and the WebSocket's patches to its model.  Returns new objects - old is never changed
     if isinstance(old, dict) and isinstance(new, dict):
         result = dict(old)
         for key, value in new.items():
             result[key] = merge(old.get(key), value)
         return result
     if isinstance(old, list) and isinstance(new, list) and len(old) == len(new):
-        return [merge(o, n) for o, n in zip(old, new)]
+        # A null in place of an object means that item has not changed
+        return [o if (n is None and isinstance(o, dict)) else merge(o, n) for o, n in zip(old, new)]
     return new
 
 def readStandaloneModel():
@@ -322,6 +336,79 @@ def readStandaloneModel():
         model['state'] = value
     _seqs = seqs
     return model
+
+
+###########################
+# SBC WebSocket - DSF pushes object model changes as they happen (as it does for DWC)
+# Works on the SBC itself and from another computer.  gcode is still sent over http
+###########################
+
+WS_PING_INTERVAL = 8   # Seconds with no update before sending PING - keeps the connection and session alive
+WS_RETRY_INTERVAL = 5  # Seconds between attempts to reconnect
+_ws = None            # The open WebSocket, or None
+_wsModel = None       # The object model kept up to date by the WebSocket - None when not connected
+_wsThread = None
+_wsLock = threading.Lock()
+
+def wsModel():
+    # The WebSocket's object model, or None if it is not connected (then http is used)
+    if state.apiModel != 'SBC':
+        return None
+    return _wsModel
+
+def startWebSocket():
+    # Called after an SBC login.  The reader keeps running and reconnects by itself (with the latest session key)
+    global _wsThread
+    with _wsLock:
+        if _wsThread is not None and _wsThread.is_alive():
+            return
+        _wsThread = threading.Thread(name='webSocket', target=_wsReader, daemon=True)
+        _wsThread.start()
+
+def _wsUrl():
+    key = state.urlHeaders.get('X-Session-Key', '') if isinstance(state.urlHeaders, dict) else ''
+    return 'ws://' + printerAddress() + '/machine' + ('?sessionKey=' + urllib.parse.quote(key) if key else '')
+
+def _wsReader():
+    global _ws, _wsModel
+    connected = False
+    while state.terminateState != 1:
+        try:
+            _ws = websocket.create_connection(_wsUrl(), timeout = 10)
+            model = json.loads(_ws.recv())  # The first message is the whole object model
+            if not isinstance(model, dict) or 'state' not in model:
+                raise ValueError('The first message was not the object model')
+            _wsModel = model
+            _ws.send('OK\n')  # Ready for the next update
+            connected = True
+            logger.info('WebSocket connected to ' + printerAddress() + ' - printer updates are pushed, not polled')
+            _ws.settimeout(WS_PING_INTERVAL)
+            while state.terminateState != 1:
+                try:
+                    message = _ws.recv()
+                except websocket.WebSocketTimeoutException:
+                    _ws.send('PING\n')
+                    continue
+                if not message or message.startswith('PONG'):
+                    continue
+                patch = json.loads(message)
+                _wsModel = merge(_wsModel, patch)  # A new object - readers never see a half-applied patch
+                _ws.send('OK\n')
+        except (websocket.WebSocketException, OSError, ValueError) as e:
+            if connected:
+                logger.info('WebSocket to ' + printerAddress() + ' lost (' + str(e) + ') - using http until it reconnects')
+            else:
+                logger.debug('WebSocket to ' + printerAddress() + ' not available (' + str(e) + ') - using http')
+            connected = False
+        finally:
+            _wsModel = None  # Fall back to http
+            if _ws is not None:
+                try:
+                    _ws.close()
+                except Exception:
+                    pass
+                _ws = None
+        time.sleep(WS_RETRY_INTERVAL)
 
 
 ###########################
@@ -420,10 +507,10 @@ def sendDuetGcode(model, command):
     if state.simulate in ['all','printer']:
         return
     if model == 'rr_model':
-        URL = 'http://' + state.duet + '/rr_gcode?gcode=' + urllib.parse.quote(command, safe = '')  # e.g. # or & in the gcode
+        URL = 'http://' + printerAddress() + '/rr_gcode?gcode=' + urllib.parse.quote(command, safe = '')  # e.g. # or & in the gcode
         r = urlCall(URL,  False)
     else:
-        URL = 'http://' + state.duet + '/machine/code'
+        URL = 'http://' + printerAddress() + '/machine/code'
         r = urlCall(URL,  command)
     invalidateModel()  # The gcode may change the printer - read it again next time
 
@@ -432,7 +519,7 @@ def sendDuetGcode(model, command):
 
 def isPlugin(model):
     if model == 'SBC':
-        URL = ('http://' + state.duet + '/machine/status')
+        URL = ('http://' + printerAddress() + '/machine/status')
         r = urlCall(URL,  False)
         if r.ok:
             try:
@@ -453,7 +540,7 @@ def isPlugin(model):
 def stopPlugin(model, command):
     # Used to send a command to Duet
     if model == 'SBC':
-        URL = 'http://' + state.duet + '/machine/stopPlugin'
+        URL = 'http://' + printerAddress() + '/machine/stopPlugin'
         r = urlCall(URL,  command)
         if r.ok:
             logger.info('Sent stopPlugin to plugin manager')

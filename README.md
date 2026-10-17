@@ -74,7 +74,7 @@ The main settings are:
 | `deletepics` | `false` | Delete the images when duetLapse3 terminates |
 | `keepfiles` | `false` | Don't delete files on startup or shutdown |
 | `keeplogs` | `false` | Don't delete per-print logs left by earlier versions |
-| `basedir` | | Where images and videos go (default: the program's folder) |
+| `basedir` | | Where images and videos go. Blank = the settings folder (with `duetLapse3.json` and the log): `sys/duetLapse3` for the plugin. Inside it they go in `<computer name>/<printer address>/` folders |
 | `password` | `reprap` | Printer password |
 | `poll` | `12` | Seconds between printer status checks |
 | `verbose` | `false` | Detailed logging |
@@ -85,8 +85,8 @@ The main settings are:
 | `execkey` | | Prefix for messages that run a command on the SBC |
 | `vidparam1`, `vidparam2` | | Advanced: override the video commands |
 | `instances` | `single` | `single`: only one duetLapse3 can run. `oneip`: one for each settings folder. `many`: no limit |
-| `duet` | `localhost` | The printer's address. Not in the file by default: only needed when not running as a plugin |
-| `host` | `0.0.0.0` | The address the page listens on. Not in the file by default |
+| `duet` | (blank) | The printer's address (SBC or standalone). Blank = the computer duetLapse3 runs on, which is right for the plugin |
+| `duetport` | `80` | The printer's port. Blank or 0 = 80 |
 | `simulate` | `off` | For testing: `all`, `printer` or `camera` are simulated |
 
 ## Cameras
@@ -145,10 +145,10 @@ python duetLapse3.py [folder]
 ```
 
 - `folder` is where `duetLapse3.json` and `duetLapse3.log` are. If you leave it out, they go in the same folder as `duetLapse3.py`.
-- All settings are in `duetLapse3.json` (see [Settings](#settings)). Add `"duet"` with the printer's address, for example `"duet": "192.168.1.5"`.
+- All settings are in `duetLapse3.json` (see [Settings](#settings)). Set `"duet"` to the printer's address, for example `"duet": "192.168.1.5"`, and `"duetport"` if it doesn't use port 80. duetLapse3 can run on a different computer from the printer.
 - For testing, `"simulate": "all"` runs without a printer or camera.
 
-The page is at `http://<this computer>:<port>`. The port in use is shown in the log.
+The page is at `http://<this computer>:<port>`. It answers on every address of the computer (its IP, `localhost`, a hostname). The address is shown in the log (`duetLapse3 page: http://…`) and on the Info tab.
 
 ## Web API
 
