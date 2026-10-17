@@ -11,3 +11,7 @@ __pycache__/
 
 # Standalone ZIP: commit the launchers, not the ZIPs built locally (added by Prep_and_Package)
 standalone/*.zip
+
+# Settings folder: keep its files (duetLapse3.json - the log is ignored above), not the image / video
+# folders that a test run puts there (basedir blank = the settings folder)
+Code/sd/sys/duetLapse3/*/

@@ -35,7 +35,7 @@
     "weburl1": "http://192.168.30.41:8082/Camera1/snapshot",
     "enable1": true,
     "weburl2": "http://192.168.30.41:8082/Camera2/snapshot",
-    "enable2": false
+    "enable2": true
   },
   "Video": {
     "extratime": 0,
