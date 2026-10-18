@@ -21,7 +21,7 @@ The plugin has been renamed from `DuetLapse3` to `duetLapse3`, so DWC treats it 
 ## Installing
 
 1. In DWC, go to **Settings → Plugins → External plugins → Install plugin** and choose the duetLapse3 zip.
-2. The plugin installs the `M3291.g` macro in `/sys`. duetLapse3 uses it to receive commands from gcode.
+2. The plugin installs the `M3291.g` macro in `/sys`. duetLapse3 uses it to receive commands from gcode. It needs RepRapFirmware 3.5 or later.
 3. Start the plugin, open its page, and on the **Cameras** tab enter your camera's URL (see [Cameras](#cameras)) and press **Save**.
 
 DSF installs the Python packages duetLapse3 needs (from `requirements.txt`) when the plugin is installed.
@@ -107,6 +107,8 @@ Use the `M3291` macro to send a command, for example in your slicer's start or e
 ```text
 M3291 B"duetLapse3.start"
 ```
+
+The macro keeps the last 10 commands on the printer (`global.DL3seq` counts them, `global.DL3msg` holds them), and duetLapse3 acts on each new one. It only reads them, so it works the same with an SBC or a standalone board, on the same computer or another. Commands sent while duetLapse3 isn't running are not carried out when it starts.
 
 | Command | What it does |
 | --- | --- |

@@ -26,7 +26,7 @@ def printerAddress():
 
 # Hooks - set by duetLapse3
 onDisconnected = None  # Called when the printer has stopped answering (after 3 tries)
-onMessages = None      # Called with (queue, dellist) when the printer's M3291 message queue has something new
+onMessages = None      # Called with (seq, messages) when the printer's M3291 command count (global.DL3seq) changes
 onChange = None        # SBC - called when the WebSocket brings a change to the status, layer or M3291 messages
 
 
@@ -374,7 +374,7 @@ def _watched(model):
                 return None
             value = value.get(key)
         return value
-    return (get('state', 'status'), get('job', 'layer'), json.dumps(get('global', 'DL3msg')), json.dumps(get('global', 'DL3del')))
+    return (get('state', 'status'), get('job', 'layer'), get('global', 'DL3seq'))
 
 def _wsUrl():
     key = state.urlHeaders.get('X-Session-Key', '') if isinstance(state.urlHeaders, dict) else ''
@@ -464,25 +464,13 @@ def Status():
         logger.debug(str(e))
         return 'disconnected', ''
 
-    #  Check for message commands
+    #  Commands from gcode (M3291): global.DL3seq counts them, global.DL3msg holds the last few
     try:
-        queue = []
-        dellist = []
-        #  use .get method for safety
-        if j['global'].get('DL3msg') != None: # initialized
-            queue = j['global']['DL3msg']
-            logger.debug(f'DL3Msg queue = {queue}')
-            if j['global'].get('DL3del') != None: # something to delete
-                dellist = j['global']['DL3del']
-                logger.debug(f'DL3del queue = {dellist}')  
-            if queue[0] < state.lastMessageSeq:  # The printer was reset - its message numbers start again
-                logger.info('The printer message queue was reset - message numbers start again from ' + str(queue[0]))
-                state.lastMessageSeq = 0
-            if queue[0] > state.lastMessageSeq or len(dellist) > 0:
-                messages = (queue, dellist)
+        seq = j['global'].get('DL3seq', 0)  # Not there until M3291 is first used (or after a printer reset) - no commands yet
+        if isinstance(seq, int) and seq != state.lastMessageSeq:
+            messages = (seq, j['global'].get('DL3msg') or [])
     except Exception as e:
-        logger.info('Error Processing message queue')
-        logger.info(str(e))
+        logger.info('Error reading the M3291 commands: ' + str(e))
 
     if messages is not None and onMessages is not None:
         onMessages(*messages)  # duetLapse3 acts on them

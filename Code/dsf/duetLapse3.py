@@ -112,6 +112,7 @@ The page is told about changes as they happen (/api/events) instead of asking ev
 detect none is now detect timed (none is still accepted)
 restart is now norestart (the opposite) - duetLapse3 gets ready for the next print unless norestart is set.  An old restart setting is still read
 port is now UI_port, ip is UI_ip and duet is duet_ip.  The Config tab shows the printer address and page port in use
+M3291 is a simple ring of the last 10 commands (global.DL3seq / DL3msg) that duetLapse3 only reads - no more Del / Clear
 duetLapse3.json is compressed, base64 encoded and checksummed - recreated from the defaults if it is missing or fails the checksum
 Settings renamed for clarity: duet_port, duet_password, image_dir, capture_on, capture_seconds, layer_interval, start_now, park (true/false), park_xy, park_wait,
   camera1_url, camera1_on, camera2_url, camera2_on, video_length, min_video_seconds, end_hold, ffmpeg_threads, no_log, no_video, delete_images, keep_files.
@@ -1967,48 +1968,35 @@ def nextAction(nextaction):
 commandPrefix = 'duetlapse3.'
 messageMacro = 'M3291'  # The gcode macro that queues messages for duetLapse3 (M3291.g)
 
-def handleMessages(queue, dellist):
-    # Called by duet_printer.Status when the printer's M3291 message queue has something new
-    try:
-        actions = parseM3291(queue, dellist)
-    except Exception as e:
-        logger.info('Error Processing message queue')
-        logger.info(str(e))
+def handleMessages(seq, ring):
+    # Called by duet_printer.Status when the printer's M3291 command count (global.DL3seq) changes.
+    # Command number n is in ring[n mod len(ring)] - act on those since the last one handled
+    last = state.lastMessageSeq
+    state.lastMessageSeq = seq
+    if last is None:  # First look since starting - commands from before then are not acted on
+        logger.debug('M3291 commands so far: ' + str(seq))
         return
-    for item in actions:
-        logger.debug(item)
-        actionM3291(item)
-
-def parseM3291(queue = [], dellist = []):
-    # If missed deletions - cleanup and try again on next poll
-    if len(dellist) > 0:
-        logger.debug('Delayed delete on DL3msg queue')
-        sendDuetGcode(state.apiModel, messageMacro + ' B"Del"')
-        return {}    
-
-    logger.debug('Parsing message queue = ' + str(queue))    
-    state.lastMessageSeq = queue[0]
-    processed = []
-    actionqueue = []
-    for i in range(1,len(queue)):
-        if queue[i] is None:
+    if seq < last:  # The printer was reset - its count starts again
+        logger.info('The printer was reset - M3291 command numbers start again from ' + str(seq))
+        last = 0
+    size = len(ring)
+    if size == 0:
+        return
+    first = last + 1
+    if seq - last > size:
+        logger.info('!!!!! ' + str(seq - last - size) + ' M3291 command(s) were missed - more than ' + str(size) + ' arrived at once !!!!!')
+        first = seq - size + 1
+    for n in range(first, seq + 1):
+        message = ring[n % size]
+        if not isinstance(message, str):
             continue
-        message = queue[i].strip() # get rid of leading / trailing blanks
+        message = message.strip()
+        logger.debug('M3291 command ' + str(n) + ': ' + message)
         if message.lower().startswith(commandPrefix):
-            actionqueue.append(message)
-        processed.append(i)
-    
-    if len(processed) != 0:
-        delqueue = '{'
-        for i in processed:
-            delqueue += str(i) + ','   
-        delqueue += '}'
-
-        sendDuetGcode(state.apiModel, 'set global.DL3del =' + delqueue)
-        sendDuetGcode(state.apiModel, messageMacro + ' B"Del"')
-
-    return actionqueue
-
+            try:
+                actionM3291(message)
+            except Exception as e:
+                logger.info('Error carrying out ' + message + ': ' + str(e))
 
 def actionM3291(displaymessage):
     if  displaymessage.lower().startswith(commandPrefix):   
@@ -2022,7 +2010,7 @@ def actionM3291(displaymessage):
         elif nextaction == 'forced':
             quit_forcibly()
         elif nextaction in allowedNextAction(state.action) or nextaction == 'completed':
-            logger.debug ('DL3msg queue sending to queueAction: ' + nextaction)
+            logger.debug('M3291 command sending to queueAction: ' + nextaction)
             queueAction(nextaction)
         elif nextaction.startswith('snapshot'):
             if state.workingDirStatus != -1:
@@ -2124,12 +2112,12 @@ def startMessages():
     if state.standby:
         logger.info('##########################################################')
         logger.info('Will not start until command=start received from http listener')
-        logger.info('or ' + messageMacro +  ' P"duetLapse3.start" sent as gcode')
+        logger.info('or ' + messageMacro +  ' B"duetLapse3.start" sent as gcode')
         logger.info('##########################################################\n')
 
     logger.info('##########################################################')
     logger.info('Video will be created when printing ends')
-    logger.info('or if requested from the UI or ' + messageMacro +  ' P"duetLapse3.completed"')
+    logger.info('or if requested from the UI or ' + messageMacro +  ' B"duetLapse3.completed"')
     logger.info('##########################################################\n')
 
     logger.info('##########################################################')
@@ -2211,9 +2199,6 @@ def startup():
         logger.info("Switching to 127.0.0.1")
         publishUiAddress(state.ip, state.port)
 
-    logger.info('Initializing DL3msg queue')
-    sendDuetGcode(state.apiModel,messageMacro + ' B"Clear"') # Clear the message queue
-
     logger.info('Initiating with action set to ' + state.action)
     nextAction(state.action)
 
@@ -2254,7 +2239,7 @@ def main():
     state.urlHeaders = {}
 
     # Keep track of M3291 messages
-    state.lastMessageSeq = 0
+    state.lastMessageSeq = None  # Set from the printer's count at the first look - see handleMessages
 
     # Allowed Commands 
     # commands = ['start','standby','pause','continue', 'restart', 'terminate']

@@ -24,6 +24,7 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
 
 - **One settings file.** `duetLapse3.json` is the only source of settings. The command-line options (argparse), `-file` and the `logtype` option are gone.
 - **Where the file is.** The program takes one optional argument: the folder for `duetLapse3.json` and `duetLapse3.log`. With no argument, that's the program's own folder. If the folder doesn't exist, it's created. If the file is missing, damaged or edited, it's created again with the defaults.
+- **Simpler M3291.** The macro is now a short ring of the last 10 commands (`global.DL3seq`, `global.DL3msg`) that duetLapse3 only reads. It no longer sends `set global.DL3del` / `M3291 B"Del"` back after each command or `M3291 B"Clear"` at startup, so it needs no write access to the printer. `M3291 B"duetLapse3.…"` in slicer gcode is unchanged. Needs RepRapFirmware 3.5 or later.
 - **Not shipped.** `duetLapse3.json` isn't in the repository or the plugin: duetLapse3 creates it with the defaults on first start, so an upgrade never overwrites your settings.
 - **Not editable by hand.** `duetLapse3.json` is compressed (zlib) and base64 encoded, with a sha256 checksum, so settings are changed on the page. It's written safely (to a temporary file first), so an interrupted save can't damage it.
 - **Checked at startup.** Every value is checked when duetLapse3 starts: its type (number, true/false, text, list) and, for some settings, the allowed values. A bad value stops startup with a message naming the setting. Unknown settings are ignored with a warning.
@@ -99,7 +100,7 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
 ## Printer communication
 
 - **SBC.** The printer's state is followed over DSF's WebSocket, the same way DWC does it, instead of polling `/machine/status`. That's about 80% fewer requests. If the WebSocket isn't available, duetLapse3 falls back to http polling and reconnects by itself.
-- **Standalone.** One `rr_model` read per check returns the status, layer and position. The job and message queue are only re-read when the printer says they've changed (RRF's `seqs` counters).
+- **Standalone.** One `rr_model` read per check returns the status, layer and position. The job and the M3291 commands are only re-read when the printer says they've changed (RRF's `seqs` counters).
 - **One shared read.** Status, layer, job name and head position come from the same read instead of a request each.
 - **Firmware version check removed.** The printer's firmware version is shown on the Status tab instead.
 - **Can't connect.** While the printer isn't connected, every tab shows a banner with the printer address, port and password. **Save and connect** saves them to `duetLapse3.json` and tries again at once, with no restart needed.

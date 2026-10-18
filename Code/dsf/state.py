@@ -134,10 +134,10 @@ lastImage = None
 simulatedImage = None
 
 ###########################
-# M3291 message queue - set in main(), parseM3291()
+# M3291 commands - set in main(), handleMessages()
 ###########################
 
-lastMessageSeq = None
+lastMessageSeq = None  # The last M3291 command number handled (global.DL3seq) - None until the first look
 
 ###########################
 # http listener - set in startHttpListener()
