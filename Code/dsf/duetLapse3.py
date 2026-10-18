@@ -120,6 +120,7 @@ Settings renamed for clarity: duet_port, duet_password, image_dir, capture_on, c
 Removed unused code (getPidDirs, getThisInstance, lastaction, mainLoopIterate, getDuet's calledfrom) and printer_status.py
 Removed poll - a capture pass runs at each status or layer change, otherwise every 5 seconds
 Removed hidebuttons - the controls always show every button, greyed out when it can't be used
+Fixed 'Process is already running' on Windows - a venv's python.exe launcher was counted as a second duetLapse3
 Removed maxffmpeg - ffmpeg threads are shared with the ffmpeg processes already running, and videos no longer wait for them
 Removed the Info tab.  New Pause section (pause, movehead, rest) on the Config tab.  poll moved to Execution
 Removed the Special Functions (execkey, M3291 settings) - the message macro is always M3291
@@ -1212,29 +1213,26 @@ def instanceConfigDir(proc):
 
 def checkInstances(instances):
     # single - only one duetLapse3 can run.  one_per_folder - one per settings folder (i.e. per printer).  many - no limit
-    proccount = 0
-    allowed = 0
-
+    # This process and its parents are left out: on Windows a venv's python.exe is a launcher that runs the real
+    # python as a child with the same command line, so one duetLapse3 is two python processes
+    if instances == 'many':
+        return
+    me = psutil.Process()
+    mine = {me.pid} | {parent.pid for parent in me.parents()}
     for p in psutil.process_iter(['name', 'cmdline']):  # Processes that end during the scan are skipped
+        if p.pid in mine:
+            continue
         name = p.info['name'] or ''
         if not ('python' in name or 'pythonw' in name):
             continue
         folder = instanceConfigDir(p)
         if folder is None:
             continue
-        proccount += 1  # Includes this instance
-        if 'single' in instances:
-            allowed += 1
-        if instances == 'one_per_folder' and folder == state.configdir:
-            allowed += 1
-
-    if allowed > 1:
-        logger.info('#############################')
-        logger.info('Process is already running... shutting down.')
-        logger.info('#############################\n')
-        sys.exit(6)
-
-    return proccount
+        if instances == 'single' or folder == state.configdir:  # one_per_folder: only one for this settings folder
+            logger.info('#############################')
+            logger.info('Process is already running (pid ' + str(p.pid) + ')... shutting down.')
+            logger.info('#############################\n')
+            sys.exit(6)
 
 
 def checkForPause(layer):
