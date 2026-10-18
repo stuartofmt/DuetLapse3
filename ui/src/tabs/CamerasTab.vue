@@ -1,10 +1,10 @@
 <!-- Cameras tab: each camera's url with a preview. Save saves the urls and uses them straight away -->
 <script setup>
-import { onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { api } from "../api.js";
 import { notify } from "../notify.js";
 import { serverText, settingDescription, settingLabel, t } from "../i18n.js";
-import { refreshStatus } from "../status.js";
+import { changes, refreshStatus } from "../status.js";
 import { mdiCameraOff, mdiContentSave, mdiImageRefresh } from "../icons.js";
 
 const cameras = ref([]);
@@ -16,6 +16,15 @@ const alert = reactive({ text: "", type: "success" });
 const saving = ref(false);
 const enabled = reactive({});    // enableKey: true / false
 const switching = reactive({});
+const loaded = ref("");          // The urls as last loaded - to tell whether they have been edited
+const edited = computed(() => JSON.stringify(urls) !== loaded.value);
+
+// The settings were saved (here or elsewhere) - show them, unless the urls are being edited here
+watch(() => changes.settings, () => {
+	if (!edited.value && !saving.value) {
+		load();
+	}
+});
 
 // Switch a camera on or off - saved and used straight away (the url is kept)
 async function setEnabled(c, on) {
@@ -44,10 +53,14 @@ async function load() {
 		const data = await api.get("/api/cameras");
 		cameras.value = data.cameras;
 		for (const c of data.cameras) {
+			const newUrl = urls[c.key] !== c.url || !(c.key in previews);
 			urls[c.key] = c.url;
 			enabled[c.enableKey] = c.enabled;
-			preview(c.key);
+			if (newUrl) {
+				preview(c.key);  // Only fetch a new preview when the url is new
+			}
 		}
+		loaded.value = JSON.stringify(urls);
 		if (data.error) {
 			Object.assign(alert, { text: serverText(data.error, data.errorCode), type: "error" });
 		}
@@ -65,6 +78,7 @@ async function save() {
 		Object.assign(alert, { text: message, type: "success" });
 		notify(message);
 		cameras.value.forEach((c) => preview(c.key));
+		loaded.value = JSON.stringify(urls);  // Saved - so no longer edited
 		refreshStatus();
 	} catch (err) {
 		if (err.status === 400 && err.data?.errors) {

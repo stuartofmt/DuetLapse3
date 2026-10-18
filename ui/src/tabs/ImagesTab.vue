@@ -3,10 +3,11 @@
 	search and sort. Images and videos open in a viewer; each item's actions are in its menu.
 -->
 <script setup>
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { api, fileUrl } from "../api.js";
 import { clearNotify, confirm, notify } from "../notify.js";
 import { requestVideo } from "../videos.js";
+import { changes, status } from "../status.js";
 import { language, t } from "../i18n.js";
 import {
 	mdiChevronLeft, mdiChevronRight, mdiClose, mdiDelete, mdiDotsVertical, mdiDownload, mdiFileDocumentOutline, mdiFileVideo,
@@ -111,6 +112,32 @@ async function open(path) {
 }
 
 const refresh = () => open(listing.value?.path ?? "");
+
+// Refresh by itself when something shown here may have changed - images captured, a video made, files deleted or zipped -
+// at most every RELOAD ms, keeping the search and how much is shown
+const RELOAD = 5000;
+const changed = computed(() => [status.data?.frames, status.data?.frames2, status.data?.videoEvents?.at(-1)?.seq, status.data?.run, changes.files].join());
+let lastReload = 0;
+let pending = null;
+watch(changed, () => {
+	if (pending === null) {
+		pending = setTimeout(reload, Math.max(0, lastReload + RELOAD - Date.now()));
+	}
+});
+onBeforeUnmount(() => clearTimeout(pending));
+
+async function reload() {
+	pending = null;
+	lastReload = Date.now();
+	if (!listing.value || loading.value || busy.value) {
+		return;  // Refreshed anyway when that finishes
+	}
+	try {
+		listing.value = await api.get(`/api/files?path=${encodeURIComponent(listing.value.path)}`);
+	} catch {
+		open("");  // The folder has gone - show the top folder
+	}
+}
 
 // Clicking an item: open a folder, view an image or video, otherwise download it
 function select(entry) {

@@ -172,6 +172,7 @@ The page reads its data as JSON, which scripts can use too:
 | URL | What it returns |
 | --- | --- |
 | `/api/status` | What duetLapse3 and the printer are doing, images captured, layer, last image |
+| `/api/events` | The same status as Server-Sent Events, sent whenever it changes, plus `files` and `settings` events when files are deleted or zipped and when the settings are saved |
 | `/api/files?path=<folder>` | The files in a folder (blank = the top folder) |
 
 The Config, Execution, Files, Video and Cameras tabs save with a POST of the settings as JSON to `/config/save` (Config, Execution and Files), `/video/save` and `/cameras/save`. `/camera/preview?url=<camera url>` returns one image from a camera url. The page itself is built from `ui/` (see `ui/README.md`).

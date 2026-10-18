@@ -3,9 +3,10 @@
 	Every card's Save button saves the whole form. tab picks the sections (see /api/settings).
 -->
 <script setup>
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { api } from "../api.js";
 import { notify } from "../notify.js";
+import { changes } from "../status.js";
 import { sectionTitle, serverText, settingDescription, settingLabel, t } from "../i18n.js";
 import { mdiContentSave, mdiEye, mdiEyeOff } from "../icons.js";
 
@@ -23,6 +24,15 @@ const errors = reactive({});
 const alert = reactive({ text: "", type: "success" });
 const saving = ref(false);
 const showPassword = ref(false);
+const loaded = ref("");  // The values as last loaded - to tell whether they have been edited
+const edited = computed(() => JSON.stringify(values) !== loaded.value);
+
+// The settings were saved (here, on another tab, or in another browser) - show them, unless they are being edited here
+watch(() => changes.settings, () => {
+	if (!edited.value && !saving.value) {
+		load();
+	}
+});
 
 // Errors from checks across settings, shown as the values are typed
 const crossErrors = computed(() => (props.check ? props.check(values) : {}));
@@ -43,6 +53,7 @@ async function load() {
 				values[setting.key] = setting.type === "list" ? [...setting.value] : setting.value;
 			}
 		}
+		loaded.value = JSON.stringify(values);
 		if (data.error) {
 			Object.assign(alert, { text: serverText(data.error, data.errorCode), type: "error" });
 		}

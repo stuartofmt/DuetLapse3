@@ -108,6 +108,7 @@ The printer address, port and password can be changed on the page while the prin
 Standalone boards: the SBC login is skipped
 Fixed the control loop waking every 50ms while the printer was not connected
 All the page's text is in ui/src/locales/en.json - ready for other languages.  Messages for the page carry a code (messages.py)
+The page is told about changes as they happen (/api/events) instead of asking every 3 seconds
 Removed poll - a capture pass runs at each status or layer change, otherwise every 5 seconds
 Removed hidebuttons - the controls always show every button, greyed out when it can't be used
 Removed maxffmpeg - ffmpeg threads are shared with the ffmpeg processes already running, and videos no longer wait for them
@@ -861,6 +862,7 @@ def make_archive(source):
         msg = 'Error: There was a problem creating the zip file'
         msg = msg + str(msg1)
         logger.info(msg)
+    state.filesVersion += 1
     return msg
 
 def cameraFolder(directory):
@@ -1626,6 +1628,7 @@ def deleteFileFolder(fname):
                 logger.info('Error deleting file ' + str(e))
         elif fn.is_dir():
                 shutil.rmtree(fn, onerror=remove_readonly)
+        state.filesVersion += 1
     return
 
 
@@ -2217,6 +2220,7 @@ def main():
 
     state.terminateState = -1  # 1 while terminating
     state.videoEvents, state.videoSeq = [], 0  # Videos made (or not) - announced by the page
+    state.filesVersion = state.settingsVersion = 0  # Changes the page is told about (/api/events)
     state.connectionState = state.restarting = False
     state.connectError = ''
     state.connectRetry = threading.Event()

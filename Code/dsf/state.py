@@ -110,6 +110,8 @@ terminateState = None  # 1 while terminating
 videoJob = None  # The last video given to the video worker (a Future)
 videoEvents = None  # The results of the last 10 videos - announced by the page
 videoSeq = None  # Numbers the video results
+filesVersion = None  # Changes when files are deleted or zipped - the page's Images tab refreshes (/api/events)
+settingsVersion = None  # Changes when the settings are saved - the page's settings tabs reload (/api/events)
 restarting = None
 
 ###########################

@@ -5,12 +5,14 @@ The page is built from ui/ (Vue 3 + Vuetify 4, built with Vite) into static/app 
 It reads its data from the /api/... routes (JSON) and uses the action routes (/command/..., /snapshot, ...).
 The older API, http://<ip>:<port>/?<api>=<value> (e.g. ?command=start), still works for the actions - see legacy_api.
 """
+import asyncio
+import json
 import os
 import threading
 import urllib.parse
 
 from fastapi import APIRouter, Body, Request
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response, StreamingResponse
 
 import camera
 import duet_printer  # Communication with the printer
@@ -240,6 +242,7 @@ def update_config_file(settings):
     except OSError as e:
         return {'': str(e)}
     logger.info('Settings saved to ' + state.configfile + ': ' + ', '.join(settings))
+    state.settingsVersion += 1
     return {}
 
 def save_result(errors, success):
@@ -407,6 +410,43 @@ def index(request: Request):
 @router.get('/api/status')
 def api_status():
     return status_data()
+
+# Server-Sent Events: the page keeps this open and is sent each change as it happens, instead of asking every few seconds.
+#   status   - /api/status, whenever any of it changes
+#   files    - {version} - files were deleted or zipped (captured images and videos come with the status)
+#   settings - {version} - the settings were saved
+# Checked once a second; nothing is sent while nothing changes, apart from a comment every 15 seconds to keep the connection open
+EVENT_CHECK = 1     # seconds
+EVENT_KEEPALIVE = 15
+
+def event_data():
+    return {'status': status_data(), 'files': {'version': state.filesVersion}, 'settings': {'version': state.settingsVersion}}
+
+async def event_stream():
+    sent = {}
+    quiet = 0
+    while not getattr(state.listener, 'should_exit', False):  # Ends when duetLapse3 stops, so shutdown doesn't wait for it
+        try:
+            data = {name: json.dumps(value) for name, value in event_data().items()}
+        except Exception as e:  # e.g. part of the state changing while it is read - try again next time
+            logger.debug('Event data not ready: ' + str(e))
+            data = {}
+        changed = [name for name, text in data.items() if sent.get(name) != text]
+        if changed:
+            for name in changed:
+                yield 'event: ' + name + '\ndata: ' + data[name] + '\n\n'
+                sent[name] = data[name]
+            quiet = 0
+        elif quiet >= EVENT_KEEPALIVE:
+            yield ': keepalive\n\n'
+            quiet = 0
+        await asyncio.sleep(EVENT_CHECK)
+        quiet += EVENT_CHECK
+
+@router.get('/api/events')
+async def api_events():
+    return StreamingResponse(event_stream(), media_type='text/event-stream',
+                             headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})  # No buffering by a proxy
 
 @router.get('/api/files')
 def api_files(path: str = ''):  # '' = the top folder
