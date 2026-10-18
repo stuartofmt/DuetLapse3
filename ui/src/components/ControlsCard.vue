@@ -43,9 +43,9 @@ async function run(command) {
 }
 
 async function terminate(type) {
-	const restart = s.value?.restart ? `\n${t("controls.restartAfter")}` : "";
+	const after = `\n${t(s.value?.restart ? "controls.restartAfter" : "controls.stopAfter")}`;  // What happens next - see norestart
 	const video = s.value?.imagesAvailable ? serverText(s.value.videoMessage, s.value.videoMessageCode) : t("controls.noImages");
-	const text = type === "graceful" ? t("controls.gracefulText", { video }) + restart : t("controls.forcedText");
+	const text = type === "graceful" ? t("controls.gracefulText", { video }) + after : t("controls.forcedText");
 	const ok = await confirm(text, { title: type === "graceful" ? t("controls.graceful") : t("controls.forced"), color: "error" });
 	if (!ok) {
 		return;

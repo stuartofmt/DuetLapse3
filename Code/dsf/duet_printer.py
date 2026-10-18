@@ -30,7 +30,7 @@ onMessages = None      # Called with (queue, dellist) when the printer's M3291 m
 onChange = None        # SBC - called when the WebSocket brings a change to the status, layer or M3291 messages
 
 
-def getDuet(calledfrom, function): #  Helper function to call other specific getDuet(x) calls
+def getDuet(function): #  Helper function to call other specific getDuet(x) calls
     # Retries if there is a network problem
     # Relies on called functions to return 'disconnected' if they cannot get the requested info
     # Changes connectionState to False if there is a persistent fault
@@ -41,10 +41,7 @@ def getDuet(calledfrom, function): #  Helper function to call other specific get
         
         logger.debug('Calling ' + function.__name__ + ' from ' + currentFuncName(2) + ' --> '  + currentFuncName(1) + ' --> '  + currentFuncName(0))
 
-        if 'NoneType' in str(type(function)):
-            result = function  # Function with variables
-        else:
-            result = function()   
+        result = function()
 
         if isinstance(result, tuple): # More than one return variable
             connect = str(result[0])

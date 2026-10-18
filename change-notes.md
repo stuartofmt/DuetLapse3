@@ -38,7 +38,7 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
 - **Removed settings:** `camera1`, `camera2`, `camparam1`, `camparam2`, `vidparam1`, `vidparam2` (never used), `logtype`, `host`, `poll` (images are taken at each status or layer change, and timed images are checked every 5 seconds), `maxffmpeg`, `hidebuttons` (the controls always show every button, greyed out when it can't be used), and the Special Functions section: `execkey` and `M3291`.
 - **Special functions removed.** Gcode messages can no longer run commands on the SBC (`execkey`). The message macro is always `M3291`; it can no longer be renamed.
 - **New Files section.** `nolog`, `verbose`, `keeplogs`, `novideo`, `deletepics` and `keepfiles` moved from Environment to a new Files section. Sections are only for readability, so older files still work.
-- **`restart` replaced by `norestart`** (the opposite). duetLapse3 now gets ready for the next print by default; set `norestart` to stop it when a print finishes. An old `restart` setting is still read.
+- **`restart` replaced by `norestart`** (the opposite). duetLapse3 now gets ready for the next print by default; set `norestart` to stop it when a print finishes. The Graceful terminate button is now **Finish capture**, and Forced terminate is **Terminate the program**. An old `restart` setting is still read.
 - **`detect none` renamed `detect timed`.** `none` is still accepted and read as `timed`.
 - **New settings:** `duetport`, `ffmpegthreads`, `enable1`, `enable2`.
 
@@ -77,7 +77,7 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
 - **Pause works.** Pause, from the page or gcode, now stops images. The end of the print is still detected and the video still made.
 - **Page buttons** wait until the command is actually carried out, so the page shows the new state.
 - **Lost printer.** If the printer stops answering, duetLapse3 keeps retrying (every 5s, then every 3 minutes) and carries on in the same state when it's back.
-- **Exit codes.** A graceful terminate exits cleanly with code 0, and a forced terminate or Ctrl-C with code 1, instead of killing itself.
+- **Exit codes.** Finish capture (with `norestart`) exits cleanly with code 0, and a forced terminate or Ctrl-C with code 1, instead of killing itself.
 
 ## Printer communication
 
@@ -141,7 +141,6 @@ For maintainers: `duetLapse3.py` is split into modules.
 | `duet_printer.py` | All communication with the printer (http, WebSocket, plugin data) |
 | `camera.py` | Image capture from http cameras |
 | `routes.py` | Web page and API routes |
-| `printer_status.py` | Reference for printer statuses and what they mean to duetLapse3 (not used by the program yet) |
 | `static/app/` | The built web page (from `ui/` at the top of the repository) |
 
 ## Testing so far
@@ -154,7 +153,7 @@ Everything above was tested against a fake printer (SBC with WebSocket, SBC with
 - a lost printer and reconnecting;
 - starting with the printer off;
 - gcode messages;
-- graceful terminate and Ctrl-C;
+- Finish capture and Ctrl-C;
 - the Config, Cameras and Video tabs;
 - the new page in headless Chromium: every tab in light, dark and phone width, and clicking through the controls, Config and Files.
 

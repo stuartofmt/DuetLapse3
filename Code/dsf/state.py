@@ -86,7 +86,6 @@ logfilename = None
 ###########################
 
 mainLoopPoll = None
-mainLoopIterate = None
 minseconds = None
 lastCaptureLoop = None
 lastStatusCall = None
@@ -120,7 +119,6 @@ restarting = None
 ###########################
 
 action = None
-lastaction = None
 printState = None
 lastPrintState = None
 duetStatus = None

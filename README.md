@@ -133,7 +133,7 @@ M3291 B"duetLapse3.start"
 | `duetLapse3.continue` | Carry on after a pause |
 | `duetLapse3.restart` | Make the video, then get ready for the next print |
 | `duetLapse3.snapshot` | Make a video of the images so far |
-| `duetLapse3.graceful` | Make the video and terminate |
+| `duetLapse3.graceful` | Finish capture: make the video, then get ready for the next print (or stop, if `norestart` is set) |
 | `duetLapse3.forced` | Terminate straight away, without a video |
 | `duetLapse3.change.<setting>=<value>` | Change a setting while running, e.g. `duetLapse3.change.seconds=30` |
 
@@ -164,8 +164,8 @@ The duetLapse3 page uses these URLs, and you can call them yourself, for example
 | `/getfile?path=<file>` | Download a file |
 | `/zip?path=<folder>` | Zip an image folder |
 | `/delete?path=<file or folder>` | Delete a file or folder |
-| `/terminate/terminateg` | Make the video and terminate |
-| `/terminate/terminatef` | Terminate straight away, without a video |
+| `/terminate/terminateg` | Finish capture: make the video, then get ready for the next print (or stop, if `norestart` is set) |
+| `/terminate/terminatef` | Terminate the program straight away, without a video |
 
 The page reads its data as JSON, which scripts can use too:
 

@@ -111,6 +111,7 @@ All the page's text is in ui/src/locales/en.json - ready for other languages.  M
 The page is told about changes as they happen (/api/events) instead of asking every 3 seconds
 detect none is now detect timed (none is still accepted)
 restart is now norestart (the opposite) - duetLapse3 gets ready for the next print unless norestart is set.  An old restart setting is still read
+Removed unused code (getPidDirs, getThisInstance, lastaction, mainLoopIterate, getDuet's calledfrom) and printer_status.py
 Removed poll - a capture pass runs at each status or layer change, otherwise every 5 seconds
 Removed hidebuttons - the controls always show every button, greyed out when it can't be used
 Removed maxffmpeg - ffmpeg threads are shared with the ffmpeg processes already running, and videos no longer wait for them
@@ -1056,15 +1057,6 @@ def getRunningInstancePids():
     return pidlist
 
 
-def getPidDirs():
-    dirlist = []
-    if os.path.isdir(state.topDir):
-        for item in listTopDir():
-            if os.path.isdir(os.path.join(state.topDir, item)):
-                dirlist.append(item)
-
-    return dirlist
-
 def createworkingDir():
     logger.debug('Calling stack ' + currentFuncName(2) + ' --> '  + currentFuncName(1) + ' --> '  + currentFuncName(0))
     try:
@@ -1077,7 +1069,7 @@ def createworkingDir():
     return state.nextWorkingDir
 
 def renameworkingDir(thisDir):
-    jobname = getDuet('renameworkingDir', Jobname)
+    jobname = getDuet(Jobname)
 
     if state.connectionState is False or jobname == '':
         logger.debug('jobname was not available')
@@ -1166,23 +1158,6 @@ def startNow():
         return False
 
 
-def getThisInstance(thisinstancepid):
-    thisrunning = 'Could not find a process running with pid = ' + str(thisinstancepid)
-    for p in psutil.process_iter(['name', 'cmdline']):  # Processes that end during the scan are skipped
-        name = p.info['name'] or ''
-        if ('python3' in name or 'pythonw' in name) and thisinstancepid == p.pid:
-            cmdline = str(p.info['cmdline'] or [])
-            cmdline = cmdline.replace('[', '')
-            cmdline = cmdline.replace(']', '')
-            cmdline = cmdline.replace(',', '')
-            cmdline = cmdline.replace("'", '')
-            cmdline = cmdline.replace('  ', ' ')
-            state.pid = str(p.pid)
-            thisrunning = cmdline
-
-    return thisrunning
-
-
 #####################################################
 ##  Processing Functions
 #####################################################
@@ -1240,7 +1215,7 @@ def checkForPause(layer):
     if (layer < 1):  # Do not try to pause
         return
     
-    state.duetStatus, _ = getDuet('Check for Pause', Status)
+    state.duetStatus, _ = getDuet(Status)
     if state.connectionState is False or state.duetStatus == 'idle':
         return
     
@@ -1253,7 +1228,7 @@ def checkForPause(layer):
         loop = 0
         while True:
             time.sleep(loopinterval)  # wait and try again    
-            state.duetStatus, _ = getDuet('check for pause = yes', Status)
+            state.duetStatus, _ = getDuet(Status)
             if state.connectionState is False:
                 return
             if state.duetStatus == 'paused':
@@ -1273,7 +1248,7 @@ def checkForPause(layer):
             loop = 0
             while True:
                 time.sleep(loopinterval)  # wait and try again
-                xpos, ypos, _ = getDuet('Position paused = yes', Position)
+                xpos, ypos, _ = getDuet(Position)
                 if state.connectionState is False:
                     return
                 if (abs(xpos - state.movehead[0]) < .05) and (
@@ -1294,7 +1269,7 @@ def checkForPause(layer):
 def unPause():  # Only gets called if duetStatus = paused
     if state.connectionState is False: # This traps the call being made unnecessarily
         return
-    #  duetStatus, _ = getDuet('Status from unPause', Status)
+    #  duetStatus, _ = getDuet(Status)
     # if connectionState is False: # Need to check after each getDuet
     #     return
     if state.duetStatus == 'paused':
@@ -1306,7 +1281,7 @@ def unPause():  # Only gets called if duetStatus = paused
         loop = 0
         while True:
             time.sleep(loopinterval)  # wait a short time so as to not miss transition on short layer            
-            state.duetStatus, _ = getDuet('unPause loop', Status)
+            state.duetStatus, _ = getDuet(Status)
             if state.connectionState is False:
                 return
             if state.duetStatus in ['idle', 'processing']:
@@ -1386,7 +1361,7 @@ def oneInterval(cameraname, weburl, finalframe = False):
     else:
         frame = state.frame2 + 1
 
-    zn = getDuet('Layer from oneInterval', Layer)
+    zn = getDuet(Layer)
     if state.connectionState is False:
         return
     if zn == -1:
@@ -1528,14 +1503,14 @@ def terminate():
 
     if state.restart:
         # wait for jobname to be reset
-        jobname = getDuet('terminate', Jobname)
+        jobname = getDuet(Jobname)
         loopcounter = 0
         if jobname != '':
             logger.info('Waiting for printjob to complete')
         while jobname !='' and loopcounter < 30:  # Don't wait more than a minute
             time.sleep(2)
             loopcounter += 1
-            jobname = getDuet('terminate loop', Jobname)
+            jobname = getDuet(Jobname)
             if state.simulate in ['all','printer']: # forces a reset
                 jobname = ''
         if loopcounter >= 30:
@@ -1611,7 +1586,7 @@ def deleteImages(folder):
     # Delete a print's images and keep its videos.  Folders left empty are removed (including the print's folder)
     for cameraname in ['Camera1', 'Camera2']:
         deleteFileFolder(imageFolder(folder, cameraname))
-    for dirpath, dirnames, filenames in os.walk(folder, topdown=False):  # Remove empty folders, deepest first
+    for dirpath, _, _ in os.walk(folder, topdown=False):  # Remove empty folders, deepest first
         try:
             if not os.listdir(dirpath):
                 os.rmdir(dirpath)
@@ -1795,7 +1770,7 @@ def controlLoop():
                     if reconnectPrinter(reconnectModel):
                         lastSeen = None
                         reconnectModel = state.apiModel
-                        state.duetStatus, _ = getDuet('reconnected', Status)  # The status now - not the one from before
+                        state.duetStatus, _ = getDuet(Status)  # The status now - not the one from before
                     elif state.connectError:  # Wrong password - no more tries until it is changed on the page
                         reconnectAt = math.inf
                     else:
@@ -1804,7 +1779,7 @@ def controlLoop():
                 continue
 
             if command == WAKE or time.time() >= state.lastStatusCall + state.mainLoopPoll:
-                state.duetStatus, _ = getDuet('controlLoop', Status)
+                state.duetStatus, _ = getDuet(Status)
                 if not state.connectionState:
                     continue
 
@@ -1880,7 +1855,7 @@ def capturePass():
         if cameraUrl(2) != '':
             logger.debug('Calling oneInterval for Camera 2')
             oneInterval('Camera2', cameraUrl(2))
-        state.duetStatus, _ = getDuet('pause check loop', Status)  #  latest state to avoid polling delay
+        state.duetStatus, _ = getDuet(Status)  #  latest state to avoid polling delay
         if state.duetStatus == 'paused' and (state.pause == 'yes' or state.detect == state.pause): # will be ignored if a manual pause
             unPause()  # Nothing should be paused at this point
         state.printState = stateMachine(state.printState)
@@ -1947,12 +1922,10 @@ def nextAction(nextaction):
     elif nextaction == 'terminate':
         state.action = 'terminate'
         logger.info('++++++ Entering terminate state ++++++')
-        state.lastaction = state.action
         terminate()  # On restart, this sets the new state
         return
 
     logger.info('++++++ Entering ' + state.action + ' state ++++++')
-    state.lastaction = state.action
     logger.debug('nextAction exiting normally')
     return
 
@@ -2238,7 +2211,6 @@ def main():
 
     # timers
     state.mainLoopPoll = 5 # seconds
-    state.mainLoopIterate = state.mainLoopPoll/3
     state.minseconds = 20  # seconds
 
 

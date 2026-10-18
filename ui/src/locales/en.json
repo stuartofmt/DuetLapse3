@@ -185,9 +185,10 @@
 		"restartConfirm": "Restart will try to create a video, then get ready for the next print.\n\nAll captured images will be deleted, unless keepfiles is set.",
 		"graceful": "Finish capture",
 		"forced": "Terminate the program",
-		"gracefulText": "Make the video and restart.\n{video}",
+		"gracefulText": "Make the video.\n{video}",
 		"noImages": "There are no images available.",
 		"restartAfter": "A restart will occur.",
+		"stopAfter": "duetLapse3 will then stop.",
 		"forcedText": "Terminate straight away.\nA video will NOT be created.",
 		"stopping": "The program is stopping.",
 		"failed": "{command} failed: {error}"
