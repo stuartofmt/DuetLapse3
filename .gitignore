@@ -4,6 +4,7 @@
 *.txt
 !requirements*.txt
 !scripts/release-*.txt
+!standalone/*.txt
 plugin.zip
 **/venv/
 .idea

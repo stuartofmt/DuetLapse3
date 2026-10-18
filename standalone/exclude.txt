@@ -1,0 +1,2 @@
+# Left out of the standalone ZIP, as well as what scripts/release-exclude.txt leaves out. One pattern per
+# line, relative to the project folder (see source.txt) - the rules are in scripts/release-exclude.txt.

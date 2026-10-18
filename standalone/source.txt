@@ -1,0 +1,3 @@
+# The folder the standalone ZIP is made from, relative to the repository root (made by Prepare in
+# Prep_and_Package: the project folder). Its files go at the top of the ZIP, with this folder's on top.
+.
