@@ -21,42 +21,41 @@ simulate = None
 
 # Environment
 duet = None  # Printer address - blank in the settings = this computer
-duetport = None  # Printer port
-password = None
-basedir = None
+duet_port = None  # Printer port
+duet_password = None
+image_dir = None
 instances = None
-nolog = None
+no_log = None
 verbose = None
 port = None
-keeplogs = None
-novideo = None
-deletepics = None
-keepfiles = None
+no_video = None
+delete_images = None
+keep_files = None
 
 # Execution
-dontwait = None
-seconds = None
-detect = None
-pause = None
-numlayers = None
-movehead = None
-rest = None
+start_now = None
+capture_seconds = None
+capture_on = None
+park = None
+layer_interval = None
+park_xy = None
+park_wait = None
 standby = None
 norestart = None  # The setting - don't get ready for the next print
 restart = None  # not norestart
 
 # Cameras
-weburl1 = None
-weburl2 = None
-enable1 = None  # Camera1 is used
-enable2 = None  # Camera2 is used
+camera1_url = None
+camera2_url = None
+camera1_on = None  # Camera1 is used
+camera2_on = None  # Camera2 is used
 
 # Video
-extratime = None
+end_hold = None
 fps = None
-minvideo = None
-maxvideo = None
-ffmpegthreads = None  # 0 = automatic
+min_video_seconds = None
+video_length = None
+ffmpeg_threads = None  # 0 = automatic
 
 
 

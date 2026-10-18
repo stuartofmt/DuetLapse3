@@ -44,7 +44,7 @@ def status_data():
         'connectError': state.connectError,  # Why the printer can not be connected (e.g. wrong password) - '' if not known
         'connectErrorCode': coded(state.connectError),  # Codes (here and below) let the page show the message in its language
         'duet': state.duet,  # The printer settings - changed on the page when the printer can not be connected
-        'duetport': state.duetport,
+        'duetport': state.duet_port,  # (status field names are unchanged)
         'pid': state.pid,
         'printState': state.printState,
         'action': state.action,
@@ -169,8 +169,8 @@ def make_video(path, xtratime, cameras = None):
 cameraSection = 'Camera'  # Cameras tab
 videoSections = ['Video']  # Video tab
 tabSections = {'video': videoSections, 'execution': ['Execution'], 'files': ['Files']}  # Every other section is on the Config tab
-cameraUrls = ['weburl1', 'weburl2']  # Camera1, Camera2
-cameraEnables = ['enable1', 'enable2']
+cameraUrls = ['camera1_url', 'camera2_url']  # Camera1, Camera2
+cameraEnables = ['camera1_on', 'camera2_on']
 
 def config_values():
     # ({setting: value} from duetLapse3.json, error message or '')
@@ -187,21 +187,26 @@ def setting_type(key, default):
         return 'int'
     if isinstance(default, list):
         return 'list'
-    if key == 'password':
+    if key == 'duet_password':
         return 'password'
     return 'str'
 
 def settings_data(names):
     # The settings in the named sections of DEFAULTS - their values, type and choices.  Labels and descriptions are in the page (ui/src/locales)
+    # inUse: the values in use, where they can differ from the saved ones - blank image_dir = the settings folder,
+    # blank duet_ip = this computer, UI_port 0 = the free port that was picked
+    inUse = {'image_dir': state.image_dir, 'duet_ip': state.duet, 'UI_port': state.port}
     values, error = config_values()
     sections = []
     for name in names:
         settings = []
         for key, default in dl3.DEFAULTS[name].items():
-            settings.append({'key': key, 'value': values.get(key, default), 'default': default,
+            value = values.get(key, default)
+            used = inUse.get(key)
+            settings.append({'key': key, 'value': value, 'default': default,
                              'type': setting_type(key, default), 'choices': dl3.CHOICES.get(key),
                              'readonly': key in dl3.configExtras,
-                             'inUse': state.basedir if key == 'basedir' else None})  # The path in use - blank basedir = the settings folder
+                             'inUse': used if used is not None and str(used) != str(value) else None})  # Only when it differs
         sections.append({'name': name, 'settings': settings})
     return {'error': error, 'errorCode': coded(error), 'sections': sections}
 
@@ -217,10 +222,9 @@ def update_config_file(settings):
     # Returns {setting: error} ({} if saved) - '' is used for an error that is not about one setting
     try:
         config = dl3.readConfig(state.configfile)
-    except FileNotFoundError:
-        config = {}
-    except (OSError, ValueError) as e:
-        return {'': Message('settingsUnreadable', 'Could not read the settings file. ' + str(e), error = str(e))}
+    except (OSError, ValueError) as e:  # Missing, or failed its checksum - start again from the defaults
+        logger.warning('The settings file could not be used: ' + str(e) + ' - saving to a new one made from the defaults')
+        config = {section: dict(keys) for section, keys in dl3.DEFAULTS.items()}
     location = {key: name for name, section in config.items() if isinstance(section, dict) for key in section}
 
     errors = {}
@@ -258,17 +262,17 @@ def save_config(settings):
     return save_result(errors, Message('savedRestart', 'Saved. Restart duetLapse3 for the changes to take effect.'))
 
 def video_length_errors(settings):
-    # minvideo can't be more than maxvideo (unless maxvideo is 0 - off)
+    # min_video_seconds can't be more than video_length (unless video_length is 0 - off)
     values, _ = config_values()
     defaults = dl3.flatDefaults()
     try:
-        minvideo = dl3.checkSetting('minvideo', settings.get('minvideo', values.get('minvideo', defaults['minvideo'])), defaults['minvideo'])
-        maxvideo = dl3.checkSetting('maxvideo', settings.get('maxvideo', values.get('maxvideo', defaults['maxvideo'])), defaults['maxvideo'])
+        minvideo = dl3.checkSetting('min_video_seconds', settings.get('min_video_seconds', values.get('min_video_seconds', defaults['min_video_seconds'])), defaults['min_video_seconds'])
+        maxvideo = dl3.checkSetting('video_length', settings.get('video_length', values.get('video_length', defaults['video_length'])), defaults['video_length'])
     except ValueError:
         return {}  # Reported when the values are checked
     if maxvideo > 0 and minvideo > maxvideo:
-        return {'minvideo': Message('minvideoTooBig', 'minvideo (' + str(minvideo) + ') can not be more than maxvideo (' + str(maxvideo) + ')', min = minvideo, max = maxvideo),
-                'maxvideo': Message('maxvideoTooSmall', 'maxvideo must be 0 (off) or at least minvideo (' + str(minvideo) + ')', min = minvideo)}
+        return {'min_video_seconds': Message('minvideoTooBig', 'min_video_seconds (' + str(minvideo) + ') can not be more than video_length (' + str(maxvideo) + ')', min = minvideo, max = maxvideo),
+                'video_length': Message('maxvideoTooSmall', 'video_length must be 0 (off) or at least min_video_seconds (' + str(minvideo) + ')', min = minvideo)}
     return {}
 
 def save_video(settings):
@@ -284,24 +288,24 @@ def save_video(settings):
             value = dl3.checkSetting(key, value, defaults[key])  # Already checked - this converts it
             if key == 'fps':
                 dl3.changeFps(value)
-            elif key == 'minvideo':
+            elif key == 'min_video_seconds':
                 dl3.changeMinvideo(value)
-            elif key == 'maxvideo':
+            elif key == 'video_length':
                 dl3.changeMaxvideo(value)
             elif getattr(state, key) != value:
                 logger.info(key + ' changed to ' + str(value))
                 setattr(state, key, value)
-        if state.maxvideo > 0 and state.maxvideo < state.minvideo:  # As at startup
-            state.maxvideo = state.minvideo
+        if state.video_length > 0 and state.video_length < state.min_video_seconds:  # As at startup
+            state.video_length = state.min_video_seconds
     return save_result(errors, Message('savedVideo', 'Saved. The video settings are in use now.'))
 
 def connect_printer(settings):
-    # New printer settings (duet, duetport, password) from the page while the printer is not connected:
+    # New printer settings (duet_ip, duet_port, duet_password) from the page while the printer is not connected:
     # save them to duetLapse3.json, use them, and try to connect at once.  A blank password keeps the one in use
     if state.connectionState:
         message = Message('alreadyConnected', 'Already connected to the printer')
         return JSONResponse({'saved': False, 'errors': {}, 'errorCodes': {}, 'message': message, 'messageCode': coded(message)}, status_code=409)
-    settings = {k: v for k, v in settings.items() if k in ['duet', 'duetport', 'password'] and not (k == 'password' and v in ['', None])}
+    settings = {k: v for k, v in settings.items() if k in ['duet_ip', 'duet_port', 'duet_password'] and not (k == 'duet_password' and v in ['', None])}
     errors = update_config_file(settings)
     if errors:
         return save_result(errors, '')
@@ -319,12 +323,12 @@ def save_cameras(settings):
     # Save the camera urls to duetLapse3.json and use them straight away
     urls = {key: str(settings.get(key, '')).strip() for key in cameraUrls}
     errors = {}
-    if state.enable1 and not camera.is_http_url(urls['weburl1']):
-        errors['weburl1'] = Message('camera1Needed', 'Camera1 needs an http url (a snapshot url or an MJPEG stream url) - or switch it off')
-    elif urls['weburl1'] != '' and not camera.is_http_url(urls['weburl1']):
-        errors['weburl1'] = Message('camera1NotHttp', 'Camera1 url must be an http url, or blank')
-    if urls['weburl2'] != '' and not camera.is_http_url(urls['weburl2']):
-        errors['weburl2'] = Message('camera2NotHttp', 'Camera2 url must be an http url, or blank for no second camera')
+    if state.camera1_on and not camera.is_http_url(urls['camera1_url']):
+        errors['camera1_url'] = Message('camera1Needed', 'Camera1 needs an http url (a snapshot url or an MJPEG stream url) - or switch it off')
+    elif urls['camera1_url'] != '' and not camera.is_http_url(urls['camera1_url']):
+        errors['camera1_url'] = Message('camera1NotHttp', 'Camera1 url must be an http url, or blank')
+    if urls['camera2_url'] != '' and not camera.is_http_url(urls['camera2_url']):
+        errors['camera2_url'] = Message('camera2NotHttp', 'Camera2 url must be an http url, or blank for no second camera')
     if not errors:
         errors = update_config_file(urls)
     if not errors:
@@ -472,15 +476,15 @@ def video_save(settings: dict = Body(...)):  # {setting: value}
     return save_video(settings)
 
 @router.post('/printer/connect')
-def printer_connect(settings: dict = Body(...)):  # {duet: address, duetport: port, password: password ('' = keep)}
+def printer_connect(settings: dict = Body(...)):  # {duet_ip: address, duet_port: port, duet_password: password ('' = keep)}
     return connect_printer(settings)
 
 @router.post('/cameras/save')
-def cameras_save(settings: dict = Body(...)):  # {weburl1: url, weburl2: url}
+def cameras_save(settings: dict = Body(...)):  # {camera1_url: url, camera2_url: url}
     return save_cameras(settings)
 
 @router.post('/cameras/enable')
-def cameras_enable(settings: dict = Body(...)):  # {key: enable1 | enable2, enabled: true | false}
+def cameras_enable(settings: dict = Body(...)):  # {key: camera1_on | camera2_on, enabled: true | false}
     return enable_camera(settings.get('key'), settings.get('enabled'))
 
 @router.get('/camera/preview')
@@ -505,7 +509,7 @@ def terminate(ttype: str):  # terminateg (graceful), terminatef (forced) or term
 @router.get('/snapshot', response_class=PlainTextResponse)
 def snapshot(camera: int = 0):  # camera 1 or 2 makes a video for that camera only - default both
     if state.workingDirStatus != -1:
-        return make_video(state.workingDir, False, ['Camera' + str(camera)] if camera in [1, 2] else None)  # False => no extratime
+        return make_video(state.workingDir, False, ['Camera' + str(camera)] if camera in [1, 2] else None)  # False => no end_hold
     return 'There are no images captured yet.\nTry again later.'
 
 @router.get('/makevideo', response_class=PlainTextResponse)

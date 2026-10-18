@@ -1,0 +1,19 @@
+# Files left out of the release ZIP.
+#
+# The release workflow removes these from the plugin's Code folder (the folder that holds plugin.json)
+# before it builds or zips the plugin, so they are never part of the release. Your own copy is not
+# touched - only the workflow's throwaway checkout. To see what would be left out:
+#   node scripts/prune-release.mjs --list
+#
+# One pattern per line, like .gitignore. Blank lines and lines starting with # are ignored.
+#   path/to/file.txt   a file, relative to the Code folder
+#   some/folder/       a folder and everything in it (ends with /)
+#   *.bak              a name without a / matches at any depth (here, every .bak file)
+#   docs/*.md          * matches within one folder level, ? matches one character
+#   tests/**/*.json    ** matches any number of folder levels
+#
+# Always left out, whether listed or not: __pycache__/, venv/, .git/, *.pyc and *.log
+# (the same as plugin_tools).
+
+# The settings file - duetLapse3 creates it with the defaults on first start
+sd/sys/duetLapse3/duetLapse3.json

@@ -9,7 +9,7 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
 - **Only http cameras**, using a snapshot URL or an MJPEG stream URL. USB and Pi cameras need a camera server.
 - **New web page** in **Vue 3 and Vuetify 4** with the DWC 3.7 look, following DWC's light / dark theme. It's served with FastAPI and uvicorn, with new **Cameras**, **Video** and **Config** tabs, and settings saved from the page.
 - On an SBC, the printer is followed over **DSF's WebSocket**, so **images are taken at the moment the layer changes**.
-- Long-standing bugs fixed: pause didn't stop images, `extratime` was never added, gcode messages didn't work on standalone printers, Continue never returned, and others (see [Bug fixes](#bug-fixes)).
+- Long-standing bugs fixed: pause didn't stop images, `end_hold` was never added, gcode messages didn't work on standalone printers, Continue never returned, and others (see [Bug fixes](#bug-fixes)).
 
 ## Installing and upgrading
 
@@ -23,24 +23,41 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
 ## Settings
 
 - **One settings file.** `duetLapse3.json` is the only source of settings. The command-line options (argparse), `-file` and the `logtype` option are gone.
-- **Where the file is.** The program takes one optional argument: the folder for `duetLapse3.json` and `duetLapse3.log`. With no argument, that's the program's own folder. If the folder doesn't exist, it's created. If the json is missing, it's created with the defaults.
+- **Where the file is.** The program takes one optional argument: the folder for `duetLapse3.json` and `duetLapse3.log`. With no argument, that's the program's own folder. If the folder doesn't exist, it's created. If the file is missing, damaged or edited, it's created again with the defaults.
+- **Not shipped.** `duetLapse3.json` isn't in the repository or the plugin: duetLapse3 creates it with the defaults on first start, so an upgrade never overwrites your settings.
+- **Not editable by hand.** `duetLapse3.json` is compressed (zlib) and base64 encoded, with a sha256 checksum, so settings are changed on the page. It's written safely (to a temporary file first), so an interrupted save can't damage it.
 - **Checked at startup.** Every value is checked when duetLapse3 starts: its type (number, true/false, text, list) and, for some settings, the allowed values. A bad value stops startup with a message naming the setting. Unknown settings are ignored with a warning.
-- **Where images and videos go.** `basedir` blank now means the settings folder, so for the plugin that's `sys/duetLapse3/`, not inside the plugin's install folder. The files are still under `<computer name>/<printer address>/` folders.
+- **Where images and videos go.** `image_dir` blank now means the settings folder, so for the plugin that's `sys/duetLapse3/`, not inside the plugin's install folder. The files are still under `<computer name>/<printer address>/` folders.
 - **The printer's address.**
-  - `duet` is the printer address (SBC or standalone). Blank means this computer.
-  - `duetport` is the printer's port. Blank or 0 means 80.
+  - `duet_ip` (was `duet`) is the printer address (SBC or standalone). Blank means this computer.
+  - `duet_port` is the printer's port. Blank or 0 means 80.
   - duetLapse3 can run on a different computer from the printer.
 - **The page address.**
-  - `port` 0, the default, picks a free port from 17800 upwards. A port that's already in use also falls back to a free one.
+  - `UI_port` (was `port`) 0, the default, picks a free port from 17800 upwards. A port that's already in use also falls back to a free one.
   - The page always listens on every address of the computer. The `host` setting is gone.
-  - The computer's IP is shown in the log, saved to the json (`ip`), and published for the DWC page.
-- **`instances: oneip`** now means one duetLapse3 per settings folder (that is, per printer). The instance check also now spots copies started with a full path, which is how DSF starts plugins.
+  - The computer's IP is shown in the log, saved to the json (`UI_ip`, was `ip`), and published for the DWC page.
+- **`instances: one_per_folder`** now means one duetLapse3 per settings folder (that is, per printer). The instance check also now spots copies started with a full path, which is how DSF starts plugins.
 - **Removed settings:** `camera1`, `camera2`, `camparam1`, `camparam2`, `vidparam1`, `vidparam2` (never used), `logtype`, `host`, `poll` (images are taken at each status or layer change, and timed images are checked every 5 seconds), `maxffmpeg`, `hidebuttons` (the controls always show every button, greyed out when it can't be used), and the Special Functions section: `execkey` and `M3291`.
 - **Special functions removed.** Gcode messages can no longer run commands on the SBC (`execkey`). The message macro is always `M3291`; it can no longer be renamed.
-- **New Files section.** `nolog`, `verbose`, `keeplogs`, `novideo`, `deletepics` and `keepfiles` moved from Environment to a new Files section. Sections are only for readability, so older files still work.
+- **New Files section.** `no_log`, `verbose`, `no_video`, `delete_images` and `keep_files` moved from Environment to a new Files section. Sections are only for readability, so older files still work.
+- **Settings renamed for clarity:**
+
+  | Was | Now |
+  | --- | --- |
+  | `duet`, `duetport`, `password` | `duet_ip`, `duet_port`, `duet_password` |
+  | `ip`, `port` | `UI_ip`, `UI_port` |
+  | `basedir` | `image_dir` |
+  | `detect`, `seconds`, `numlayers`, `dontwait` | `capture_on`, `capture_seconds`, `layer_interval`, `start_now` |
+  | `pause` (yes / no), `movehead`, `rest` | `park` (true / false), `park_xy`, `park_wait` |
+  | `weburl1`, `enable1`, `weburl2`, `enable2` | `camera1_url`, `camera1_on`, `camera2_url`, `camera2_on` |
+  | `maxvideo`, `minvideo`, `extratime`, `ffmpegthreads` | `video_length`, `min_video_seconds`, `end_hold`, `ffmpeg_threads` |
+  | `nolog`, `novideo`, `deletepics`, `keepfiles` | `no_log`, `no_video`, `delete_images`, `keep_files` |
+  | `instances: oneip` | `instances: one_per_folder` |
+
+  The gcode `duetLapse3.change.<setting>=` commands use the new names (e.g. `change.capture_seconds=30`). `keeplogs` is removed: per-print logs left by earlier versions are always cleaned up.
 - **`restart` replaced by `norestart`** (the opposite). duetLapse3 now gets ready for the next print by default; set `norestart` to stop it when a print finishes. The Graceful terminate button is now **Finish capture**, and Forced terminate is **Terminate the program**. An old `restart` setting is still read.
-- **`detect none` renamed `detect timed`.** `none` is still accepted and read as `timed`.
-- **New settings:** `duetport`, `ffmpegthreads`, `enable1`, `enable2`.
+- **`capture_on none` renamed `capture_on timed`.** `none` is still accepted and read as `timed`.
+- **New settings:** `duet_port`, `ffmpeg_threads`, `camera1_on`, `camera2_on`.
 
 ## The web page
 
@@ -54,8 +71,8 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
   - **Execution** and **Files** hold the settings in those sections, moved off the Config tab.
   - **Ready for other languages.** All the page's text is in `ui/src/locales/en.json`, including duetLapse3's own messages (save results, setting errors, the video message and results, the wrong-password banner), which it now sends with a code and values. The language is `?lang=<code>`, otherwise the browser's language, otherwise English; a partial translation falls back to English for the rest. Only English exists so far.
   - **Info tab removed.** The page address is in the log, and the settings in use are written to the log at the start of each print.
-  - **Config** has a new **Pause** section (`pause`, `movehead`, `rest`), and a blank `basedir` shows the folder in use.
-  - **Cameras:** each camera's URL with a preview, and an on/off switch (`enable1`, `enable2`) that keeps the URL. Saving checks the URLs, writes them to the json and starts using them straight away.
+  - **Config** has a new **Pause** section (`park`, `park_xy`, `park_wait`), and a blank `image_dir` shows the folder in use.
+  - **Cameras:** each camera's URL with a preview, and an on/off switch (`camera1_on`, `camera2_on`) that keeps the URL. Saving checks the URLs, writes them to the json and starts using them straight away.
   - **Video:** the images captured by each camera, with how many are needed for a video. Then Snapshot (a button for each camera when there are two), plus the Video settings. Saving writes them to the json and starts using them straight away.
   - **Images:** a file browser with a breadcrumb path, list or grid view with thumbnails, search and sorting. Images and videos open in a viewer, and each item has an action menu.
   - **Config:** every other setting, with checking before saving. Changes take effect after a restart.
@@ -93,27 +110,27 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
 
 - **Still made with ffmpeg**, now:
   - at low priority (`nice`), so the printer software always comes first;
-  - with a CPU thread limit worked out from the free cores (`ffmpegthreads`, 0 = automatic), shared with any other ffmpeg already running. `maxffmpeg` is gone: videos no longer wait for other ffmpeg processes to finish;
+  - with a CPU thread limit worked out from the free cores (`ffmpeg_threads`, 0 = automatic), shared with any other ffmpeg already running. `maxffmpeg` is gone: videos no longer wait for other ffmpeg processes to finish;
   - with the `veryfast` preset, which uses much less CPU;
   - with `-pix_fmt yuv420p`, so videos play in browsers and on phones whatever the camera's JPEG format.
 - **Safe with spaces.** ffmpeg runs without a shell, so a path with spaces works.
 - **One at a time.** Videos are made one at a time, in order, by a video worker.
 - **A folder per camera, with images and videos.** Each print's folder has a folder for each camera, holding its images and its videos: `<print>/Camera1/images/` and `<print>/Camera1/videos/` (videos are named `<print>_Camera1_<Day-HH-MM>.mp4`). A video can be made from a whole print's folder or from one camera's folder.
-- **Videos are kept when images are cleaned up.** The startup clean-up, `deletepics` and Standby delete only the images, keep the videos, and remove folders left empty. Folder layouts from earlier versions aren't read.
+- **Videos are kept when images are cleaned up.** The startup clean-up, `delete_images` and Standby delete only the images, keep the videos, and remove folders left empty. Folder layouts from earlier versions aren't read.
 - **One camera's video.** `/snapshot?camera=1` (or `2`) makes a video for just that camera.
-- **`extratime`** is now added at the end of a print, so those videos are longer than before.
+- **`end_hold`** is now added at the end of a print, so those videos are longer than before.
 
 ## Logging
 
 - **One log.** There's one `duetLapse3.log`, next to `duetLapse3.json`, started fresh each time duetLapse3 starts. It's no longer moved into each print's folder.
-- **Messages.** Log messages use setting names (`detect pause`) instead of command-line options (`-detect pause`). The log shows the page address and the printer's full address.
+- **Messages.** Log messages use setting names (`capture_on pause`) instead of command-line options (`-detect pause`). The log shows the page address and the printer's full address.
 
 ## Bug fixes
 
 Bugs that existed before this work:
 
 - **Pause:** pause from the page or gcode didn't stop images being taken.
-- **`extratime`:** it was never added to the video at the end of a print.
+- **`end_hold`:** it was never added to the video at the end of a print.
 - **Continue:** Continue from the page never returned and kept one CPU core busy.
 - **Standalone gcode messages:** M3291 messages didn't work on standalone printers, and an error was logged at every status check.
 - **Messages after a printer reset:** gcode messages were ignored after the printer was reset (its message numbers start again).
@@ -125,7 +142,7 @@ Bugs that existed before this work:
 - **Camera2 URL check:** Camera2's URL was checked against Camera1's setting.
 - **DWC page:** the page inside DWC would not have loaded (`?theme=` was treated as an unknown API call).
 - **Password:** the printer password was shown on the Info tab and written to the log at startup.
-- **Timed capture status:** timed capture (`dontwait`, or `detect timed` with `seconds`) showed Waiting instead of Capturing when the printer was idle.
+- **Timed capture status:** timed capture (`start_now`, or `capture_on timed` with `capture_seconds`) showed Waiting instead of Capturing when the printer was idle.
 - **Crash on reconnect:** duetLapse3 could stop (UNRECOVERABLE ERROR) when the printer came back quickly after being lost.
 - **Busy while disconnected:** while waiting for the printer to reconnect, the control loop woke every 50 ms.
 
@@ -148,7 +165,7 @@ For maintainers: `duetLapse3.py` is split into modules.
 Everything above was tested against a fake printer (SBC with WebSocket, SBC without, and standalone) and a fake camera:
 
 - capture timing and pause;
-- `extratime`;
+- `end_hold`;
 - restart into a second print;
 - a lost printer and reconnecting;
 - starting with the printer off;
@@ -161,7 +178,6 @@ Everything above was tested against a fake printer (SBC with WebSocket, SBC with
 
 ## Before releasing
 
-- **Reset the shipped settings.** `Code/sd/sys/duetLapse3/duetLapse3.json` still contains test values: `verbose`, `dontwait`, `seconds` 3, `detect` timed, a camera URL and an `ip`. Put it back to the defaults.
 - **Remove test output** from `Code/dsf/`: the `srsender/` image folder and `__pycache__/`. Add both to `.gitignore`.
 - **Check on a real SBC:**
   - `WebSocket connected` appears in the log;

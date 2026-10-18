@@ -1,0 +1,56 @@
+# Time-lapse-themed release titles, one per line (blank lines and #comments ignored).
+First Frame
+Layer by Layer
+Frame by Frame
+Watch It Grow
+Time Flies
+Speed It Up
+The Long Exposure
+Golden Hour
+Blink and You'll Miss It
+Sunrise to Sunset
+Every Layer Counts
+The Big Picture
+Fast Forward
+Slow and Steady
+Capture the Moment
+Still Life in Motion
+Hours in Seconds
+Rising Up
+From the Ground Up
+Watching Paint Dry
+A Watched Print Never Finishes
+Frames per Second
+Keyframe
+Shutter Speed
+Snap Happy
+The Final Cut
+Rolling Footage
+Reel Time
+Moment by Moment
+Tick Tock
+Against the Clock
+The Hourglass
+Sands of Time
+Clockwork
+Timekeeper
+Night Shift
+Overnight Success
+Built Overnight
+Before and After
+Stacked Up
+Z-Axis Rising
+The Big Reveal
+Take Two
+That's a Wrap
+Lights, Camera, Extrude
+Director's Cut
+Behind the Scenes
+In the Frame
+Picture Perfect
+Through the Lens
+Focus Pull
+Zoom Out
+Freeze Frame
+Motion Picture
+Encore

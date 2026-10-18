@@ -20,9 +20,9 @@ from logger_module import logger, currentFuncName
 
 def printerAddress():
     # host[:port] of the printer.  A port in the duet setting (the old way, e.g. 192.168.1.5:8080) is still used
-    if ':' in state.duet or state.duetport in [80, None]:
+    if ':' in state.duet or state.duet_port in [80, None]:
         return state.duet
-    return state.duet + ':' + str(state.duetport)
+    return state.duet + ':' + str(state.duet_port)
 
 # Hooks - set by duetLapse3
 onDisconnected = None  # Called when the printer has stopped answering (after 3 tries)
@@ -132,7 +132,7 @@ def loginPrinter(model = ''):
     if model == '' or model == 'rr_model':
         URL = ('http://' + printerAddress() + '/rr_disconnect') # Close any open session
         r = urlCall(URL,  False)
-        URL = ('http://' + printerAddress() + '/rr_connect?password=' + state.password) # Connect with password
+        URL = ('http://' + printerAddress() + '/rr_connect?password=' + state.duet_password) # Connect with password
         r = urlCall(URL,  False)
         code = r.status_code
         if code == 200:
@@ -165,7 +165,7 @@ def loginPrinter(model = ''):
     if (model == '' or model == 'SBC') and not standalone:
         URL = ('http://' + printerAddress() + '/machine/disconnect') # Close any open session
         r = urlCall(URL,  False)
-        URL = ('http://' + printerAddress() + '/machine/connect?password=' + state.password) # Connect with password
+        URL = ('http://' + printerAddress() + '/machine/connect?password=' + state.duet_password) # Connect with password
         r = urlCall(URL,  False)
         code = r.status_code
         if code == 200:

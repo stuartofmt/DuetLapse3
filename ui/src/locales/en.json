@@ -14,19 +14,19 @@
 			"label": "simulate",
 			"description": "For testing: all, printer or camera are simulated"
 		},
-		"duet": {
+		"duet_ip": {
 			"label": "Printer IP address",
 			"description": "Printer address (SBC or standalone).  Blank = this computer"
 		},
-		"duetport": {
+		"duet_port": {
 			"label": "Printer port",
 			"description": "Printer port.  Blank or 0 = 80"
 		},
-		"password": {
+		"duet_password": {
 			"label": "Printer password",
 			"description": "Printer password  Blank = no password"
 		},
-		"basedir": {
+		"image_dir": {
 			"label": "Image folder",
 			"description": "Where images and videos are stored"
 		},
@@ -34,7 +34,7 @@
 			"label": "instances",
 			"description": "Single: Only one duetLapse3.  Many: no limit"
 		},
-		"nolog": {
+		"no_log": {
 			"label": "Disable Logging",
 			"description": "This is only useful if you are running duetLapse3 on a read-only filesystem."
 		},
@@ -42,35 +42,31 @@
 			"label": "Verbose Logging",
 			"description": "VERY Detailed logging. Only useful for debugging."
 		},
-		"keeplogs": {
-			"label": "Keep Logs",
-			"description": "Keep logs from earlier runs otherwise delete them on restart"
-		},
-		"novideo": {
+		"no_video": {
 			"label": "No Video",
 			"description": "Don't make a video"
 		},
-		"deletepics": {
+		"delete_images": {
 			"label": "Delete Images",
-			"description": "Delete the image files when the program starts or stops (unless keepfiles is set)"
+			"description": "Delete the image files when the program starts or stops (unless keep_files is set)"
 		},
-		"keepfiles": {
+		"keep_files": {
 			"label": "Keep Files",
 			"description": "Don't delete image or video on startup or shutdown"
 		},
-		"dontwait": {
+		"start_now": {
 			"label": "Start straight away",
 			"description": "Start taking images as soon as the program starts, dont wait for printing to start"
 		},
-		"seconds": {
+		"capture_seconds": {
 			"label": "Timed capture",
 			"description": "Take an image every n seconds (0 = off)"
 		},
-		"detect": {
+		"capture_on": {
 			"label": "Event capture",
 			"description": "When to take images. On layer change - if Pause from job -  Timed Only"
 		},
-		"numlayers": {
+		"layer_interval": {
 			"label": "Layers between capture",
 			"description": "Take an image every n layers when Event capture = Layers"
 		},
@@ -82,35 +78,35 @@
 			"label": "No restart",
 			"description": "Stop duetLapse3 when the print finishes, instead of getting ready for the next print job"
 		},
-		"pause": {
+		"park": {
 			"label": "Park before image",
 			"description": "Yes parks the head before each image"
 		},
-		"movehead": {
+		"park_xy": {
 			"label": "Park Location",
 			"description": "Where to park the head (X, Y) when pause is yes"
 		},
-		"rest": {
+		"park_wait": {
 			"label": "Rest Time",
 			"description": "Seconds to wait after parking, before the image is captured"
 		},
-		"weburl1": {
+		"camera1_url": {
 			"label": "Camera 1 url",
 			"description": "Camera1 snapshot url (preferred) or MJPEG stream url if snapshot not available"
 		},
-		"enable1": {
+		"camera1_on": {
 			"label": "Enable Camera 1",
 			"description": "Camera1 is used (off keeps the url but takes no images)"
 		},
-		"weburl2": {
+		"camera2_url": {
 			"label": "Camera 2 url",
 			"description": "Optional second camera url"
 		},
-		"enable2": {
+		"camera2_on": {
 			"label": "Enable Camera 2",
 			"description": "Camera2 is used (off keeps the url but takes no images)"
 		},
-		"extratime": {
+		"end_hold": {
 			"label": "Extra Time",
 			"description": "Display the last image for x seconds at the end of the video (0 = off)"
 		},
@@ -118,23 +114,23 @@
 			"label": "Video FPS",
 			"description": "Frames per second in the video"
 		},
-		"minvideo": {
+		"min_video_seconds": {
 			"label": "Minimum video length",
 			"description": "Shortest video to make (seconds)"
 		},
-		"maxvideo": {
+		"video_length": {
 			"label": "Maximum video length",
 			"description": "Longest video to make in seconds (0 = unlimited)"
 		},
-		"ffmpegthreads": {
+		"ffmpeg_threads": {
 			"label": "Video Creation Load",
 			"description": "Number of CPU cores to use for video creation (0 = automatic)"
 		},
-		"port": {
+		"UI_port": {
 			"label": "UI port",
 			"description": "Port for this UI (0 = pick a free port)"
 		},
-		"ip": {
+		"UI_ip": {
 			"label": "UI ip",
 			"description": "The ip address of this computer (read only)"
 		}
@@ -182,7 +178,7 @@
 		"continue": "Continue",
 		"restart": "Restart",
 		"standbyConfirm": "Standby does NOT create a video.\nAll captured images will be deleted.",
-		"restartConfirm": "Restart will try to create a video, then get ready for the next print.\n\nAll captured images will be deleted, unless keepfiles is set.",
+		"restartConfirm": "Restart will try to create a video, then get ready for the next print.\n\nAll captured images will be deleted, unless keep_files is set.",
 		"graceful": "Finish capture",
 		"forced": "Terminate the program",
 		"gracefulText": "Make the video.\n{video}",
@@ -294,14 +290,10 @@
 		"more": "Show {n} more of {total}"
 	},
 	"choices": {
-		"detect": {
+		"capture_on": {
 			"layer": "On layer change",
 			"pause": "When paused in print job",
 			"timed": "Timed Only"
-		},
-		"pause": {
-			"yes": "Yes",
-			"no": "No"
 		},
 		"simulate": {
 			"off": "Off",
@@ -311,7 +303,7 @@
 		},
 		"instances": {
 			"single": "Single",
-			"oneip": "One per IP",
+			"one_per_folder": "One per IP",
 			"many": "Many"
 		}
 	},
@@ -356,15 +348,14 @@
 		"notSavedInvalid": "Not saved - some settings are invalid",
 		"cameraOn": "{camera} is on",
 		"cameraOff": "{camera} is off - no images will be taken from it",
-		"settingsUnreadable": "Could not read the settings file. {error}",
 		"settingsUnreadableDefaults": "Could not read the settings file - showing the defaults. {error}",
 		"notBool": "{key} must be true or false, not {value}",
 		"notWhole": "{key} must be a whole number, not {value}",
 		"notList": "{key} must be a list of {count} numbers e.g. {example}",
 		"notText": "{key} must be text (in quotes), not {value}",
 		"notChoice": "{key} must be one of {choices}, not \"{value}\"",
-		"minvideoTooBig": "minvideo ({min}) can not be more than maxvideo ({max})",
-		"maxvideoTooSmall": "maxvideo must be 0 (off) or at least minvideo ({min})",
+		"minvideoTooBig": "min_video_seconds ({min}) can not be more than video_length ({max})",
+		"maxvideoTooSmall": "video_length must be 0 (off) or at least min_video_seconds ({min})",
 		"camera1Needed": "Camera1 needs an http url (a snapshot url or an MJPEG stream url) - or switch it off",
 		"camera1NotHttp": "Camera1 url must be an http url, or blank",
 		"camera2NotHttp": "Camera2 url must be an http url, or blank for no second camera",

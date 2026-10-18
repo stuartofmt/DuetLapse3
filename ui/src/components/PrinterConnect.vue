@@ -9,7 +9,7 @@ import { mdiEye, mdiEyeOff, mdiRefresh } from "../icons.js";
 
 const s = computed(() => status.data);
 const shown = computed(() => s.value && !s.value.connected);
-const form = reactive({ duet: "", duetport: "", password: "" });
+const form = reactive({ duet_ip: "", duet_port: "", duet_password: "" });  // Setting names
 const errors = ref({});
 const busy = ref(false);
 const showPassword = ref(false);
@@ -17,9 +17,9 @@ const showPassword = ref(false);
 // Filled in each time the printer is lost - not while it is being edited
 watch(shown, (value) => {
 	if (value) {
-		form.duet = s.value.duet || "";
-		form.duetport = String(s.value.duetport ?? "");
-		form.password = "";
+		form.duet_ip = s.value.duet || "";
+		form.duet_port = String(s.value.duetport ?? "");
+		form.duet_password = "";
 		errors.value = {};
 	}
 }, { immediate: true });
@@ -30,7 +30,7 @@ async function connect() {
 	try {
 		const reply = await api.postJson("/printer/connect", { ...form });
 		notify(serverText(reply.message, reply.messageCode), "success");
-		form.password = "";
+		form.duet_password = "";
 		await refreshStatus();
 	} catch (err) {
 		const errs = err.data?.errors || {};
@@ -50,16 +50,16 @@ async function connect() {
 			{{ t("printer.saved") }}
 		</div>
 		<v-form class="d-flex flex-wrap ga-3 align-start" @submit.prevent="connect">
-			<v-text-field v-model="form.duet" :label="t('printer.address')" :hint="t('printer.addressHint')" persistent-hint
+			<v-text-field v-model="form.duet_ip" :label="t('printer.address')" :hint="t('printer.addressHint')" persistent-hint
 						  density="compact" variant="outlined" style="min-width: 200px; flex: 2 1 200px"
-						  :error-messages="errors.duet"></v-text-field>
-			<v-text-field v-model="form.duetport" :label="t('printer.port')" :hint="t('printer.portHint')" persistent-hint type="number"
+						  :error-messages="errors.duet_ip"></v-text-field>
+			<v-text-field v-model="form.duet_port" :label="t('printer.port')" :hint="t('printer.portHint')" persistent-hint type="number"
 						  density="compact" variant="outlined" style="min-width: 100px; flex: 1 1 100px"
-						  :error-messages="errors.duetport"></v-text-field>
-			<v-text-field v-model="form.password" :label="t('printer.password')" :hint="t('printer.passwordHint')" persistent-hint
+						  :error-messages="errors.duet_port"></v-text-field>
+			<v-text-field v-model="form.duet_password" :label="t('printer.password')" :hint="t('printer.passwordHint')" persistent-hint
 						  :type="showPassword ? 'text' : 'password'" :append-inner-icon="showPassword ? mdiEyeOff : mdiEye"
 						  autocomplete="off" density="compact" variant="outlined" style="min-width: 180px; flex: 2 1 180px"
-						  :error-messages="errors.password" @click:append-inner="showPassword = !showPassword"></v-text-field>
+						  :error-messages="errors.duet_password" @click:append-inner="showPassword = !showPassword"></v-text-field>
 			<v-btn type="submit" color="primary" variant="flat" :prepend-icon="mdiRefresh" :loading="busy">{{ t("printer.connect") }}</v-btn>
 		</v-form>
 	</v-alert>

@@ -136,7 +136,7 @@ onMounted(load);
 									  :append-inner-icon="showPassword ? mdiEyeOff : mdiEye" @click:append-inner="showPassword = !showPassword"
 									  :error-messages="errorFor(setting.key)" variant="outlined" density="comfortable"></v-text-field>
 
-						<!-- inUse: the value in use when it can differ from the saved one (e.g. a blank basedir) - shown in the empty field -->
+						<!-- inUse: the value in use when it can differ from the saved one (e.g. a blank image_dir) - shown in the empty field -->
 						<v-text-field v-else v-model="values[setting.key]" :label="settingLabel(setting.key)"
 									  :type="setting.type === 'int' ? 'number' : 'text'" :readonly="setting.readonly"
 									  :min="setting.type === 'int' ? limitsFor(setting.key).min : undefined"

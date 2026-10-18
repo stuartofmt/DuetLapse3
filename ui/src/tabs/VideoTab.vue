@@ -25,16 +25,16 @@ const twoCameras = computed(() => counts.value.length > 1);
 // Snapshot needs a camera with enough images for a video
 const enough = computed(() => counts.value.some((c) => c.enough));
 
-// minvideo can't be more than maxvideo - unless maxvideo is 0 (off)
+// min_video_seconds can't be more than video_length - unless video_length is 0 (off)
 function videoCheck(v) {
-	const min = Number(v.minvideo), max = Number(v.maxvideo);
+	const min = Number(v.min_video_seconds), max = Number(v.video_length);
 	if (max > 0 && min > max) {
-		return { minvideo: t("video.minTooBig", { max }), maxvideo: t("video.maxTooSmall", { min }) };
+		return { min_video_seconds: t("video.minTooBig", { max }), video_length: t("video.maxTooSmall", { min }) };
 	}
 	return {};
 }
-// The minvideo arrows stop at maxvideo
-const videoLimits = (v, key) => (key === "minvideo" && Number(v.maxvideo) > 0 ? { max: Number(v.maxvideo) } : {});
+// The min_video_seconds arrows stop at video_length
+const videoLimits = (v, key) => (key === "min_video_seconds" && Number(v.video_length) > 0 ? { max: Number(v.video_length) } : {});
 
 // camera 1 or 2 makes that camera's video only - otherwise every camera's
 async function snapshot(camera) {

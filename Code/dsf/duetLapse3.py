@@ -111,6 +111,11 @@ All the page's text is in ui/src/locales/en.json - ready for other languages.  M
 The page is told about changes as they happen (/api/events) instead of asking every 3 seconds
 detect none is now detect timed (none is still accepted)
 restart is now norestart (the opposite) - duetLapse3 gets ready for the next print unless norestart is set.  An old restart setting is still read
+port is now UI_port, ip is UI_ip and duet is duet_ip.  The Config tab shows the printer address and page port in use
+duetLapse3.json is compressed, base64 encoded and checksummed - recreated from the defaults if it is missing or fails the checksum
+Settings renamed for clarity: duet_port, duet_password, image_dir, capture_on, capture_seconds, layer_interval, start_now, park (true/false), park_xy, park_wait,
+  camera1_url, camera1_on, camera2_url, camera2_on, video_length, min_video_seconds, end_hold, ffmpeg_threads, no_log, no_video, delete_images, keep_files.
+  instances oneip is one_per_folder.  keeplogs removed.  gcode change.<setting>= uses the new names
 Removed unused code (getPidDirs, getThisInstance, lastaction, mainLoopIterate, getDuet's calledfrom) and printer_status.py
 Removed poll - a capture pass runs at each status or layer change, otherwise every 5 seconds
 Removed hidebuttons - the controls always show every button, greyed out when it can't be used
@@ -168,6 +173,8 @@ import pathlib
 import stat
 import signal
 import base64
+import hashlib
+import zlib
 import re
 import math
 import urllib.parse
@@ -236,29 +243,52 @@ logFileName = 'duetLapse3.log'
 # The sections match duetLapse3.json - they are only for readability
 DEFAULTS = {
     'Simulate': {'simulate': 'off'},
-    'Environment': {'duet': '', 'duetport': 80, 'password': 'reprap', 'basedir': '', 'instances': 'single'},
-    'Files': {'nolog': False, 'verbose': False, 'keeplogs': False, 'novideo': False, 'deletepics': False, 'keepfiles': False},
-    'Execution': {'dontwait': False, 'seconds': 0, 'detect': 'layer', 'numlayers': 1, 'standby': False, 'norestart': False},
-    'Pause': {'pause': 'no', 'movehead': [0, 0], 'rest': 1},
-    'Camera': {'weburl1': '', 'enable1': True, 'weburl2': '', 'enable2': True},
-    'Video': {'extratime': 0, 'fps': 10, 'minvideo': 5, 'maxvideo': 0, 'ffmpegthreads': 0},
-    'UI': {'port': 0, 'ip': ''},
+    'Environment': {'duet_ip': '', 'duet_port': 80, 'duet_password': 'reprap', 'image_dir': '', 'instances': 'single'},
+    'Files': {'no_log': False, 'verbose': False, 'no_video': False, 'delete_images': False, 'keep_files': False},
+    'Execution': {'start_now': False, 'capture_seconds': 0, 'capture_on': 'layer', 'layer_interval': 1, 'standby': False, 'norestart': False},
+    'Pause': {'park': False, 'park_xy': [0, 0], 'park_wait': 1},
+    'Camera': {'camera1_url': '', 'camera1_on': True, 'camera2_url': '', 'camera2_on': True},
+    'Video': {'end_hold': 0, 'fps': 10, 'min_video_seconds': 5, 'video_length': 0, 'ffmpeg_threads': 0},
+    'UI': {'UI_port': 0, 'UI_ip': ''},
 }
-CHOICES = {'simulate': ['off', 'all', 'printer', 'camera'], 'instances': ['single', 'oneip', 'many'],
-           'detect': ['layer', 'pause', 'timed'], 'pause': ['yes', 'no']}
-configExtras = ['ip']  # Written by duetLapse3, not read as a setting
+CHOICES = {'simulate': ['off', 'all', 'printer', 'camera'], 'instances': ['single', 'one_per_folder', 'many'],
+           'capture_on': ['layer', 'pause', 'timed']}
+configExtras = ['UI_ip']  # Written by duetLapse3, not read as a setting
 
 def flatDefaults():
     return {key: val for section in DEFAULTS.values() for key, val in section.items()}
 
+# duetLapse3.json is not plain JSON, so it is changed on the page rather than by hand.  It has two lines:
+#   the sha256 checksum of the settings (as JSON), then the settings JSON compressed (zlib) and base64 encoded
+
+def encodeConfig(config):
+    text = json.dumps(config, indent=2).encode('utf-8')
+    return hashlib.sha256(text).hexdigest() + '\n' + base64.b64encode(zlib.compress(text, 9)).decode('ascii') + '\n'
+
+def decodeConfig(data):
+    # The settings - ValueError if data is not in that form or its checksum does not match
+    try:
+        checksum, payload = data.split()
+        text = zlib.decompress(base64.b64decode(payload, validate=True))
+    except (ValueError, zlib.error) as e:  # binascii.Error is a ValueError
+        raise ValueError('not a duetLapse3 settings file (' + str(e) + ')')
+    if hashlib.sha256(text).hexdigest() != checksum:
+        raise ValueError('the checksum does not match')
+    config = json.loads(text.decode('utf-8'))
+    if not isinstance(config, dict) or not all(isinstance(section, dict) for section in config.values()):
+        raise ValueError('not a duetLapse3 settings file')
+    return config
+
 def readConfig(filename):
-    with open(filename, encoding='utf-8') as f:
-        return json.load(f)
+    with open(filename, encoding='ascii', errors='replace') as f:
+        return decodeConfig(f.read())
 
 def writeConfig(filename, config):
-    with open(filename, 'w', encoding='utf-8') as f:
-        json.dump(config, f, indent=2)
-        f.write('\n')
+    # Written to a temporary file that then replaces the old one - so an interrupted save cannot leave a broken file
+    temp = filename + '.tmp'
+    with open(temp, 'w', encoding='ascii') as f:
+        f.write(encodeConfig(config))
+    os.replace(temp, filename)
 
 def badSetting(filename, message):
     logger.critical('Invalid setting in ' + filename + ': ' + message)
@@ -266,7 +296,7 @@ def badSetting(filename, message):
 
 def checkSetting(key, val, default):
     # Returns val as the same type as default.  Raises ValueError (with the reason) if it can't be
-    if key == 'duetport' and val in ['', None, 0, '0']:  # Blank means the standard http port
+    if key == 'duet_port' and val in ['', None, 0, '0']:  # Blank means the standard http port
         return 80
     if isinstance(default, bool):  # Must be before int (bool is a kind of int)
         if isinstance(val, bool):
@@ -288,7 +318,7 @@ def checkSetting(key, val, default):
             raise ValueError(Message('notList', key + ' must be a list of ' + str(len(default)) + ' numbers e.g. ' + json.dumps(default),
                                      key = key, count = len(default), example = json.dumps(default)))
         return val
-    if key == 'detect' and val == 'none':  # The old name for timed
+    if key == 'capture_on' and val == 'none':  # The old name for timed
         return 'timed'
     if not isinstance(val, str):
         raise ValueError(Message('notText', key + ' must be text (in quotes), not ' + json.dumps(val), key = key, value = json.dumps(val)))
@@ -299,19 +329,21 @@ def checkSetting(key, val, default):
 
 def loadSettings(filename):
     # Returns every setting: the defaults, replaced by any values in the config file
-    # If the file does not exist, it is created from the defaults
+    # If the file does not exist, or can't be read or its checksum fails, it is created from the defaults
+    config = None
     if not os.path.isfile(filename):
         logger.warning('No config file found at ' + filename + ' - creating it with default values')
+    else:
+        try:
+            config = readConfig(filename)
+        except (OSError, ValueError) as e:
+            logger.warning('The config file ' + filename + ' could not be used: ' + str(e) + ' - creating it with default values')
+    if config is None:
         config = {section: dict(keys) for section, keys in DEFAULTS.items()}
         try:
             writeConfig(filename, config)
         except OSError as e:
             logger.warning('Could not create config file ' + str(e))
-    else:
-        try:
-            config = readConfig(filename)
-        except (OSError, ValueError) as e:
-            badSetting(filename, str(e))
 
     settings = flatDefaults()
     keys = {key for section in config.values() for key in section}
@@ -338,12 +370,12 @@ def saveUiAddress(ip):
         return
     try:
         config = readConfig(state.configfile)
-        section = next((sec for sec in config.values() if 'ip' in sec), None)
+        section = next((sec for sec in config.values() if 'UI_ip' in sec), None)
         if section is None:
             section = config.setdefault('UI', {})
-        if section.get('ip') == ip:
+        if section.get('UI_ip') == ip:
             return
-        section['ip'] = ip
+        section['UI_ip'] = ip
         writeConfig(state.configfile, config)
         logger.info('Saved UI address ' + ip + ' to ' + state.configfile)
     except (OSError, ValueError) as e:
@@ -412,47 +444,46 @@ def init():
     setPrinter(args)
 
         
-    state.basedir = args['basedir']
+    state.image_dir = args['image_dir']
     
     
     state.instances = args['instances']
     
-    state.nolog = args['nolog']
+    state.no_log = args['no_log']
     
     state.verbose = args['verbose']
 
-    state.port = args['port']
-
-    state.keeplogs = args['keeplogs']
-
-    state.novideo = args['novideo']
-
-    state.deletepics = args['deletepics']
+    state.port = args['UI_port']
 
 
-    state.keepfiles = args['keepfiles']
+    state.no_video = args['no_video']
+
+    state.delete_images = args['delete_images']
+
+
+    state.keep_files = args['keep_files']
 
     # Execution
 
-    state.dontwait = args['dontwait']
+    state.start_now = args['start_now']
 
-    state.seconds = args['seconds']
-    if state.seconds != 0 and state.seconds < state.minseconds:
-        state.seconds = state.minseconds
+    state.capture_seconds = args['capture_seconds']
+    if state.capture_seconds != 0 and state.capture_seconds < state.minseconds:
+        state.capture_seconds = state.minseconds
 
-    state.detect = args['detect']
+    state.capture_on = args['capture_on']
 
-    state.pause = args['pause']
+    state.park = args['park']
 
-    state.numlayers = args['numlayers']
-    if state.numlayers < 1:
-        state.numlayers = 1
+    state.layer_interval = args['layer_interval']
+    if state.layer_interval < 1:
+        state.layer_interval = 1
 
-    state.movehead = args['movehead']
+    state.park_xy = args['park_xy']
 
-    state.rest = args['rest']
-    if state.rest < 0:
-        state.rest = 0
+    state.park_wait = args['park_wait']
+    if state.park_wait < 0:
+        state.park_wait = 0
 
     state.standby = args['standby']
 
@@ -461,29 +492,29 @@ def init():
 
     # Camera
 
-    state.weburl1 = args['weburl1']
+    state.camera1_url = args['camera1_url']
 
-    state.weburl2 = args['weburl2']
+    state.camera2_url = args['camera2_url']
 
-    state.enable1 = args['enable1']
+    state.camera1_on = args['camera1_on']
 
-    state.enable2 = args['enable2']
+    state.camera2_on = args['camera2_on']
 
     # Video
 
-    state.extratime = args['extratime']
+    state.end_hold = args['end_hold']
 
     state.fps = args['fps']
 
-    state.minvideo = args['minvideo']
+    state.min_video_seconds = args['min_video_seconds']
 
-    state.maxvideo = args['maxvideo']
-    if state.maxvideo > 0:
-       if state.maxvideo < state.minvideo:
-           state.maxvideo = state.minvideo
+    state.video_length = args['video_length']
+    if state.video_length > 0:
+       if state.video_length < state.min_video_seconds:
+           state.video_length = state.min_video_seconds
 
 
-    state.ffmpegthreads = max(0, args['ffmpegthreads'])
+    state.ffmpeg_threads = max(0, args['ffmpeg_threads'])
 
 
 
@@ -491,7 +522,7 @@ def init():
     setdebug(state.verbose)
 
     # Create handler for console output - file output handler is created later if needed
-    logger_module.setup_logger(state.duet, console = state.nolog is False)
+    logger_module.setup_logger(state.duet, console = state.no_log is False)
 
 
     ########################################################################
@@ -521,16 +552,16 @@ def init():
 
     # set directories for files
     state.pidIncrement = 0 # Used to create a new path for each job.
-    if state.basedir == '':  # The settings folder - argument 1, or this program's folder
-        state.basedir = state.configdir
+    if state.image_dir == '':  # The settings folder - argument 1, or this program's folder
+        state.image_dir = state.configdir
     # clean up the separators
-    state.basedir = state.basedir.replace('\\', '/')
-    if state.basedir.startswith('.'):  #  this little trick so as not to drop ./ or ../
-        state.basedir = './' + state.basedir
-        state.basedir = os.path.normpath(state.basedir) # get slashes in correct direction
+    state.image_dir = state.image_dir.replace('\\', '/')
+    if state.image_dir.startswith('.'):  #  this little trick so as not to drop ./ or ../
+        state.image_dir = './' + state.image_dir
+        state.image_dir = os.path.normpath(state.image_dir) # get slashes in correct direction
 
 
-    state.topDir = os.path.join(state.basedir, socket.getfqdn(), state.duetname)
+    state.topDir = os.path.join(state.image_dir, socket.getfqdn(), state.duetname)
     logger.debug('The top level dir is ' + state.topDir)
     
     pidID = state.pid + '_' + str(state.pidIncrement)
@@ -574,12 +605,12 @@ def init():
     # Invalid Combinations that will abort program
 
     # Only http cameras are supported
-    if state.simulate in ['all', 'camera'] and state.weburl1 == '':
-        state.weburl1 = 'http://simulated'
+    if state.simulate in ['all', 'camera'] and state.camera1_url == '':
+        state.camera1_url = 'http://simulated'
 
     # A missing or invalid url does not stop duetLapse3 - the url can be set on the Cameras tab
     # Until then that camera is not used
-    for key, name in [('weburl1', 'Camera1'), ('weburl2', 'Camera2')]:
+    for key, name in [('camera1_url', 'Camera1'), ('camera2_url', 'Camera2')]:
         url = getattr(state, key)
         if url != '' and not camera.is_http_url(url):
             logger.info('************************************************************************************')
@@ -595,18 +626,18 @@ def init():
     checkDependencies()  # Exits if ffmpeg is missing
 
 
-    if (not state.movehead == [0.0, 0.0]) and (not 'yes' in state.pause) and (not 'pause' in state.detect):
+    if (not state.park_xy == [0.0, 0.0]) and (not state.park) and state.capture_on != 'pause':
         logger.info('************************************************************************************')
         logger.info(
-                'Invalid Combination: "movehead {0:1.2f} {1:1.2f}" requires either "pause yes" or "detect pause".'.format(
-                        state.movehead[0], state.movehead[1]))
+                'Invalid Combination: "park_xy {0:1.2f} {1:1.2f}" requires either "park true" or "capture_on pause".'.format(
+                        state.park_xy[0], state.park_xy[1]))
         logger.info('************************************************************************************\n')
         sys.exit(2)
 
-    if ('yes' in state.pause) and ('pause' in state.detect):
+    if state.park and state.capture_on == 'pause':
         logger.info('************************************************************************************')
-        logger.info('Invalid Combination: "pause yes" causes this program to pause printer when')
-        logger.info('other events are detected, and "detect pause" requires the gcode on the printer')
+        logger.info('Invalid Combination: "park true" causes this program to pause printer when')
+        logger.info('other events are detected, and "capture_on pause" requires the gcode on the printer')
         logger.info('contain its own pauses.  These cannot be used together.')
         logger.info('************************************************************************************\n')
         sys.exit(2)
@@ -616,50 +647,50 @@ def init():
 
 def issue_warnings():
     # Information and Warnings
-    if state.seconds <= 0 and 'timed' in state.detect:
+    if state.capture_seconds <= 0 and 'timed' in state.capture_on:
         logger.info('************************************************************************************')
-        logger.info('Warning:: seconds ' + str(state.seconds) + ' and detect ' + state.detect + ' nothing will be captured.')
-        logger.info('Specify "detect timed" with "seconds > 0" to trigger on seconds alone.')
+        logger.info('Warning:: capture_seconds ' + str(state.capture_seconds) + ' and capture_on ' + state.capture_on + ' nothing will be captured.')
+        logger.info('Specify "capture_on timed" with "capture_seconds > 0" to trigger on seconds alone.')
         logger.info('************************************************************************************\n')
 
-    if state.seconds > 0 and (not 'timed' in state.detect):
+    if state.capture_seconds > 0 and (not 'timed' in state.capture_on):
         logger.info('************************************************************************************')
-        logger.info('Warning: seconds ' + str(state.seconds) + ' and detect ' + state.detect + ' will trigger on both.')
-        logger.info('Specify "detect timed" with "seconds > 0" to trigger on seconds alone.')
+        logger.info('Warning: capture_seconds ' + str(state.capture_seconds) + ' and capture_on ' + state.capture_on + ' will trigger on both.')
+        logger.info('Specify "capture_on timed" with "capture_seconds > 0" to trigger on seconds alone.')
         logger.info('************************************************************************************\n')
 
-    if state.seconds > 0  and 'timed' in state.detect:
+    if state.capture_seconds > 0  and 'timed' in state.capture_on:
         logger.info('************************************************************************************')
-        logger.info('Warning: seconds ' + str(state.seconds) + ' and detect ' + state.detect)
-        logger.info('This combination implies dontwait and will be set automatically')
+        logger.info('Warning: capture_seconds ' + str(state.capture_seconds) + ' and capture_on ' + state.capture_on)
+        logger.info('This combination implies start_now and will be set automatically')
         logger.info('************************************************************************************\n')
-        state.dontwait = True
+        state.start_now = True
 
-    if 'pause' in state.detect:
+    if 'pause' in state.capture_on:
         logger.info('************************************************************************************')
-        logger.info('* Note "detect pause" means that the G-Code on the printer already contains pauses,')
+        logger.info('* Note "capture_on pause" means that the G-Code on the printer already contains pauses,')
         logger.info('* and that this program will detect them, take a photo, and issue a resume.')
         logger.info('* Head position during those pauses is can be controlled by the pause.g macro ')
-        logger.info('* on the duet, or by specifying "movehead nnn nnn".')
+        logger.info('* on the duet, or by specifying "park_xy nnn nnn".')
         logger.info('*')
         logger.info('* If instead, it is desired that this program force the printer to pause with no')
         logger.info('* pauses in the gcode, specify either:')
-        logger.info('* "pause yes detect layer" or "pause yes seconds nnn".')
+        logger.info('* "park true capture_on layer" or "park true capture_seconds nnn".')
         logger.info('************************************************************************************\n')
 
-    if 'yes' in state.pause:
+    if state.park:
         logger.info('************************************************************************************')
-        logger.info('* Note "pause yes" means this program will pause the printer when the detect and / or ')
-        logger.info('* seconds flags trigger.')
+        logger.info('* Note "park true" means this program will pause the printer when the capture_on and / or ')
+        logger.info('* capture_seconds settings trigger.')
         logger.info('*')
         logger.info('* If instead, it is desired that this program detect pauses that are already in')
         logger.info('* in the gcode, specify:')
-        logger.info('* "detect pause"')
+        logger.info('* "capture_on pause"')
         logger.info('************************************************************************************\n')
 
-    if state.novideo and state.deletepics:
+    if state.no_video and state.delete_images:
         logger.info('************************************************************************************')
-        logger.info('Warning: The combination of novideo and deletepics will not create any output')
+        logger.info('Warning: The combination of no_video and delete_images will not create any output')
         logger.info('************************************************************************************\n')
 
     return # issue_warnings()
@@ -674,7 +705,7 @@ def listOptions():
     for section, keys in DEFAULTS.items():
         logger.info('# ' + section)
         for key in keys:
-            if key != 'password':  # Never logged
+            if key != 'duet_password':  # Never logged
                 logger.info(key + '  =  ' + str(getattr(state, key, '')))
     logger.info('-----------------------------------------------------------------------\n\n')
 
@@ -684,7 +715,7 @@ def listOptions():
 ####################################################
 
 def setuplogfile():  # Called at start - one logfile, in the config folder, for the whole run
-    if state.nolog is False:
+    if state.no_log is False:
         state.logfilename = os.path.join(state.configdir, logFileName)
         logger_module.create_log_file(state.logfilename)
 
@@ -693,7 +724,7 @@ def setuplogfile():  # Called at start - one logfile, in the config folder, for 
         logger.info('Settings from  ---  ' + state.configfile)
         logger.info('-------------------------------------------------------------------------------\n')
     else:
-        state.logfilename = 'None (nolog is set)'
+        state.logfilename = 'None (no_log is set)'
 
 
 def setNextWorkingDir():  # Called at start and restart - the folder for the next job's images
@@ -711,16 +742,16 @@ def setdebug(val): # How much output
 
 def checkSeconds():
     # Seconds needs to be an integer multiple of mainLoopPoll - capture passes are that far apart when nothing changes
-    if state.seconds != 0:
-        multiplier,remainder = divmod(max(state.seconds,state.minseconds), state.mainLoopPoll)    
+    if state.capture_seconds != 0:
+        multiplier,remainder = divmod(max(state.capture_seconds,state.minseconds), state.mainLoopPoll)    
         if remainder == 0: # use the max
-            updateglobals('seconds', str(max(state.seconds,state.minseconds))) 
+            updateglobals('capture_seconds', str(max(state.capture_seconds,state.minseconds))) 
         else:  # round down
-            updateglobals('seconds', str(state.mainLoopPoll * multiplier))     
+            updateglobals('capture_seconds', str(state.mainLoopPoll * multiplier))     
         
-        # Check for dontwait
-        if state.seconds > 0 and 'timed' in state.detect:
-            updateglobals('dontwait', 'True')       
+        # Check for start_now
+        if state.capture_seconds > 0 and 'timed' in state.capture_on:
+            updateglobals('start_now', 'True')       
       
 def checkDependencies():
     # ffmpeg is needed to make the videos
@@ -743,15 +774,15 @@ def reconnectDelay(attempts):
     return state.mainLoopPoll if attempts <= RECONNECT_QUICK else RECONNECT_SLOW
 
 def setPrinter(settings):
-    # Use the printer settings (duet, duetport, password) in settings - from duetLapse3.json, or changed on the page
-    if 'duet' in settings:
-        state.duet = str(settings['duet']).strip() or localIp()  # Blank = this computer
+    # Use the printer settings (duet_ip, duet_port, duet_password) in settings - from duetLapse3.json, or changed on the page
+    if 'duet_ip' in settings:
+        state.duet = str(settings['duet_ip']).strip() or localIp()  # Blank = this computer
         if state.simulate in ['all','printer']:
             state.duet = 'SIMULATED'
-    if 'duetport' in settings:
-        state.duetport = checkSetting('duetport', settings['duetport'], 80)
-    if 'password' in settings:
-        state.password = settings['password']
+    if 'duet_port' in settings:
+        state.duet_port = checkSetting('duet_port', settings['duet_port'], 80)
+    if 'duet_password' in settings:
+        state.duet_password = settings['duet_password']
         #  password is not displayed
 
 def printerChanged(settings):
@@ -945,19 +976,19 @@ def createVideo(directory, cameras = None):
         return msg
 
     for cameraname, (folder, frame) in found.items():
-        if state.maxvideo > 0:
-            if frame < state.maxvideo:
+        if state.video_length > 0:
+            if frame < state.video_length:
                 thisfps = 1.0                         #  make it as long as we can     
             else:
-                thisfps = float(frame/state.maxvideo)       #  set for  maxvideo duration
+                thisfps = float(frame/state.video_length)       #  set for video_length duration
         else:
             thisfps = float(state.fps)                      #  set for fixed fps
 
 
-        if frame/thisfps < state.minvideo:
-            msg = 'Error: ' + cameraname + ': Cannot create video shorter than ' + str(state.minvideo) + ' second(s).\n Length would have been ' + str(frame/thisfps) + ' second(s).' 
+        if frame/thisfps < state.min_video_seconds:
+            msg = 'Error: ' + cameraname + ': Cannot create video shorter than ' + str(state.min_video_seconds) + ' second(s).\n Length would have been ' + str(frame/thisfps) + ' second(s).' 
             logger.info(msg)
-            logger.info('frame = ' + str(frame) + ' thisfps = ' + str(thisfps) + ' fps = ' + str(state.fps) + ' maxvideo = ' + str(state.maxvideo) + ' minvideo = ' + str(state.minvideo))
+            logger.info('frame = ' + str(frame) + ' thisfps = ' + str(thisfps) + ' fps = ' + str(state.fps) + ' video_length = ' + str(state.video_length) + ' min_video_seconds = ' + str(state.min_video_seconds))
             videoEvent(False, Message('videoTooShort', cameraname + ': not enough images for a video (' + str(frame) + ' - ' + str(imagesForVideo()) + ' needed)',
                                       camera = cameraname, frames = frame, needed = imagesForVideo()), cameraname)
             return msg
@@ -1018,8 +1049,8 @@ def ffmpegRunning():
 def ffmpegThreads():
     # Threads for one ffmpeg - the cpu cores that are free now, leaving one spare, shared with any ffmpeg already running
     # so that making videos does not overwhelm the computer (e.g. while printing)
-    if state.ffmpegthreads > 0:  # Set by the user
-        return state.ffmpegthreads
+    if state.ffmpeg_threads > 0:  # Set by the user
+        return state.ffmpeg_threads
     cores = os.cpu_count() or 1
     try:
         load = os.getloadavg()[0]  # Average number of busy cores over the last minute
@@ -1109,7 +1140,7 @@ def cleanupFiles(phase):
     # Make and clean up directorys.
 
     if phase == 'startup':
-        if state.keepfiles: return
+        if state.keep_files: return
 
         for dirs in dirlist: #  Delete old dirs and files
             split_dirs = dirs.split("_", 1)
@@ -1119,7 +1150,7 @@ def cleanupFiles(phase):
                 fn = os.path.join(state.topDir, dirs)
                 if os.path.isdir(fn):  # a print's folder - its videos are kept
                     deleteImages(fn)
-                elif (not state.keeplogs) and dirs.endswith('.log'):  # logfiles
+                elif dirs.endswith('.log'):  # Per-print logs left by versions before 6.0
                     deleteFileFolder(fn)
 
     elif phase == 'standby':  # deleted images directory will be recreated on first capture
@@ -1133,9 +1164,9 @@ def cleanupFiles(phase):
         pass
 
     elif phase == 'terminate':
-        if state.keepfiles: return
+        if state.keep_files: return
 
-        if state.deletepics:
+        if state.delete_images:
             for dirs in dirlist:
                 fn = os.path.join(state.topDir, dirs)
                 if os.path.isdir(fn):  # a print's folder - its videos are kept
@@ -1150,7 +1181,7 @@ def startNow():
     if state.standby:
         state.action = 'standby'
         return False
-    elif (state.seconds > 0) and (state.dontwait or 'timed' in state.detect):
+    elif (state.capture_seconds > 0) and (state.start_now or 'timed' in state.capture_on):
         state.action = 'start'
         return True
     else:
@@ -1179,7 +1210,7 @@ def instanceConfigDir(proc):
 
 
 def checkInstances(instances):
-    # single - only one duetLapse3 can run.  oneip - one per settings folder (i.e. per printer).  many - no limit
+    # single - only one duetLapse3 can run.  one_per_folder - one per settings folder (i.e. per printer).  many - no limit
     proccount = 0
     allowed = 0
 
@@ -1193,7 +1224,7 @@ def checkInstances(instances):
         proccount += 1  # Includes this instance
         if 'single' in instances:
             allowed += 1
-        if 'oneip' in instances and folder == state.configdir:
+        if instances == 'one_per_folder' and folder == state.configdir:
             allowed += 1
 
     if allowed > 1:
@@ -1222,7 +1253,7 @@ def checkForPause(layer):
     loopmax = 10  # sec
     loopinterval = 0.5  # sec
     loopcount = loopmax / loopinterval
-    if state.pause == 'yes':  # DuetLapse is controlling when to pause
+    if state.park:  # duetLapse3 is controlling when to pause
         logger.debug('Requesting pause via M25')
         sendDuetGcode(state.apiModel, 'M25')  # Ask for a pause
         loop = 0
@@ -1242,26 +1273,26 @@ def checkForPause(layer):
                 break
 
     if state.duetStatus == 'paused':
-        if not state.movehead == [0.0, 0.0]:  # optional repositioning of head
-            logger.debug('Moving print head to X{0:4.2f} Y{1:4.2f}'.format(state.movehead[0], state.movehead[1]))
-            sendDuetGcode(state.apiModel, 'G0 X{0:4.2f} Y{1:4.2f}'.format(state.movehead[0], state.movehead[1]))
+        if not state.park_xy == [0.0, 0.0]:  # optional repositioning of head
+            logger.debug('Moving print head to X{0:4.2f} Y{1:4.2f}'.format(state.park_xy[0], state.park_xy[1]))
+            sendDuetGcode(state.apiModel, 'G0 X{0:4.2f} Y{1:4.2f}'.format(state.park_xy[0], state.park_xy[1]))
             loop = 0
             while True:
                 time.sleep(loopinterval)  # wait and try again
                 xpos, ypos, _ = getDuet(Position)
                 if state.connectionState is False:
                     return
-                if (abs(xpos - state.movehead[0]) < .05) and (
-                        abs(ypos - state.movehead[1]) < .05):  # close enough for government work
+                if (abs(xpos - state.park_xy[0]) < .05) and (
+                        abs(ypos - state.park_xy[1]) < .05):  # close enough for government work
                     break
                 else:
                     loop += 1
                 if loop >= loopcount:  # limit the counter in case there is a problem
                     logger.info('Timeout after ' + str(loopmax) + 's')
-                    logger.info('Target X,Y: ' + str(state.movehead[0]) + ',' + str(state.movehead[1]))
+                    logger.info('Target X,Y: ' + str(state.park_xy[0]) + ',' + str(state.park_xy[1]))
                     logger.info('Actual X,Y: ' + str(xpos) + ',' + str(ypos))
                     break
-        time.sleep(state.rest)  # Wait to let camera feed catch up
+        time.sleep(state.park_wait)  # Wait to let camera feed catch up
 
     return
 
@@ -1369,18 +1400,18 @@ def oneInterval(cameraname, weburl, finalframe = False):
     else:
         layer = str(zn)
 
-    if state.pause == 'yes' and zn < 1:  # Dont capture anything until first layers is done
-        logger.debug('Bypassing onePhoto from oneInterval because -pause = ' + state.pause + ' and layer = ' +str(zn))
+    if state.park and zn < 1:  # Dont capture anything until first layers is done
+        logger.debug('Bypassing onePhoto from oneInterval because park is set and layer = ' + str(zn))
     else:    
-        if 'layer' in state.detect:
+        if 'layer' in state.capture_on:
             checkForPause(zn)
-            if zn%state.numlayers == 0: #  Every numlayers layer
+            if zn%state.layer_interval == 0: #  Every layer_interval layers
                 if (not zn == state.zo1 and cameraname == 'Camera1') or (not zn == state.zo2 and cameraname == 'Camera2'):
                     # Layer changed, take a picture.
                     logger.info('Layer - ' + cameraname + ': capturing frame ' + str(frame) + ' at layer ' + layer + ' after layer change')
                     onePhoto(cameraname, weburl)
 
-        elif ('pause' in state.detect) and (state.duetStatus == 'paused'):
+        elif ('pause' in state.capture_on) and (state.duetStatus == 'paused'):
             checkForPause(zn)
             logger.info('Pause - ' + cameraname + ': capturing frame ' + str(frame) + ' at layer ' + layer + ' at pause in print gcode')
             onePhoto(cameraname, weburl)
@@ -1405,32 +1436,32 @@ def oneInterval(cameraname, weburl, finalframe = False):
 
     logger.debug('elapsed: ' + str(elap))
 
-    if (state.seconds > 0) and (state.seconds < elap) and (state.dontwait or 'timed' in state.detect or zn >= 1):
+    if (state.capture_seconds > 0) and (state.capture_seconds < elap) and (state.start_now or 'timed' in state.capture_on or zn >= 1):
         checkForPause(zn)
         logger.info('Time - ' + cameraname + ': capturing frame ' + str(frame) + ' at layer ' + layer + ' after ' + str(
-                state.seconds) + ' seconds')
+                state.capture_seconds) + ' seconds')
         onePhoto(cameraname, weburl)
 
 def cameraUrl(number):
     # The url of a camera that is in use - '' if it has no url or is switched off
-    if not getattr(state, 'enable' + str(number)):
+    if not getattr(state, 'camera' + str(number) + '_on'):
         return ''
-    return getattr(state, 'weburl' + str(number))
+    return getattr(state, 'camera' + str(number) + '_url')
 
 def imagesForVideo():
-    # The fewest images that make a video - createVideo refuses one shorter than minvideo seconds
-    if state.maxvideo > 0:  # Fewer images than maxvideo seconds are shown at 1 per second
-        return max(1, int(state.minvideo))
-    return max(1, math.ceil(state.minvideo * state.fps))
+    # The fewest images that make a video - createVideo refuses one shorter than min_video_seconds
+    if state.video_length > 0:  # Fewer images than video_length seconds are shown at 1 per second
+        return max(1, int(state.min_video_seconds))
+    return max(1, math.ceil(state.min_video_seconds * state.fps))
 
 def getVideoMsg():
     seconds = None
-    if state.maxvideo > 0:
-        if state.frame1 > state.maxvideo:
-            seconds = state.maxvideo
-        elif state.frame1 >= state.minvideo:  # As createVideo - minvideo seconds is enough
+    if state.video_length > 0:
+        if state.frame1 > state.video_length:
+            seconds = state.video_length
+        elif state.frame1 >= state.min_video_seconds:  # As createVideo - min_video_seconds is enough
             seconds = state.frame1
-    elif state.frame1 > 0 and state.frame1/state.fps >= state.minvideo:  # As createVideo - minvideo seconds is enough
+    elif state.frame1 > 0 and state.frame1/state.fps >= state.min_video_seconds:  # As createVideo - min_video_seconds is enough
         seconds = state.frame1/state.fps
     if seconds is None:
         return Message('videoNotEnough', 'Not enough images for video to be created')
@@ -1441,18 +1472,18 @@ def makeVideo(directory, xtratime = False, cameras = None):  #  Adds and extra f
         # Get a final frame
         # Make copies if appropriate
 
-        if xtratime and state.extratime >= 1: #  Do not add images if called from snapshot or video
+        if xtratime and state.end_hold >= 1: #  Do not add images if called from snapshot or video
             if cameraUrl(1) != '':   #  Camera 1
                 logger.debug('For Camera1')
                 oneInterval('Camera1', cameraUrl(1), True)
-                ## if extratime != 0 and frame1/fps > minvideo:
+                ## if end_hold != 0 and frame1/fps > min_video_seconds:
                 if state.frame1 > 0:
                     state.frame1 = copyLastFrame(state.camfile1, state.frame1)
 
             if cameraUrl(2) != '':   #  Camera 2
                 logger.debug('For Camera2')
                 oneInterval('Camera2', cameraUrl(2), True)
-                ## if extratime != 0 and frame2/fps > minvideo:
+                ## if end_hold != 0 and frame2/fps > min_video_seconds:
                 if state.frame2 > 0:
                     state.frame2 = copyLastFrame(state.camfile2, state.frame2)
 
@@ -1463,11 +1494,11 @@ def makeVideo(directory, xtratime = False, cameras = None):  #  Adds and extra f
         quit_forcibly()        
 
 def copyLastFrame(f, frame):  # Makes copies and updates frame counter
-    logger.info('Copying last frame to extend video by ' +str(state.extratime) + ' seconds')
+    logger.info('Copying last frame to extend video by ' +str(state.end_hold) + ' seconds')
     fr = str(frame).zfill(8)
     sourcefile = f + fr + '.jpeg'
-    copies = int(state.extratime)*int(state.fps)
-    #  copies = extratime*fps
+    copies = int(state.end_hold)*int(state.fps)
+    #  copies = end_hold*fps
     logger.debug('Using file --- ' + sourcefile + ' to make ' + str(copies) + ' copies')
     for i in range(1, copies):
         nf = str(frame + i).zfill(8)
@@ -1569,18 +1600,18 @@ def changeFps(thisfps):
 def changeMinvideo(thisminvideo):
     try:
         thisminvideo = int(thisminvideo)
-        state.minvideo = max(0, thisminvideo)  # 0 is allowed, as at startup
-        logger.info('-minvideo changed to: ' + str(state.minvideo))
+        state.min_video_seconds = max(0, thisminvideo)  # 0 is allowed, as at startup
+        logger.info('min_video_seconds changed to: ' + str(state.min_video_seconds))
     except ValueError as e:
-        logger.info('Error changing minvideo: ' + str(e))
+        logger.info('Error changing min_video_seconds: ' + str(e))
 
 def changeMaxvideo(thismaxvideo):
     try:
         thismaxvideo = int(thismaxvideo)
-        state.maxvideo = max(0, thismaxvideo)
-        logger.info('-maxvideo changed to: ' + str(state.maxvideo))
+        state.video_length = max(0, thismaxvideo)
+        logger.info('video_length changed to: ' + str(state.video_length))
     except ValueError as e:
-        logger.info('Error changing maxvideo: ' + str(e))
+        logger.info('Error changing video_length: ' + str(e))
 
 def deleteImages(folder):
     # Delete a print's images and keep its videos.  Folders left empty are removed (including the print's folder)
@@ -1794,7 +1825,7 @@ def controlLoop():
 def stateMachine(currentState):
     newState = currentState
     if currentState == 'Waiting':
-        if state.duetStatus == 'processing' or state.dontwait or (state.duetStatus in ['paused','pausing'] and state.detect != 'timed'):
+        if state.duetStatus == 'processing' or state.start_now or (state.duetStatus in ['paused','pausing'] and state.capture_on != 'timed'):
             newState = 'Capturing'
         elif state.duetStatus == 'cancelling':
             newState = 'Completed'
@@ -1811,7 +1842,7 @@ def stateMachine(currentState):
             pass
         elif state.duetStatus == 'busy':
             pass
-        elif state.dontwait or 'timed' in state.detect:  # Timed capture - carries on whatever the printer is doing
+        elif state.start_now or 'timed' in state.capture_on:  # Timed capture - carries on whatever the printer is doing
             pass
         else:
             newState = 'Waiting'
@@ -1825,8 +1856,8 @@ def stateMachine(currentState):
     logger.debug('currentState = ' + str(currentState))
     logger.debug('duetStatus = ' + str(state.duetStatus))
     logger.debug('lastDuetStatus = ' + str(state.lastDuetStatus))
-    logger.debug('dontwait = ' + str(state.dontwait))
-    logger.debug('detect = ' + str(state.detect))
+    logger.debug('start_now = ' + str(state.start_now))
+    logger.debug('capture_on = ' + str(state.capture_on))
     logger.debug('terminateState = ' + str(state.terminateState))
     logger.debug('******')
 
@@ -1856,7 +1887,7 @@ def capturePass():
             logger.debug('Calling oneInterval for Camera 2')
             oneInterval('Camera2', cameraUrl(2))
         state.duetStatus, _ = getDuet(Status)  #  latest state to avoid polling delay
-        if state.duetStatus == 'paused' and (state.pause == 'yes' or state.detect == state.pause): # will be ignored if a manual pause
+        if state.duetStatus == 'paused' and state.park: # will be ignored if a manual pause
             unPause()  # Nothing should be paused at this point
         state.printState = stateMachine(state.printState)
 
@@ -1883,10 +1914,10 @@ def nextAction(nextaction):
     # This test is positionally sensitive
     if nextaction == 'completed':  # end of a print job
         state.printState = 'Completed'  # Update may have come from message Q
-        if state.novideo:
+        if state.no_video:
             logger.info('Video creation was skipped')
         else:
-            if state.workingDirStatus != -1:  startMakeVideo(state.workingDir, True)  # Add extratime if appropriate
+            if state.workingDirStatus != -1:  startMakeVideo(state.workingDir, True)  # Add end_hold if appropriate
         nextaction = 'terminate'
 
     logger.debug('++++++ Determining next logical action ++++++')
@@ -1906,11 +1937,11 @@ def nextAction(nextaction):
         state.action = 'start'
 
     elif nextaction == 'restart':
-        if state.novideo:
+        if state.no_video:
             logger.info('Video creation was skipped')
         else:
             if state.workingDirStatus != -1:
-                startMakeVideo(state.workingDir, True) # Add extratime if appropriate
+                startMakeVideo(state.workingDir, True) # Add end_hold if appropriate
             waitforMakeVideo() # Wait until done before deleting files
             restartAction()
 
@@ -2006,7 +2037,8 @@ def actionM3291(displaymessage):
 
 def changehandling(command):
     command = command.replace(' ','') # Make sure it is well formed
-    changevariables = ['verbose', 'seconds', 'detect', 'movehead', 'dontwait', 'pause', 'norestart','standby', 'novideo', 'keepfiles','minvideo','maxvideo', 'extratime', 'fps', 'rest']
+    changevariables = ['verbose', 'capture_seconds', 'capture_on', 'park_xy', 'start_now', 'park', 'norestart', 'standby', 'no_video', 'keep_files',
+                       'min_video_seconds', 'video_length', 'end_hold', 'fps', 'park_wait']
     variable = command.split('=')[0]
     value = command.split('=')[1]
     if variable in changevariables:
@@ -2014,19 +2046,16 @@ def changehandling(command):
         if variable == 'verbose' and value in ['True', 'False']:
             updateglobals(variable, value)
             setdebug(state.verbose)
-        elif variable == 'seconds':
+        elif variable == 'capture_seconds':
             ## if int(value) >= minseconds or int(value) == 0:
             updateglobals(variable, value)
             checkSeconds()
-        elif variable == 'detect' and value in ['layer', 'pause', 'timed']:
-            command = "detect='" + value + "'"
+        elif variable == 'capture_on' and value in ['layer', 'pause', 'timed']:
             updateglobals(variable, value)
-        elif variable == 'pause' and value in ['yes', 'no']:
-            updateglobals(variable, value)
-        elif variable in ['norestart', 'standby', 'novideo', 'keepfiles'] and value in ['True', 'False']:  # Booleans
+        elif variable in ['park', 'norestart', 'standby', 'start_now', 'no_video', 'keep_files'] and value in ['True', 'False']:  # Booleans
             updateglobals(variable, value)
             state.restart = not state.norestart
-        elif variable == 'movehead':
+        elif variable == 'park_xy':
             if ',' in value: # Convert to list of integers, otherwise ignore
                 v = value.split(',')
                 v0 = int(v[0])
@@ -2084,11 +2113,11 @@ def startMessages():
         logger.info('Will start capturing images immediately')
         logger.info('##########################################################\n')
     else:
-        if 'layer' in state.detect or 'pause' in state.detect:
+        if 'layer' in state.capture_on or 'pause' in state.capture_on:
             logger.info('##########################################################')
-            if 'layer' in state.detect:
+            if 'layer' in state.capture_on:
                 logger.info('Will start capturing images on first layer change')
-            elif 'pause' in state.detect:
+            elif 'pause' in state.capture_on:
                 logger.info('Will start capturing images on first pause in print stream')
             logger.info('##########################################################\n')
 
