@@ -1,0 +1,356 @@
+{
+	"sections": {
+		"Simulate": "Simulate",
+		"Environment": "Environment",
+		"Files": "Files",
+		"Execution": "Execution",
+		"Pause": "Pause",
+		"Camera": "Camera",
+		"Video": "Video",
+		"UI": "UI"
+	},
+	"settings": {
+		"simulate": {
+			"label": "simulate",
+			"description": "For testing: all, printer or camera are simulated"
+		},
+		"duet": {
+			"label": "Printer IP address",
+			"description": "Printer address (SBC or standalone).  Blank = this computer"
+		},
+		"duetport": {
+			"label": "Printer port",
+			"description": "Printer port.  Blank or 0 = 80"
+		},
+		"password": {
+			"label": "Printer password",
+			"description": "Printer password  Blank = no password"
+		},
+		"basedir": {
+			"label": "Image folder",
+			"description": "Where images and videos are stored"
+		},
+		"instances": {
+			"label": "instances",
+			"description": "Single: Only one duetLapse3.  Many: no limit"
+		},
+		"nolog": {
+			"label": "Disable Logging",
+			"description": "This is only useful if you are running duetLapse3 on a read-only filesystem."
+		},
+		"verbose": {
+			"label": "Verbose Logging",
+			"description": "Detailed logging"
+		},
+		"keeplogs": {
+			"label": "Keep Logs",
+			"description": "Keep logs from earlier runs otherwise delete them on restart"
+		},
+		"novideo": {
+			"label": "No Video",
+			"description": "Don't make a video"
+		},
+		"deletepics": {
+			"label": "Delete Images",
+			"description": "Delete the image files when the program starts or stops (unless keepfiles is set)"
+		},
+		"keepfiles": {
+			"label": "Keep Files",
+			"description": "Don't delete image or video on startup or shutdown"
+		},
+		"dontwait": {
+			"label": "Start straight away",
+			"description": "Start taking images as soon as the program starts, dont wait for printing to start"
+		},
+		"seconds": {
+			"label": "Timed capture",
+			"description": "Take an image every n seconds (0 = off)"
+		},
+		"detect": {
+			"label": "Event capture",
+			"description": "When to take images (in addition to timed capture if set)"
+		},
+		"numlayers": {
+			"label": "Layers between capture",
+			"description": "Take an image every n layers when Event capture = Layers"
+		},
+		"standby": {
+			"label": "Standby",
+			"description": "Wait for a start command unless Do not wait is set."
+		},
+		"restart": {
+			"label": "Restart",
+			"description": "Restart after completion of print. Get ready for the next print job"
+		},
+		"pause": {
+			"label": "Pause",
+			"description": "Yes parks the head before each image"
+		},
+		"movehead": {
+			"label": "Park Location",
+			"description": "Where to park the head (X, Y) when pause is yes"
+		},
+		"rest": {
+			"label": "Rest Time",
+			"description": "Seconds to wait after parking, before the image is captured"
+		},
+		"weburl1": {
+			"label": "Camera 1 url",
+			"description": "Camera1 snapshot url (preferred) or MJPEG stream url if snapshot not available"
+		},
+		"enable1": {
+			"label": "Enable Camera 1",
+			"description": "Camera1 is used (off keeps the url but takes no images)"
+		},
+		"weburl2": {
+			"label": "Camera 2 url",
+			"description": "Optional second camera url"
+		},
+		"enable2": {
+			"label": "Enable Camera 2",
+			"description": "Camera2 is used (off keeps the url but takes no images)"
+		},
+		"extratime": {
+			"label": "Extra Time",
+			"description": "Display the last image for x seconds at the end of the video (0 = off)"
+		},
+		"fps": {
+			"label": "Video FPS",
+			"description": "Frames per second in the video"
+		},
+		"minvideo": {
+			"label": "Minimum video length",
+			"description": "Shortest video to make (seconds)"
+		},
+		"maxvideo": {
+			"label": "Maximum video length",
+			"description": "Longest video to make in seconds (0 = unlimited)"
+		},
+		"ffmpegthreads": {
+			"label": "Video Creation Load",
+			"description": "Number of CPU cores to use for video creation (0 = automatic)"
+		},
+		"port": {
+			"label": "UI port",
+			"description": "Port for this UI (0 = pick a free port)"
+		},
+		"ip": {
+			"label": "UI ip",
+			"description": "The ip address of this computer (read only)"
+		}
+	},
+	"tabs": {
+		"status": "Status",
+		"video": "Video",
+		"images": "Images",
+		"cameras": "Cameras",
+		"execution": "Execution",
+		"files": "Files",
+		"config": "Config"
+	},
+	"common": {
+		"save": "Save",
+		"cancel": "Cancel",
+		"ok": "OK",
+		"pleaseConfirm": "Please confirm",
+		"couldNotSave": "Could not save: {error}",
+		"notAnswering": "The printer is not answering",
+		"on": "On",
+		"off": "Off",
+		"download": "Download",
+		"close": "Close",
+		"refresh": "Refresh"
+	},
+	"printer": {
+		"cannotConnect": "Cannot connect to the printer at {printer}",
+		"noMoreTries": "The program will not try again until the printer settings are changed.",
+		"keepsTrying": "The program will keep trying. Check the printer is on, or change its ip and port settings.",
+		"saved": "The settings are saved.",
+		"address": "Printer address",
+		"addressHint": "Blank = this computer",
+		"port": "Port",
+		"portHint": "Blank = 80",
+		"password": "Password",
+		"passwordHint": "Blank = keep the current one",
+		"connect": "Save and connect"
+	},
+	"controls": {
+		"title": "Controls",
+		"start": "Start",
+		"standby": "Standby",
+		"pause": "Pause",
+		"continue": "Continue",
+		"restart": "Restart",
+		"standbyConfirm": "Standby does NOT create a video.\nAll captured images will be deleted.",
+		"restartConfirm": "Restart will try to create a video, then get ready for the next print.\n\nAll captured images will be deleted, unless keepfiles is set.",
+		"graceful": "Graceful terminate",
+		"forced": "Forced terminate",
+		"gracefulText": "Make the video and terminate.\n{video}",
+		"noImages": "There are no images available.",
+		"restartAfter": "A restart will occur after the terminate.",
+		"forcedText": "Terminate straight away.\nA video will NOT be created.",
+		"stopping": "The program is stopping.",
+		"failed": "{command} failed: {error}"
+	},
+	"status": {
+		"title": "Status",
+		"state": "Program  state",
+		"capture": "Capture status",
+		"printerStatus": "Printer status",
+		"notConnected": "Not connected",
+		"images": "Images captured",
+		"imagesTwo": "No. of captured images:  Camera 1 - ({frames}), Camera 2 - ({frames2})",
+		"layer": "Current layer",
+		"none": "None",
+		"video": "Video",
+		"printer": "Printer",
+		"printerValue": "{printer} (firmware {version})",
+		"unknown": "unknown",
+		"version": "duetLapse3 version",
+		"lastImage": "Last image",
+		"noCamera": "No camera in use - set USING the Cameras tab",
+		"waiting": "Waiting for the first image to be captured"
+	},
+	"video": {
+		"title": "Make a video now",
+		"notInUse": "{camera} (not in use)",
+		"captured": {
+			"one": "{n} image captured",
+			"other": "{n} images captured"
+		},
+		"needed": "{n} needed for a video",
+		"snapshot": "Snapshot",
+		"noneYet": "No images have been captured yet",
+		"notEnough": "Not enough images yet - {n} are needed",
+		"notEnoughEach": "Not enough images yet - {n} are needed for each camera's video",
+		"failed": "Snapshot failed: {error}",
+		"minTooBig": "Minimum Video  can not be more than Maximum Video ({max})",
+		"maxTooSmall": "Maximum Video must be 0 (off) or at least Minimum Video ({min})"
+	},
+	"videoAlert": {
+		"notCreated": "Video not created",
+		"created": {
+			"one": "Video created",
+			"other": "{n} videos created"
+		},
+		"open": "Open"
+	},
+	"settingsForm": {
+		"dontGoTogether": "Some settings don't go together (marked in red) - nothing was saved.",
+		"dontGoTogetherShort": "Some settings don't go together - nothing was saved.",
+		"invalid": "Some settings are invalid (marked in red) - nothing was saved.",
+		"invalidShort": "Some settings are invalid - nothing was saved.",
+		"couldNotRead": "Could not read the settings: {error}",
+		"inUse": "{description}.  In use: {path}",
+		"axis": "{label} {axis}"
+	},
+	"config": {
+		"restartNeeded": "Changes here take effect when duetLapse3 is restarted."
+	},
+	"cameras": {
+		"couldNotSwitch": "Could not switch {camera}: {error}",
+		"couldNotRead": "Could not read the cameras: {error}",
+		"checkUrls": "Not saved - check the urls marked in red.",
+		"noImageFromUrl": "No image from this url",
+		"noCamera": "No camera",
+		"preview": "Preview",
+		"previewAlt": "Camera preview",
+		"help": "Use a snapshot url (preferred) or an MJPEG stream url. Save saves both cameras."
+	},
+	"images": {
+		"top": "Images",
+		"newest": "Newest first",
+		"oldest": "Oldest first",
+		"name": "Name",
+		"size": "Size",
+		"couldNotList": "Could not list the files: {error}",
+		"deleteConfirm": "Delete {name}?",
+		"deleteFolder": "The folder and everything in it ({contents}) will be deleted.",
+		"deleteTitle": "Delete",
+		"making": "Making a video from {name} ...",
+		"zipped": "{name} zipped",
+		"deleted": "{name} deleted",
+		"failed": "{action} failed: {error}",
+		"imageCount": {
+			"one": "{n} image",
+			"other": "{n} images"
+		},
+		"videoCount": {
+			"one": "{n} video",
+			"other": "{n} videos"
+		},
+		"folder": "Folder",
+		"search": "Search this folder",
+		"list": "List",
+		"grid": "Grid",
+		"noMatch": "Nothing matches \"{search}\"",
+		"empty": "No images yet",
+		"openTab": "Open in a new tab",
+		"makeVideo": "Make a video",
+		"zip": "Zip",
+		"delete": "Delete",
+		"inUse": "The current print - in use",
+		"more": "Show {n} more of {total}"
+	},
+	"values": {
+		"action": {
+			"start": "start",
+			"standby": "standby",
+			"pause": "pause",
+			"continue": "continue",
+			"restart": "restart",
+			"terminate": "terminate",
+			"completed": "completed"
+		},
+		"printState": {
+			"Waiting": "Waiting",
+			"Capturing": "Capturing",
+			"Completed": "Completed"
+		},
+		"duetStatus": {
+			"idle": "idle",
+			"busy": "busy",
+			"processing": "processing",
+			"simulating": "simulating",
+			"paused": "paused",
+			"pausing": "pausing",
+			"resuming": "resuming",
+			"cancelling": "cancelling",
+			"changingTool": "changingTool",
+			"halted": "halted",
+			"off": "off",
+			"starting": "starting",
+			"updating": "updating",
+			"disconnected": "disconnected"
+		}
+	},
+	"server": {
+		"savedRestart": "Saved. Restart duetLapse3 for the changes to take effect.",
+		"savedVideo": "Saved. The video settings are in use now.",
+		"savedCameras": "Saved. The cameras are in use now.",
+		"savedConnecting": "Saved - connecting to the printer at {printer}",
+		"alreadyConnected": "Already connected to the printer",
+		"notSavedInvalid": "Not saved - some settings are invalid",
+		"cameraOn": "{camera} is on",
+		"cameraOff": "{camera} is off - no images will be taken from it",
+		"settingsUnreadable": "Could not read the settings file. {error}",
+		"settingsUnreadableDefaults": "Could not read the settings file - showing the defaults. {error}",
+		"notBool": "{key} must be true or false, not {value}",
+		"notWhole": "{key} must be a whole number, not {value}",
+		"notList": "{key} must be a list of {count} numbers e.g. {example}",
+		"notText": "{key} must be text (in quotes), not {value}",
+		"notChoice": "{key} must be one of {choices}, not \"{value}\"",
+		"minvideoTooBig": "minvideo ({min}) can not be more than maxvideo ({max})",
+		"maxvideoTooSmall": "maxvideo must be 0 (off) or at least minvideo ({min})",
+		"camera1Needed": "Camera1 needs an http url (a snapshot url or an MJPEG stream url) - or switch it off",
+		"camera1NotHttp": "Camera1 url must be an http url, or blank",
+		"camera2NotHttp": "Camera2 url must be an http url, or blank for no second camera",
+		"wrongPassword": "The printer at {printer} did not accept the password",
+		"videoWillBe": "Video will be {seconds} seconds long",
+		"videoNotEnough": "Not enough images for video to be created",
+		"videoNoImages": "Cannot create a video - there are no images in {folder}",
+		"videoTooShort": "{camera}: not enough images for a video ({frames} - {needed} needed)",
+		"videoProblem": "There was a problem creating the video for {camera} (see the log)",
+		"videoCreated": "Video created"
+	}
+}

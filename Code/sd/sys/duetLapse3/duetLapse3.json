@@ -7,35 +7,37 @@
     "duetport": 80,
     "password": "reprap",
     "basedir": "",
-    "poll": 12,
-    "instances": "single",
+    "instances": "single"
+  },
+  "Files": {
     "nolog": false,
     "verbose": true,
     "keeplogs": false,
     "novideo": false,
     "deletepics": false,
-    "maxffmpeg": 2,
     "keepfiles": false
   },
   "Execution": {
     "dontwait": true,
     "seconds": 3,
     "detect": "none",
-    "pause": "no",
     "numlayers": 1,
+    "standby": false,
+    "restart": false
+  },
+  "Pause": {
+    "pause": "no",
     "movehead": [
       0,
       0
     ],
-    "rest": 1,
-    "standby": false,
-    "restart": false
+    "rest": 1
   },
   "Camera": {
     "weburl1": "http://192.168.30.41:8082/Camera1/snapshot",
-    "enable1": false,
+    "enable1": true,
     "weburl2": "http://192.168.30.41:8082/Camera2/snapshot",
-    "enable2": false
+    "enable2": true
   },
   "Video": {
     "extratime": 0,
@@ -46,11 +48,6 @@
   },
   "UI": {
     "port": 0,
-    "ip": "192.168.30.41",
-    "hidebuttons": false
-  },
-  "Special Functions": {
-    "execkey": "",
-    "M3291": "M3291"
+    "ip": "192.168.30.41"
   }
 }

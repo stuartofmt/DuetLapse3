@@ -102,6 +102,18 @@ Fixed extratime not being added to the video at the end of a print
 Fixed fast repeated login attempts when the printer is off at startup
 Normal terminate exits cleanly instead of kill -9
 Fixed gcode messages being ignored after the printer was reset (its message numbers start again)
+Fixed duetLapse3 stopping (UNRECOVERABLE ERROR) when the printer reconnected
+Wrong printer password: shown on the page, and no more tries until it is changed
+The printer address, port and password can be changed on the page while the printer is not connected
+Standalone boards: the SBC login is skipped
+Fixed the control loop waking every 50ms while the printer was not connected
+All the page's text is in ui/src/locales/en.json - ready for other languages.  Messages for the page carry a code (messages.py)
+Removed poll - a capture pass runs at each status or layer change, otherwise every 5 seconds
+Removed hidebuttons - the controls always show every button, greyed out when it can't be used
+Removed maxffmpeg - ffmpeg threads are shared with the ffmpeg processes already running, and videos no longer wait for them
+Removed the Info tab.  New Pause section (pause, movehead, rest) on the Config tab.  poll moved to Execution
+Removed the Special Functions (execkey, M3291 settings) - the message macro is always M3291
+nolog, verbose, keeplogs, novideo, deletepics, keepfiles moved to a new Files section
 Fixed the printer password being shown on the Info tab and written to the log
 Fixed timed capture (dontwait, or detect none with seconds) showing Waiting instead of Capturing when the printer is idle
 Cameras can be switched off (enable1, enable2) without losing their url
@@ -161,6 +173,7 @@ import camera
 import logger_module
 from logger_module import logger, currentFuncName
 import duet_printer  # Communication with the printer
+from messages import Message, coded
 from duet_printer import (getDuet, loginPrinter, getDuetVersion, Jobname, Status, Layer, Position,
                           sendDuetGcode, isPlugin, stopPlugin, publishUiAddress)
 
@@ -219,58 +232,16 @@ logFileName = 'duetLapse3.log'
 # The sections match duetLapse3.json - they are only for readability
 DEFAULTS = {
     'Simulate': {'simulate': 'off'},
-    'Environment': {'duet': '', 'duetport': 80, 'password': 'reprap', 'basedir': '', 'poll': 12,
-                    'instances': 'single', 'nolog': False, 'verbose': False, 'keeplogs': False, 'novideo': False,
-                    'deletepics': False, 'maxffmpeg': 2, 'keepfiles': False},
-    'Execution': {'dontwait': False, 'seconds': 0, 'detect': 'layer', 'pause': 'no', 'numlayers': 1,
-                  'movehead': [0, 0], 'rest': 1, 'standby': False, 'restart': False},
+    'Environment': {'duet': '', 'duetport': 80, 'password': 'reprap', 'basedir': '', 'instances': 'single'},
+    'Files': {'nolog': False, 'verbose': False, 'keeplogs': False, 'novideo': False, 'deletepics': False, 'keepfiles': False},
+    'Execution': {'dontwait': False, 'seconds': 0, 'detect': 'layer', 'numlayers': 1, 'standby': False, 'restart': False},
+    'Pause': {'pause': 'no', 'movehead': [0, 0], 'rest': 1},
     'Camera': {'weburl1': '', 'enable1': True, 'weburl2': '', 'enable2': True},
     'Video': {'extratime': 0, 'fps': 10, 'minvideo': 5, 'maxvideo': 0, 'ffmpegthreads': 0},
-    'UI': {'port': 0, 'ip': '', 'hidebuttons': False},
-    'Special Functions': {'execkey': '', 'M3291': 'M3291'},
+    'UI': {'port': 0, 'ip': ''},
 }
 CHOICES = {'simulate': ['off', 'all', 'printer', 'camera'], 'instances': ['single', 'oneip', 'many'],
            'detect': ['layer', 'pause', 'none'], 'pause': ['yes', 'no']}
-# Shown on the Config tab
-HELP = {
-    'simulate': 'For testing: all, printer or camera are simulated',
-    'duet': 'Printer address (SBC or standalone).  Blank = this computer',
-    'duetport': 'Printer port.  Blank or 0 = 80',
-    'password': 'Printer password',
-    'basedir': 'Where images and videos go (blank = the settings folder, with duetLapse3.json and the log)',
-    'poll': 'Seconds between printer status checks',
-    'instances': 'single: only one duetLapse3.  oneip: one per settings folder.  many: no limit',
-    'nolog': 'No logfile',
-    'verbose': 'Detailed logging',
-    'keeplogs': "Don't delete per-print logs left by earlier versions",
-    'novideo': "Don't make a video",
-    'deletepics': 'Delete the images when duetLapse3 terminates',
-    'maxffmpeg': 'Most ffmpeg instances to run at once when making videos',
-    'keepfiles': "Don't delete files on startup or shutdown",
-    'dontwait': 'Start taking images straight away, without waiting for a print',
-    'seconds': 'Also take an image every n seconds (0 = off)',
-    'detect': 'When to take images',
-    'pause': 'yes parks the head before each image',
-    'numlayers': 'Take an image every n layers',
-    'movehead': 'Where to park the head (X, Y) when pause is yes',
-    'rest': 'Seconds to wait after parking, before the image',
-    'standby': 'Wait for a start command before doing anything',
-    'restart': 'Get ready for the next print when this one finishes',
-    'weburl1': 'Camera1 snapshot url (preferred) or MJPEG stream url',
-    'weburl2': 'Optional second camera url',
-    'enable1': 'Camera1 is used (off keeps the url but takes no images)',
-    'enable2': 'Camera2 is used (off keeps the url but takes no images)',
-    'extratime': 'Seconds to hold the last image at the end of the video',
-    'fps': 'Video frames per second',
-    'minvideo': 'Shortest video to make (seconds)',
-    'maxvideo': 'Fixed video length in seconds (0 = off)',
-    'ffmpegthreads': 'Threads for each video (0 = automatic, from the free cpu cores)',
-    'port': 'Port for this page (0 = pick a free port)',
-    'ip': 'Set by duetLapse3 - the ip address of this computer',
-    'hidebuttons': 'Only show the buttons that can be used now',
-    'execkey': 'Prefix for messages that run a command on the SBC',
-    'M3291': 'Name of the message macro, if you renamed M3291.g',
-}
 configExtras = ['ip']  # Written by duetLapse3, not read as a setting
 
 def flatDefaults():
@@ -298,24 +269,26 @@ def checkSetting(key, val, default):
             return val
         if isinstance(val, str) and val.lower() in ['true', 'false']:
             return val.lower() == 'true'
-        raise ValueError(key + ' must be true or false, not ' + json.dumps(val))
+        raise ValueError(Message('notBool', key + ' must be true or false, not ' + json.dumps(val), key = key, value = json.dumps(val)))
     if isinstance(default, int):
         try:
             return int(val)
         except (ValueError, TypeError):
-            raise ValueError(key + ' must be a whole number, not ' + json.dumps(val))
+            raise ValueError(Message('notWhole', key + ' must be a whole number, not ' + json.dumps(val), key = key, value = json.dumps(val)))
     if isinstance(default, list):
         try:
             val = [int(v) for v in val]
         except (ValueError, TypeError):
             val = []
         if len(val) != len(default):
-            raise ValueError(key + ' must be a list of ' + str(len(default)) + ' numbers e.g. ' + json.dumps(default))
+            raise ValueError(Message('notList', key + ' must be a list of ' + str(len(default)) + ' numbers e.g. ' + json.dumps(default),
+                                     key = key, count = len(default), example = json.dumps(default)))
         return val
     if not isinstance(val, str):
-        raise ValueError(key + ' must be text (in quotes), not ' + json.dumps(val))
+        raise ValueError(Message('notText', key + ' must be text (in quotes), not ' + json.dumps(val), key = key, value = json.dumps(val)))
     if key in CHOICES and val not in CHOICES[key]:
-        raise ValueError(key + ' must be one of ' + ', '.join(CHOICES[key]) + ', not "' + val + '"')
+        raise ValueError(Message('notChoice', key + ' must be one of ' + ', '.join(CHOICES[key]) + ', not "' + val + '"',
+                                 key = key, choices = ', '.join(CHOICES[key]), value = val))
     return val
 
 def loadSettings(filename):
@@ -418,157 +391,89 @@ def init():
 
     args = loadSettings(state.configfile)
 
-    state.inputs = {}
 
     # Derived  globals
     
     # Simulate
-    state.inputs.update({'# Simulate': ''})
     state.simulate = args['simulate']
-    state.inputs.update({'simulate': str(state.simulate)})
 
     # Environment
-    state.inputs.update({'# Environment':''})
     
-    state.duet = args['duet'].strip() or localIp()  # Blank = this computer
-    if state.simulate in ['all','printer']:
-        state.duet = 'SIMULATED'
-    state.inputs.update({'duet': str(state.duet)})
-
-    state.duetport = args['duetport']
-    state.inputs.update({'duetport': str(state.duetport)})
-
-    state.password = args['password']  
-    #  password is not displayed
-    if state.password == 'reprap':
-        state.inputs.update({'password': 'Default'})
-    else:
-        state.inputs.update({'password': '*******'})
+    setPrinter(args)
 
         
     state.basedir = args['basedir']
-    state.inputs.update({'basedir': str(state.basedir)})
     
-    state.poll = args['poll']
-    if state.poll < state.minPoll:
-        state.poll = state.minPoll
-    state.inputs.update({'poll': str(int(state.poll))})
     
     state.instances = args['instances']
-    state.inputs.update({'instances': str(state.instances)})
     
     state.nolog = args['nolog']
-    state.inputs.update({'nolog': str(state.nolog)})
     
     state.verbose = args['verbose']
-    state.inputs.update({'verbose': str(state.verbose)})
 
     state.port = args['port']
-    state.inputs.update({'port': str(state.port)})
 
     state.keeplogs = args['keeplogs']
-    state.inputs.update({'keeplogs': str(state.keeplogs)})
 
     state.novideo = args['novideo']
-    state.inputs.update({'novideo': str(state.novideo)})
 
     state.deletepics = args['deletepics']
-    state.inputs.update({'deletepics': str(state.deletepics)})
 
-    state.maxffmpeg = args['maxffmpeg']
-    state.inputs.update({'maxffmpeg': str(state.maxffmpeg)})
 
     state.keepfiles = args['keepfiles']
-    state.inputs.update({'keepfiles': str(state.keepfiles)})
 
     # Execution
-    state.inputs.update({'# Execution' : ''})
 
     state.dontwait = args['dontwait']
-    state.inputs.update({'dontwait': str(state.dontwait)})
 
     state.seconds = args['seconds']
     if state.seconds != 0 and state.seconds < state.minseconds:
         state.seconds = state.minseconds
-    state.inputs.update({'seconds': str(state.seconds)})
 
     state.detect = args['detect']
-    state.inputs.update({'detect': str(state.detect)})
 
     state.pause = args['pause']
-    state.inputs.update({'pause': str(state.pause)})
 
     state.numlayers = args['numlayers']
     if state.numlayers < 1:
         state.numlayers = 1
-    state.inputs.update({'numlayers': int(state.numlayers)})
 
     state.movehead = args['movehead']
-    state.inputs.update({'movehead': str(state.movehead)})
 
     state.rest = args['rest']
     if state.rest < 0:
         state.rest = 0
-    state.inputs.update({'rest': str(state.rest)})
 
     state.standby = args['standby']
-    state.inputs.update({'standby': str(state.standby)})
 
     state.restart = args['restart']
-    state.inputs.update({'restart': str(state.restart)})
 
     # Camera
-    state.inputs.update({'# Camera': ''})
 
     state.weburl1 = args['weburl1']
-    state.inputs.update({'weburl1': str(state.weburl1)})
 
     state.weburl2 = args['weburl2']
-    state.inputs.update({'weburl2': str(state.weburl2)})
 
     state.enable1 = args['enable1']
-    state.inputs.update({'enable1': str(state.enable1)})
 
     state.enable2 = args['enable2']
-    state.inputs.update({'enable2': str(state.enable2)})
 
     # Video
-    state.inputs.update({'# Video': ''})
 
     state.extratime = args['extratime']
-    state.inputs.update({'extratime': str(state.extratime)})
 
     state.fps = args['fps']
-    state.inputs.update({'fps': str(state.fps)})
 
     state.minvideo = args['minvideo']
-    state.inputs.update({'minvideo': str(state.minvideo)})
 
     state.maxvideo = args['maxvideo']
     if state.maxvideo > 0:
        if state.maxvideo < state.minvideo:
            state.maxvideo = state.minvideo
 
-    state.inputs.update({'maxvideo': str(state.maxvideo)})
 
     state.ffmpegthreads = max(0, args['ffmpegthreads'])
-    state.inputs.update({'ffmpegthreads': str(state.ffmpegthreads)})
 
-
-    # UI
-    state.inputs.update({'# UI': ''})
-
-    state.hidebuttons = args['hidebuttons']
-    state.inputs.update({'hidebuttons': str(state.hidebuttons)})
-
-    #  Special Functions
-
-    state.inputs.update({'# Special Functions': ''})
-    state.execkey = args['execkey']
-    state.inputs.update({'execkey': str(state.execkey)})
-
-    state.M3291 = args['M3291']
-    state.inputs.update({'M3291': str(state.M3291)})
 
 
     ##### Configure the custom logger #####
@@ -644,7 +549,7 @@ def init():
     # derived parameters
     ##############################################
 
-    poll_seconds()
+    checkSeconds()
 
     # Select a free port if port = 0 (or the given port is in use) - same as duetPrintGuard
     state.ip, state.port = validate_port(state.port)
@@ -750,30 +655,16 @@ def issue_warnings():
 
 
 ####################################################
-# Display the options being used
+# Log the settings being used
 ####################################################
 
-def getOptions():
-    for var in state.inputs: # update the values
-        if var == 'password':  # Keep the masked value set in init() - never shown or logged
-            continue
-        if hasattr(state, var):
-            val = getattr(state, var)
-            newvalue = {var:val}
-            state.inputs.update(newvalue)
-    return state.inputs
-
 def listOptions():
-    options = getOptions()
-    logger.info("################### Options at start of this print job  #####################")  
-    for label, value in options.items():
-        value = str(value)
-        if label.startswith('#'):
-            logger.info(label)
-        elif value == '':
-            logger.info(label)
-        else:
-            logger.info(label + '  =  ' + value)
+    logger.info("################### Options at start of this print job  #####################")
+    for section, keys in DEFAULTS.items():
+        logger.info('# ' + section)
+        for key in keys:
+            if key != 'password':  # Never logged
+                logger.info(key + '  =  ' + str(getattr(state, key, '')))
     logger.info('-----------------------------------------------------------------------\n\n')
 
 
@@ -807,26 +698,14 @@ def setdebug(val): # How much output
 
 
 
-def poll_seconds():
-        # Polling interval needs to be in integer multiple of mainLoopPoll
-    if state.poll < state.minPoll:
-        state.poll = state.minPoll
-    multiplier,remainder = divmod(state.poll, state.mainLoopPoll)
-    if remainder == 0: # No need to change
-        pass
-    else:
-        state.poll = state.mainLoopPoll * multiplier # round down
-    
-    # Seconds needs to be an integer multiple of mainLoopPoll       
+def checkSeconds():
+    # Seconds needs to be an integer multiple of mainLoopPoll - capture passes are that far apart when nothing changes
     if state.seconds != 0:
         multiplier,remainder = divmod(max(state.seconds,state.minseconds), state.mainLoopPoll)    
         if remainder == 0: # use the max
             updateglobals('seconds', str(max(state.seconds,state.minseconds))) 
         else:  # round down
             updateglobals('seconds', str(state.mainLoopPoll * multiplier))     
-        
-        # poll needs to be lesser of poll and seconds.
-        updateglobals('poll', str(min(state.poll, state.seconds))) 
         
         # Check for dontwait
         if state.seconds > 0 and 'none' in state.detect:
@@ -852,11 +731,54 @@ RECONNECT_SLOW = 3*60   # Then try every 3 minutes
 def reconnectDelay(attempts):
     return state.mainLoopPoll if attempts <= RECONNECT_QUICK else RECONNECT_SLOW
 
+def setPrinter(settings):
+    # Use the printer settings (duet, duetport, password) in settings - from duetLapse3.json, or changed on the page
+    if 'duet' in settings:
+        state.duet = str(settings['duet']).strip() or localIp()  # Blank = this computer
+        if state.simulate in ['all','printer']:
+            state.duet = 'SIMULATED'
+    if 'duetport' in settings:
+        state.duetport = checkSetting('duetport', settings['duetport'], 80)
+    if 'password' in settings:
+        state.password = settings['password']
+        #  password is not displayed
+
+def printerChanged(settings):
+    # Called by the page when the printer settings are changed while the printer is not connected - try again at once
+    setPrinter(settings)
+    state.connectError = ''
+    logger.info('Printer settings changed on the page - trying to connect to ' + duet_printer.printerAddress())
+    state.connectRetry.set()
+    wakeControlLoop()
+
+def wrongPassword(code):
+    # True (and the reason is shown on the page) if the printer refused the password - no more tries until it is changed
+    if code != 403:
+        return False
+    if not state.connectError:
+        state.connectError = Message('wrongPassword', 'The printer at ' + duet_printer.printerAddress() + ' did not accept the password',
+                                     printer = duet_printer.printerAddress())
+        logger.info('!!!!! ' + state.connectError + ' - no more tries until the printer settings are changed on the page !!!!!')
+    return True
+
+def waitForRetry(seconds):
+    # Wait seconds (None = until the printer settings are changed on the page) - or less if they are changed or duetLapse3 is terminating
+    end = None if seconds is None else time.time() + seconds
+    while state.terminateState != 1 and (end is None or time.time() < end):
+        if state.connectRetry.wait(1):
+            state.connectRetry.clear()
+            return
+
 def checkforPrinter():
     # The first connection to the printer.  Keeps trying until connected (or terminated)
     attempts = 0
     while state.apiModel == '' and state.terminateState != 1:
-        Model = loginPrinter()[0]
+        Model, code = loginPrinter()
+        if Model == '' and wrongPassword(code):
+            state.connectionState = False
+            waitForRetry(None)
+            attempts = 0
+            continue
         if Model == '': #  Could not connect
             if attempts == 0:
                 logger.info('#########################################################')
@@ -868,7 +790,7 @@ def checkforPrinter():
             state.connectionState = False
             attempts += 1
             logger.info('Will try to connect again in ' + str(reconnectDelay(attempts)) + ' seconds')
-            time.sleep(reconnectDelay(attempts))
+            waitForRetry(reconnectDelay(attempts))
             continue
 
         if state.firstConnect is None:
@@ -879,6 +801,7 @@ def checkforPrinter():
             logger.info(f"""Version Check returned --> {state.printerVersion}""")
 
         state.connectionState = True
+        state.connectError = ''
         state.apiModel = Model # We have a good connection
         logger.info('###############################################################')
         logger.info('Connected to printer at ' + duet_printer.printerAddress())
@@ -893,13 +816,16 @@ def printerLost():
     logger.info('----------------  Waiting for printer to reconnect -----------------')
 
 
-def reconnectPrinter():
+def reconnectPrinter(model):
     # Called by the control loop while the printer is not connected.  True when connected again
-    model, code = loginPrinter(state.apiModel)
-    if code != 200:
+    # model '' finds out what the printer is (its settings were changed on the page)
+    model, code = loginPrinter(model)
+    if code != 200 or model == '':
+        wrongPassword(code)
         return False
     state.apiModel = model
     state.connectionState = True
+    state.connectError = ''
     logger.info('-----------------------  Reconnected to printer ----------------------')
     logger.info('Carrying on in the ' + str(state.action) + ' state')
     return True
@@ -972,7 +898,7 @@ def videoEvent(ok, message, camera = '', file = ''):
     with videoEventsLock:
         state.videoSeq += 1
         event = {'seq': state.videoSeq, 'time': time.time(), 'ok': ok, 'camera': camera,
-                 'file': file, 'name': os.path.basename(file), 'message': message}
+                 'file': file, 'name': os.path.basename(file), 'message': message, 'messageCode': coded(message)}
         state.videoEvents = (state.videoEvents + [event])[-10:]
 
 def createVideo(directory, cameras = None):
@@ -1003,7 +929,7 @@ def createVideo(directory, cameras = None):
         msg = 'Cannot create a video.\n\
               Are there any images captured?'
         logger.info(msg)
-        videoEvent(False, 'Cannot create a video - there are no images in ' + os.path.basename(jobdir))
+        videoEvent(False, Message('videoNoImages', 'Cannot create a video - there are no images in ' + os.path.basename(jobdir), folder = os.path.basename(jobdir)))
         return msg
 
     for cameraname, (folder, frame) in found.items():
@@ -1020,7 +946,8 @@ def createVideo(directory, cameras = None):
             msg = 'Error: ' + cameraname + ': Cannot create video shorter than ' + str(state.minvideo) + ' second(s).\n Length would have been ' + str(frame/thisfps) + ' second(s).' 
             logger.info(msg)
             logger.info('frame = ' + str(frame) + ' thisfps = ' + str(thisfps) + ' fps = ' + str(state.fps) + ' maxvideo = ' + str(state.maxvideo) + ' minvideo = ' + str(state.minvideo))
-            videoEvent(False, cameraname + ': not enough images for a video (' + str(frame) + ' - ' + str(imagesForVideo()) + ' needed)', cameraname)
+            videoEvent(False, Message('videoTooShort', cameraname + ': not enough images for a video (' + str(frame) + ' - ' + str(imagesForVideo()) + ' needed)',
+                                      camera = cameraname, frames = frame, needed = imagesForVideo()), cameraname)
             return msg
 
         logger.info(cameraname + ': now making ' + str(frame) + ' frames into a video with fps = ' +str(thisfps))
@@ -1043,24 +970,10 @@ def createVideo(directory, cameras = None):
 
         cmd = ffmpegCommand(thisfps, location, tmpfn)
 
-        #  Wait for up to minutes for ffmpeg capacity to  become available
-        #  If still not available - try anyway
-        minutes = 5
-        increment = 15  #  seconds
-        loop = 0
-        while loop < minutes*60:
-            if ffmpeg_available():
-                break
-            else:
-                time.sleep(increment)  # wait a while before trying again
-                loop += increment
-                logger.debug('Have waited ' + str(loop) + ' seconds for ffmpeg capacity')
-
-
         if runsubprocess(cmd) is False:
             msg = ('!!!!!  There was a problem creating the video for '+cameraname+' !!!!!')
             logger.info(msg)
-            videoEvent(False, 'There was a problem creating the video for ' + cameraname + ' (see the log)', cameraname)
+            videoEvent(False, Message('videoProblem', 'There was a problem creating the video for ' + cameraname + ' (see the log)', camera = cameraname), cameraname)
             if os.path.isfile(tmpfn): 
                 try:
                     os.remove(tmpfn)
@@ -1073,7 +986,7 @@ def createVideo(directory, cameras = None):
                 logger.info('Video processing completed for ' + cameraname)
                 logger.info('Video is in file ' + fn)                
                 msg = 'Video(s) successfully created'
-                videoEvent(True, 'Video created', cameraname, fn)
+                videoEvent(True, Message('videoCreated', 'Video created'), cameraname, fn)
             except shutil.Error as e:
                 msg = 'Error on move of temp video file ' + str(e)
                 logger.info(msg)
@@ -1082,9 +995,17 @@ def createVideo(directory, cameras = None):
     return msg
 
 
+def ffmpegRunning():
+    # The ffmpeg processes running now - e.g. other duetLapse3s making videos for other printers
+    count = 0
+    for p in psutil.process_iter(['name']):  # Processes that end during the scan are skipped
+        if 'ffmpeg' in (p.info['name'] or ''):
+            count += 1
+    return count
+
 def ffmpegThreads():
-    # Threads for one ffmpeg - shared from the cpu cores that are free now, leaving one spare
-    # so that making a video does not overwhelm the computer (e.g. while printing)
+    # Threads for one ffmpeg - the cpu cores that are free now, leaving one spare, shared with any ffmpeg already running
+    # so that making videos does not overwhelm the computer (e.g. while printing)
     if state.ffmpegthreads > 0:  # Set by the user
         return state.ffmpegthreads
     cores = os.cpu_count() or 1
@@ -1093,8 +1014,9 @@ def ffmpegThreads():
     except (AttributeError, OSError):  # Not available on Windows
         load = 0
     free = int(cores - load - 1)
-    threads = max(1, free // max(1, state.maxffmpeg))  # Up to maxffmpeg can run at once
-    logger.info('ffmpeg threads = ' + str(threads) + ' (' + str(cores) + ' cores, load ' + '{:.1f}'.format(load) + ', maxffmpeg ' + str(state.maxffmpeg) + ')')
+    running = ffmpegRunning()
+    threads = max(1, free // (running + 1))  # This one and those running share the free cores
+    logger.info('ffmpeg threads = ' + str(threads) + ' (' + str(cores) + ' cores, load ' + '{:.1f}'.format(load) + ', other ffmpeg running ' + str(running) + ')')
     return threads
 
 
@@ -1114,18 +1036,6 @@ def ffmpegCommand(fps, location, outfile):
             '-y', outfile]
     return cmd
 
-
-def ffmpeg_available():
-    count = 0
-    max_count = state.maxffmpeg  # Default is 2
-    for p in psutil.process_iter(['name']):  # Processes that end during the scan are skipped
-        if 'ffmpeg' in (p.info['name'] or ''):  # Check to see if it's running
-            count += 1
-        if count >= max_count:
-            logger.debug('Waiting for ffmpeg to become available')
-            return False
-    logger.debug('There are ' + str(count) + ' instances of ffmpeg running')
-    return True
 
 def getRunningInstancePids():
     pidlist = []
@@ -1528,19 +1438,17 @@ def imagesForVideo():
     return max(1, math.ceil(state.minvideo * state.fps))
 
 def getVideoMsg():
+    seconds = None
     if state.maxvideo > 0:
         if state.frame1 > state.maxvideo:
-            videolength = 'Video will be ' + str(state.maxvideo) + ' seconds long'
+            seconds = state.maxvideo
         elif state.frame1 >= state.minvideo:  # As createVideo - minvideo seconds is enough
-            videolength = 'Video will be ' + str(state.frame1) + ' seconds long'
-        else:
-            videolength = 'Not enough images for video to be created'
-    else:
-        if state.frame1 > 0 and state.frame1/state.fps >= state.minvideo:  # As createVideo - minvideo seconds is enough
-            videolength = 'Video will be ' + str(state.frame1/state.fps) + ' seconds long'
-        else:
-            videolength = 'Insufficient images for video to be created'
-    return videolength        
+            seconds = state.frame1
+    elif state.frame1 > 0 and state.frame1/state.fps >= state.minvideo:  # As createVideo - minvideo seconds is enough
+        seconds = state.frame1/state.fps
+    if seconds is None:
+        return Message('videoNotEnough', 'Not enough images for video to be created')
+    return Message('videoWillBe', 'Video will be ' + str(seconds) + ' seconds long', seconds = str(seconds))
 
 def makeVideo(directory, xtratime = False, cameras = None):  #  Adds and extra frame
     try:
@@ -1790,13 +1698,6 @@ def closeHttpListener():
         logger.debug(str(e))
 
 
-def execRun(displaymessage):
-        cmd = displaymessage.split(state.execkey)[1].strip()
-        logger.info('!!!!!  Make call to execute !!!!!')
-        logger.info(cmd)
-        subprocess.Popen(cmd, shell=True, start_new_session=True)  # run the program
-
-
 ###################################
 #  Control
 #  One control loop, in the main thread, does everything in order: commands (from the web page,
@@ -1843,7 +1744,7 @@ def waitforMakeVideo():
 
 def controlLoop():
     # Runs until duetLapse3 ends.  Sleeps until a command arrives, the printer changes (SBC), or something is due:
-    #   a status check every mainLoopPoll seconds, a capture pass every poll seconds, or a reconnect attempt
+    #   a status check and a capture pass every mainLoopPoll seconds, or a reconnect attempt
     # A capture pass also runs straight away when the printer status or layer changes - so layer images are taken at the layer change
     logger.info('###########################')
     logger.info('Starting control loop')
@@ -1852,16 +1753,19 @@ def controlLoop():
     connected = state.connectionState
     reconnectAt = 0
     reconnectAttempts = 0
+    reconnectModel = state.apiModel  # '' after the printer settings are changed on the page
     while True:
         try:
             if connected and not state.connectionState:  # Lost since the last time round
                 reconnectAt, reconnectAttempts = time.time(), 0
             connected = state.connectionState
 
-            due = state.lastCaptureLoop + state.poll
-            due = min(due, state.lastStatusCall + state.mainLoopPoll) if connected else min(due, reconnectAt)
+            if connected:
+                due = min(state.lastCaptureLoop, state.lastStatusCall) + state.mainLoopPoll
+            else:
+                due = reconnectAt  # No capture passes until connected again
             try:
-                command, done = commandQueue.get(timeout = max(0.05, due - time.time()))
+                command, done = commandQueue.get(timeout = min(60, max(0.05, due - time.time())))
             except queue.Empty:
                 command, done = None, None
 
@@ -1872,9 +1776,16 @@ def controlLoop():
                 continue
 
             if not state.connectionState:
+                if state.connectRetry.is_set():  # The printer settings were changed on the page
+                    state.connectRetry.clear()
+                    reconnectAt, reconnectAttempts, reconnectModel = 0, 0, ''
                 if time.time() >= reconnectAt:
-                    if reconnectPrinter():
+                    if reconnectPrinter(reconnectModel):
                         lastSeen = None
+                        reconnectModel = state.apiModel
+                        state.duetStatus, _ = getDuet('reconnected', Status)  # The status now - not the one from before
+                    elif state.connectError:  # Wrong password - no more tries until it is changed on the page
+                        reconnectAt = math.inf
                     else:
                         reconnectAttempts += 1
                         reconnectAt = time.time() + reconnectDelay(reconnectAttempts)
@@ -1886,7 +1797,7 @@ def controlLoop():
                     continue
 
             seen = (state.duetStatus, Layer())  # Layer comes from the same object model read - no extra request
-            if seen != lastSeen or time.time() >= state.lastCaptureLoop + state.poll:
+            if seen != lastSeen or time.time() >= state.lastCaptureLoop + state.mainLoopPoll:  # e.g. timed (seconds) images
                 lastSeen = seen
                 capturePass()
         except Exception as e:
@@ -1923,12 +1834,12 @@ def stateMachine(currentState):
         logger.info('GROSS LOGIC ERROR IN STATE MACHINE')
 
     logger.debug('****** stateMachine:')
-    logger.debug('newstate = ' + newState)
-    logger.debug('currentState = ' + currentState)
-    logger.debug('duetStatus = ' + state.duetStatus)
-    logger.debug('lastDuetStatus = ' + state.lastDuetStatus)
+    logger.debug('newstate = ' + str(newState))
+    logger.debug('currentState = ' + str(currentState))
+    logger.debug('duetStatus = ' + str(state.duetStatus))
+    logger.debug('lastDuetStatus = ' + str(state.lastDuetStatus))
     logger.debug('dontwait = ' + str(state.dontwait))
-    logger.debug('detect = ' + state.detect)
+    logger.debug('detect = ' + str(state.detect))
     logger.debug('terminateState = ' + str(state.terminateState))
     logger.debug('******')
 
@@ -2038,6 +1949,7 @@ def nextAction(nextaction):
 ###################################
 # gcode command prefix - matched ignoring case so older DuetLapse3. commands still work
 commandPrefix = 'duetlapse3.'
+messageMacro = 'M3291'  # The gcode macro that queues messages for duetLapse3 (M3291.g)
 
 def handleMessages(queue, dellist):
     # Called by duet_printer.Status when the printer's M3291 message queue has something new
@@ -2055,7 +1967,7 @@ def parseM3291(queue = [], dellist = []):
     # If missed deletions - cleanup and try again on next poll
     if len(dellist) > 0:
         logger.debug('Delayed delete on DL3msg queue')
-        sendDuetGcode(state.apiModel, state.M3291 + ' B"Del"')
+        sendDuetGcode(state.apiModel, messageMacro + ' B"Del"')
         return {}    
 
     logger.debug('Parsing message queue = ' + str(queue))    
@@ -2066,7 +1978,7 @@ def parseM3291(queue = [], dellist = []):
         if queue[i] is None:
             continue
         message = queue[i].strip() # get rid of leading / trailing blanks
-        if message.lower().startswith(commandPrefix) or (state.execkey != '' and message.startswith(state.execkey)):
+        if message.lower().startswith(commandPrefix):
             actionqueue.append(message)
         processed.append(i)
     
@@ -2077,7 +1989,7 @@ def parseM3291(queue = [], dellist = []):
         delqueue += '}'
 
         sendDuetGcode(state.apiModel, 'set global.DL3del =' + delqueue)
-        sendDuetGcode(state.apiModel, state.M3291 + ' B"Del"')
+        sendDuetGcode(state.apiModel, messageMacro + ' B"Del"')
 
     return actionqueue
 
@@ -2105,15 +2017,11 @@ def actionM3291(displaymessage):
         else:
             logger.info('The requested action: ' + nextaction + ' is not available at this time')
             logger.info('The current state is: ' + state.action)
-
-    elif state.execkey != '' and displaymessage.startswith(state.execkey):
-        displaymessage = urllib.parse.unquote(displaymessage)
-        execRun(displaymessage) # Run the command 
     return
 
 def changehandling(command):
     command = command.replace(' ','') # Make sure it is well formed
-    changevariables = ['verbose', 'seconds', 'poll', 'detect', 'movehead', 'dontwait', 'pause', 'restart','standby', 'novideo', 'keepfiles','minvideo','maxvideo', 'extratime', 'fps', 'rest',  'execkey']
+    changevariables = ['verbose', 'seconds', 'detect', 'movehead', 'dontwait', 'pause', 'restart','standby', 'novideo', 'keepfiles','minvideo','maxvideo', 'extratime', 'fps', 'rest']
     variable = command.split('=')[0]
     value = command.split('=')[1]
     if variable in changevariables:
@@ -2124,11 +2032,7 @@ def changehandling(command):
         elif variable == 'seconds':
             ## if int(value) >= minseconds or int(value) == 0:
             updateglobals(variable, value)
-            poll_seconds()
-        elif variable == 'poll':
-            ## if int(value) >= minPoll:
-            updateglobals(variable, value)
-            poll_seconds()
+            checkSeconds()
         elif variable == 'detect' and value in ['layer', 'pause', 'none']:
             command = "detect='" + value + "'"
             updateglobals(variable, value)
@@ -2205,12 +2109,12 @@ def startMessages():
     if state.standby:
         logger.info('##########################################################')
         logger.info('Will not start until command=start received from http listener')
-        logger.info('or ' + state.M3291 +  ' P"duetLapse3.start" sent as gcode')
+        logger.info('or ' + messageMacro +  ' P"duetLapse3.start" sent as gcode')
         logger.info('##########################################################\n')
 
     logger.info('##########################################################')
     logger.info('Video will be created when printing ends')
-    logger.info('or if requested from the UI or ' + state.M3291 +  ' P"duetLapse3.completed"')
+    logger.info('or if requested from the UI or ' + messageMacro +  ' P"duetLapse3.completed"')
     logger.info('##########################################################\n')
 
     logger.info('##########################################################')
@@ -2293,7 +2197,7 @@ def startup():
         publishUiAddress(state.ip, state.port)
 
     logger.info('Initializing DL3msg queue')
-    sendDuetGcode(state.apiModel,state.M3291 + ' B"Clear"') # Clear the message queue
+    sendDuetGcode(state.apiModel,messageMacro + ' B"Clear"') # Clear the message queue
 
     logger.info('Initiating with action set to ' + state.action)
     nextAction(state.action)
@@ -2314,12 +2218,13 @@ def main():
     state.terminateState = -1  # 1 while terminating
     state.videoEvents, state.videoSeq = [], 0  # Videos made (or not) - announced by the page
     state.connectionState = state.restarting = False
+    state.connectError = ''
+    state.connectRetry = threading.Event()
     state.workingDirStatus = -1
 
     # timers
     state.mainLoopPoll = 5 # seconds
     state.mainLoopIterate = state.mainLoopPoll/3
-    state.minPoll = 10  # seconds
     state.minseconds = 20  # seconds
 
 

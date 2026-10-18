@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Res
 
 import camera
 import duet_printer  # Communication with the printer
+from messages import Message, coded
 import state  # Shared state - always use state.<name>
 from logger_module import logger
 
@@ -32,11 +33,16 @@ appDir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'static', 'ap
 ###########################
 
 def status_data():
+    videoMessage = dl3.getVideoMsg()
     return {
         'version': dl3.duetLapse3Version,
         'printerVersion': state.printerVersion,
         'printer': duet_printer.printerAddress(),
         'connected': bool(state.connectionState),
+        'connectError': state.connectError,  # Why the printer can not be connected (e.g. wrong password) - '' if not known
+        'connectErrorCode': coded(state.connectError),  # Codes (here and below) let the page show the message in its language
+        'duet': state.duet,  # The printer settings - changed on the page when the printer can not be connected
+        'duetport': state.duetport,
         'pid': state.pid,
         'printState': state.printState,
         'action': state.action,
@@ -48,31 +54,14 @@ def status_data():
         'lastImage': state.lastImage,
         'camera1': dl3.cameraUrl(1) != '',  # In use - has a url and is switched on
         'camera2': dl3.cameraUrl(2) != '',
-        'videoMessage': dl3.getVideoMsg(),
+        'videoMessage': videoMessage,
+        'videoMessageCode': coded(videoMessage),
         'imagesAvailable': state.workingDirStatus != -1,
         'allowed': dl3.allowedNextAction(state.action),  # The commands that can be used now
-        'hideButtons': bool(state.hidebuttons),
         'canTerminate': state.apiModel != 'SBC',  # DSF stops the plugin itself
         'restart': bool(state.restart),
-        'poll': state.poll,
         'run': str(state.pid),  # Video result numbers start again when duetLapse3 restarts
         'videoEvents': state.videoEvents,  # The last 10 videos made (or not)
-    }
-
-def info_data():
-    options = []
-    for label, value in dl3.getOptions().items():
-        if label.startswith('#'):  # Section names
-            continue
-        options.append({'label': label, 'value': str(value)})
-    return {
-        'pid': state.pid,
-        'pageAddress': 'http://' + str(state.ip) + ':' + str(state.port),
-        'options': options,
-        'topDir': state.topDir,
-        'imageLocation': state.workingDir if state.workingDirStatus != -1 else '',
-        'logFile': state.logfilename,
-        'configFile': state.configfile,
     }
 
 def files_data(path):
@@ -177,6 +166,7 @@ def make_video(path, xtratime, cameras = None):
 # Sections of DEFAULTS shown on their own tab instead of the Config tab
 cameraSection = 'Camera'  # Cameras tab
 videoSections = ['Video']  # Video tab
+tabSections = {'video': videoSections, 'execution': ['Execution'], 'files': ['Files']}  # Every other section is on the Config tab
 cameraUrls = ['weburl1', 'weburl2']  # Camera1, Camera2
 cameraEnables = ['enable1', 'enable2']
 
@@ -185,7 +175,7 @@ def config_values():
     try:
         config = dl3.readConfig(state.configfile)
     except (OSError, ValueError) as e:
-        return {}, 'Could not read the settings file - showing the defaults. ' + str(e)
+        return {}, Message('settingsUnreadableDefaults', 'Could not read the settings file - showing the defaults. ' + str(e), error = str(e))
     return {k: v for section in config.values() if isinstance(section, dict) for k, v in section.items()}, ''
 
 def setting_type(key, default):
@@ -200,7 +190,7 @@ def setting_type(key, default):
     return 'str'
 
 def settings_data(names):
-    # The settings in the named sections of DEFAULTS - their values, type, choices and help
+    # The settings in the named sections of DEFAULTS - their values, type and choices.  Labels and descriptions are in the page (ui/src/locales)
     values, error = config_values()
     sections = []
     for name in names:
@@ -208,14 +198,16 @@ def settings_data(names):
         for key, default in dl3.DEFAULTS[name].items():
             settings.append({'key': key, 'value': values.get(key, default), 'default': default,
                              'type': setting_type(key, default), 'choices': dl3.CHOICES.get(key),
-                             'help': dl3.HELP.get(key, ''), 'readonly': key in dl3.configExtras})
+                             'readonly': key in dl3.configExtras,
+                             'inUse': state.basedir if key == 'basedir' else None})  # The path in use - blank basedir = the settings folder
         sections.append({'name': name, 'settings': settings})
-    return {'configFile': state.configfile, 'error': error, 'sections': sections}
+    return {'error': error, 'errorCode': coded(error), 'sections': sections}
 
 def tab_sections(tab):
-    if tab == 'video':
-        return videoSections
-    return [name for name in dl3.DEFAULTS if name != cameraSection and name not in videoSections]
+    if tab in tabSections:
+        return tabSections[tab]
+    elsewhere = [cameraSection] + [name for names in tabSections.values() for name in names]
+    return [name for name in dl3.DEFAULTS if name not in elsewhere]
 
 def update_config_file(settings):
     # Check every value in settings, then save them all to duetLapse3.json - or nothing if any are invalid
@@ -226,7 +218,7 @@ def update_config_file(settings):
     except FileNotFoundError:
         config = {}
     except (OSError, ValueError) as e:
-        return {'': 'Could not read the settings file. ' + str(e)}
+        return {'': Message('settingsUnreadable', 'Could not read the settings file. ' + str(e), error = str(e))}
     location = {key: name for name, section in config.items() if isinstance(section, dict) for key in section}
 
     errors = {}
@@ -237,7 +229,7 @@ def update_config_file(settings):
             try:
                 value = dl3.checkSetting(key, settings[key], default)
             except ValueError as e:
-                errors[key] = str(e)
+                errors[key] = e.args[0]  # A Message
                 continue
             config.setdefault(location.get(key, section), {})[key] = value
 
@@ -251,14 +243,16 @@ def update_config_file(settings):
     return {}
 
 def save_result(errors, success):
-    # The reply to a save - 400 with the errors if nothing was saved
+    # The reply to a save - 400 with the errors if nothing was saved.  The codes let the page show the messages in its language
     if errors:
-        return JSONResponse({'saved': False, 'errors': errors, 'message': 'Not saved - some settings are invalid'}, status_code=400)
-    return {'saved': True, 'errors': {}, 'message': success}
+        message = Message('notSavedInvalid', 'Not saved - some settings are invalid')
+        errorCodes = {key: coded(text) for key, text in errors.items() if coded(text)}
+        return JSONResponse({'saved': False, 'errors': errors, 'errorCodes': errorCodes, 'message': message, 'messageCode': coded(message)}, status_code=400)
+    return {'saved': True, 'errors': {}, 'errorCodes': {}, 'message': success, 'messageCode': coded(success)}
 
 def save_config(settings):
     errors = update_config_file(settings)
-    return save_result(errors, 'Saved. Restart duetLapse3 for the changes to take effect.')
+    return save_result(errors, Message('savedRestart', 'Saved. Restart duetLapse3 for the changes to take effect.'))
 
 def video_length_errors(settings):
     # minvideo can't be more than maxvideo (unless maxvideo is 0 - off)
@@ -270,8 +264,8 @@ def video_length_errors(settings):
     except ValueError:
         return {}  # Reported when the values are checked
     if maxvideo > 0 and minvideo > maxvideo:
-        return {'minvideo': 'minvideo (' + str(minvideo) + ') can not be more than maxvideo (' + str(maxvideo) + ')',
-                'maxvideo': 'maxvideo must be 0 (off) or at least minvideo (' + str(minvideo) + ')'}
+        return {'minvideo': Message('minvideoTooBig', 'minvideo (' + str(minvideo) + ') can not be more than maxvideo (' + str(maxvideo) + ')', min = minvideo, max = maxvideo),
+                'maxvideo': Message('maxvideoTooSmall', 'maxvideo must be 0 (off) or at least minvideo (' + str(minvideo) + ')', min = minvideo)}
     return {}
 
 def save_video(settings):
@@ -296,12 +290,25 @@ def save_video(settings):
                 setattr(state, key, value)
         if state.maxvideo > 0 and state.maxvideo < state.minvideo:  # As at startup
             state.maxvideo = state.minvideo
-    return save_result(errors, 'Saved. The video settings are in use now.')
+    return save_result(errors, Message('savedVideo', 'Saved. The video settings are in use now.'))
+
+def connect_printer(settings):
+    # New printer settings (duet, duetport, password) from the page while the printer is not connected:
+    # save them to duetLapse3.json, use them, and try to connect at once.  A blank password keeps the one in use
+    if state.connectionState:
+        message = Message('alreadyConnected', 'Already connected to the printer')
+        return JSONResponse({'saved': False, 'errors': {}, 'errorCodes': {}, 'message': message, 'messageCode': coded(message)}, status_code=409)
+    settings = {k: v for k, v in settings.items() if k in ['duet', 'duetport', 'password'] and not (k == 'password' and v in ['', None])}
+    errors = update_config_file(settings)
+    if errors:
+        return save_result(errors, '')
+    dl3.printerChanged({k: dl3.checkSetting(k, v, dl3.DEFAULTS['Environment'][k]) for k, v in settings.items()})
+    return save_result({}, Message('savedConnecting', 'Saved - connecting to the printer at ' + duet_printer.printerAddress(), printer = duet_printer.printerAddress()))
 
 def cameras_data():
     values, error = config_values()
-    return {'configFile': state.configfile, 'error': error,
-            'cameras': [{'number': number, 'key': key, 'url': values.get(key, ''), 'help': dl3.HELP.get(key, ''),
+    return {'error': error, 'errorCode': coded(error),
+            'cameras': [{'number': number, 'key': key, 'url': values.get(key, ''),
                          'enableKey': cameraEnables[number - 1], 'enabled': values.get(cameraEnables[number - 1], True) is not False}
                         for number, key in enumerate(cameraUrls, start = 1)]}
 
@@ -310,11 +317,11 @@ def save_cameras(settings):
     urls = {key: str(settings.get(key, '')).strip() for key in cameraUrls}
     errors = {}
     if state.enable1 and not camera.is_http_url(urls['weburl1']):
-        errors['weburl1'] = 'Camera1 needs an http url (a snapshot url or an MJPEG stream url) - or switch it off'
+        errors['weburl1'] = Message('camera1Needed', 'Camera1 needs an http url (a snapshot url or an MJPEG stream url) - or switch it off')
     elif urls['weburl1'] != '' and not camera.is_http_url(urls['weburl1']):
-        errors['weburl1'] = 'Camera1 url must be an http url, or blank'
+        errors['weburl1'] = Message('camera1NotHttp', 'Camera1 url must be an http url, or blank')
     if urls['weburl2'] != '' and not camera.is_http_url(urls['weburl2']):
-        errors['weburl2'] = 'Camera2 url must be an http url, or blank for no second camera'
+        errors['weburl2'] = Message('camera2NotHttp', 'Camera2 url must be an http url, or blank for no second camera')
     if not errors:
         errors = update_config_file(urls)
     if not errors:
@@ -324,7 +331,7 @@ def save_cameras(settings):
             if getattr(state, key) != url:
                 logger.info(key + ' changed to ' + url)
                 setattr(state, key, url)
-    return save_result(errors, 'Saved. The cameras are in use now.')
+    return save_result(errors, Message('savedCameras', 'Saved. The cameras are in use now.'))
 
 def enable_camera(key, enabled):
     # Switch a camera on or off - saved to duetLapse3.json and used straight away
@@ -334,7 +341,10 @@ def enable_camera(key, enabled):
     if not errors:
         setattr(state, key, bool(enabled))
         logger.info('Camera' + key[-1] + (' switched on' if enabled else ' switched off'))
-    return save_result(errors, 'Camera' + key[-1] + (' is on' if enabled else ' is off - no images will be taken from it'))
+    camera = 'Camera' + key[-1]
+    if enabled:
+        return save_result(errors, Message('cameraOn', camera + ' is on', camera = camera))
+    return save_result(errors, Message('cameraOff', camera + ' is off - no images will be taken from it', camera = camera))
 
 def preview_image(url):
     if state.simulate in ['all', 'camera']:
@@ -398,10 +408,6 @@ def index(request: Request):
 def api_status():
     return status_data()
 
-@router.get('/api/info')
-def api_info():
-    return info_data()
-
 @router.get('/api/files')
 def api_files(path: str = ''):  # '' = the top folder
     data = files_data(path)
@@ -410,7 +416,7 @@ def api_files(path: str = ''):  # '' = the top folder
     return data
 
 @router.get('/api/settings')
-def api_settings(tab: str = 'config'):  # config or video
+def api_settings(tab: str = 'config'):  # config, execution, files or video
     return settings_data(tab_sections(tab))
 
 @router.get('/api/cameras')
@@ -424,6 +430,10 @@ def config_save(settings: dict = Body(...)):  # {setting: value}
 @router.post('/video/save')
 def video_save(settings: dict = Body(...)):  # {setting: value}
     return save_video(settings)
+
+@router.post('/printer/connect')
+def printer_connect(settings: dict = Body(...)):  # {duet: address, duetport: port, password: password ('' = keep)}
+    return connect_printer(settings)
 
 @router.post('/cameras/save')
 def cameras_save(settings: dict = Body(...)):  # {weburl1: url, weburl2: url}

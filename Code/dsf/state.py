@@ -13,7 +13,6 @@ the functions noted against each group.
 # Command line options - set in init()
 ###########################
 
-inputs = None  # dict of option name -> display value (see getOptions)
 configdir = None  # Folder for duetLapse3.json and the logfile - argument 1, or the program's folder
 configfile = None  # duetLapse3.json in configdir
 
@@ -25,7 +24,6 @@ duet = None  # Printer address - blank in the settings = this computer
 duetport = None  # Printer port
 password = None
 basedir = None
-poll = None
 instances = None
 nolog = None
 verbose = None
@@ -33,7 +31,6 @@ port = None
 keeplogs = None
 novideo = None
 deletepics = None
-maxffmpeg = None
 keepfiles = None
 
 # Execution
@@ -61,12 +58,6 @@ maxvideo = None
 ffmpegthreads = None  # 0 = automatic
 
 
-# UI
-hidebuttons = None
-
-# Special
-execkey = None
-M3291 = None
 
 ###########################
 # Derived from options / environment - set in init(), setdebug()
@@ -95,7 +86,6 @@ logfilename = None
 
 mainLoopPoll = None
 mainLoopIterate = None
-minPoll = None
 minseconds = None
 lastCaptureLoop = None
 lastStatusCall = None
@@ -107,6 +97,8 @@ lastStatusCall = None
 apiModel = None
 connectionState = None
 firstConnect = None  # None until the first successful login
+connectError = None  # Why the printer can not be connected (e.g. wrong password) - shown on the page.  '' = no error
+connectRetry = None  # threading.Event - set when the printer settings are changed on the page, to try again at once
 printerVersion = None
 urlHeaders = None  # SBC session key
 

@@ -31,7 +31,8 @@ and open <http://localhost:5173/static/app/index.html>. Changes show as soon as 
 | `index.html`, `src/main.js` | The page |
 | `src/App.vue` | The tab bar, the shown tab, the message bar and the confirm dialog |
 | `src/tabs/` | One component per tab |
-| `src/components/SettingsForm.vue` | The settings cards used by the Video and Config tabs |
+| `src/components/SettingsForm.vue` | The settings cards used by the Video, Execution, Files and Config tabs |
+| `src/locales/en.json`, `src/i18n.js` | All the page's text, ready for other languages: each setting's label and description, section titles, the text of every tab, the status values, and duetLapse3's own messages (`server`, by the code `Code/dsf/messages.py` sends with them). The language is `?lang=<code>` in the url, otherwise the browser's language, otherwise English. To add a language, add `src/locales/<code>.json` (e.g. `de.json`) with the texts it translates - anything it doesn't have is shown in English - and rebuild. Anything missing from English too shows its own name or duetLapse3's English. Add a setting here when you add one to `DEFAULTS`, and a `server` entry for each new `Message` code |
 | `src/components/ControlsCard.vue` | The controls (start, pause, ... terminate) on the Status tab |
 | `src/vuetify.js` | Vuetify set up as DWC 3.7 does, and following DWC's theme when shown inside DWC |
 | `src/status.js` | `/api/status`, read every 3 seconds while the page is visible, for every tab |

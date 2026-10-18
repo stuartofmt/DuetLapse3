@@ -1,5 +1,5 @@
 <!--
-	Files tab: a file browser for the images, videos and zip files - breadcrumb path, list or grid (with thumbnails),
+	Images tab: a file browser for the images, videos and zip files - breadcrumb path, list or grid (with thumbnails),
 	search and sort. Images and videos open in a viewer; each item's actions are in its menu.
 -->
 <script setup>
@@ -7,6 +7,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { api, fileUrl } from "../api.js";
 import { clearNotify, confirm, notify } from "../notify.js";
 import { requestVideo } from "../videos.js";
+import { language, t } from "../i18n.js";
 import {
 	mdiChevronLeft, mdiChevronRight, mdiClose, mdiDelete, mdiDotsVertical, mdiDownload, mdiFileDocumentOutline, mdiFileVideo,
 	mdiFolder, mdiFolderImage, mdiFolderZip, mdiHome, mdiImage, mdiMagnify, mdiMovieOpen, mdiOpenInNew, mdiRefresh, mdiSort,
@@ -43,10 +44,10 @@ watch(view, (v) => remember(localStorage, "duetLapse3.view", v));
 watch(sort, (v) => remember(localStorage, "duetLapse3.sort", v));
 
 const sorts = [
-	{ title: "Newest first", value: "newest" },
-	{ title: "Oldest first", value: "oldest" },
-	{ title: "Name", value: "name" },
-	{ title: "Size", value: "size" },
+	{ title: t("images.newest"), value: "newest" },
+	{ title: t("images.oldest"), value: "oldest" },
+	{ title: t("images.name"), value: "name" },
+	{ title: t("images.size"), value: "size" },
 ];
 
 const kinds = {
@@ -66,7 +67,7 @@ const crumbs = computed(() => {
 	const { path, top } = listing.value;
 	const sep = top.includes("\\") && !top.includes("/") ? "\\" : "/";
 	const below = path.startsWith(top) ? path.slice(top.length).split(/[\\/]/).filter(Boolean) : [];
-	const list = [{ title: "Files", path: top }];
+	const list = [{ title: t("images.top"), path: top }];
 	let current = top;
 	for (const part of below) {
 		current = current.replace(/[\\/]$/, "") + sep + part;
@@ -103,7 +104,7 @@ async function open(path) {
 		if (path !== "") {
 			return open(""); // The folder has gone - show the top folder
 		}
-		notify(`Could not list the files: ${err.message}`, "error", 6000);
+		notify(t("images.couldNotList", { error: err.message }), "error", 6000);
 	} finally {
 		loading.value = false;
 	}
@@ -132,22 +133,22 @@ function step(by) {
 }
 
 async function action(entry, kind) {
-	if (kind === "delete" && !await confirm(`Delete ${entry.name}?${entry.isDir ? `\nThe folder and everything in it (${contents(entry)}) will be deleted.` : ""}`,
-		{ title: "Delete", color: "error" })) {
+	const question = t("images.deleteConfirm", { name: entry.name }) + (entry.isDir ? `\n${t("images.deleteFolder", { contents: contents(entry) })}` : "");
+	if (kind === "delete" && !await confirm(question, { title: t("images.deleteTitle"), color: "error" })) {
 		return;
 	}
 	busy.value = entry.path;
 	try {
 		if (kind === "video") {
-			notify(`Making a video from ${entry.name} ...`, "info", 60000);
+			notify(t("images.making", { name: entry.name }), "info", 60000);
 			await requestVideo(`/makevideo?path=${encodeURIComponent(entry.path)}&xtratime=false`);  // The result is announced
 			clearNotify();  // The "Making" message
 		} else {
 			await api.getText(`/${kind}?path=${encodeURIComponent(entry.path)}`);
-			notify(kind === "zip" ? `${entry.name} zipped` : `${entry.name} deleted`);
+			notify(t(kind === "zip" ? "images.zipped" : "images.deleted", { name: entry.name }));
 		}
 	} catch (err) {
-		notify(`${kind} failed: ${err.message}`, "error", 6000);
+		notify(t("images.failed", { action: t({ video: "images.makeVideo", zip: "images.zip", delete: "images.delete" }[kind]), error: err.message }), "error", 6000);
 	} finally {
 		busy.value = "";
 		refresh();
@@ -165,10 +166,10 @@ function size(bytes) {
 	return `${bytes.toFixed(i ? 1 : 0)} ${units[i]}`;
 }
 
-const when = (seconds) => new Date(seconds * 1000).toLocaleString();
+const when = (seconds) => new Date(seconds * 1000).toLocaleString(language);
 // What a folder holds, e.g. "40 images, 2 videos"
-const contents = (entry) => [entry.images ? `${entry.images} images` : "", entry.videos ? `${entry.videos} ${entry.videos === 1 ? "video" : "videos"}` : ""]
-	.filter(Boolean).join(", ") || "Folder";
+const contents = (entry) => [entry.images ? t("images.imageCount", { n: entry.images }) : "", entry.videos ? t("images.videoCount", { n: entry.videos }) : ""]
+	.filter(Boolean).join(", ") || t("images.folder");
 const details = (entry) => entry.isDir ? `${contents(entry)} · ${when(entry.modified)}` : `${size(entry.size)} · ${when(entry.modified)}`;
 
 onMounted(() => open(remembered(sessionStorage, "duetLapse3.path", "")));
@@ -191,10 +192,10 @@ onMounted(() => open(remembered(sessionStorage, "duetLapse3.path", "")));
 					<v-icon :icon="mdiChevronRight" size="small"></v-icon>
 				</template>
 			</v-breadcrumbs>
-			<v-btn :icon="mdiRefresh" variant="text" size="small" :loading="loading" title="Refresh" @click="refresh"></v-btn>
+			<v-btn :icon="mdiRefresh" variant="text" size="small" :loading="loading" :title="t('common.refresh')" @click="refresh"></v-btn>
 		</v-toolbar>
 		<div class="d-flex flex-wrap align-center ga-2 px-4 pb-2">
-			<v-text-field v-model="search" :prepend-inner-icon="mdiMagnify" placeholder="Search this folder" clearable
+			<v-text-field v-model="search" :prepend-inner-icon="mdiMagnify" :placeholder="t('images.search')" clearable
 						  variant="outlined" density="compact" hide-details style="min-width: 180px; max-width: 320px"
 						  @update:model-value="shown = PAGE"></v-text-field>
 			<v-spacer></v-spacer>
@@ -209,8 +210,8 @@ onMounted(() => open(remembered(sessionStorage, "duetLapse3.path", "")));
 				</v-list>
 			</v-menu>
 			<v-btn-toggle v-model="view" mandatory density="compact" variant="outlined" divided>
-				<v-btn value="list" :icon="mdiViewList" title="List"></v-btn>
-				<v-btn value="grid" :icon="mdiViewGrid" title="Grid"></v-btn>
+				<v-btn value="list" :icon="mdiViewList" :title="t('images.list')"></v-btn>
+				<v-btn value="grid" :icon="mdiViewGrid" :title="t('images.grid')"></v-btn>
 			</v-btn-toggle>
 		</div>
 		<v-divider></v-divider>
@@ -218,7 +219,7 @@ onMounted(() => open(remembered(sessionStorage, "duetLapse3.path", "")));
 		<!-- Nothing here -->
 		<div v-if="listing && !entries.length" class="text-center text-medium-emphasis pa-8">
 			<v-icon :icon="search ? mdiMagnify : mdiFolder" size="48" class="mb-2"></v-icon>
-			<div>{{ search ? `Nothing matches "${search}"` : "No files yet" }}</div>
+			<div>{{ search ? t("images.noMatch", { search }) : t("images.empty") }}</div>
 		</div>
 
 		<!-- List -->
@@ -237,12 +238,12 @@ onMounted(() => open(remembered(sessionStorage, "duetLapse3.path", "")));
 							<v-btn v-bind="props" :icon="mdiDotsVertical" variant="text" size="small" @click.stop></v-btn>
 						</template>
 						<v-list density="compact">
-							<v-list-item v-if="!entry.isDir" :prepend-icon="mdiOpenInNew" title="Open in a new tab" :href="fileUrl(entry.path)" target="_blank"></v-list-item>
-							<v-list-item v-if="!entry.isDir" :prepend-icon="mdiDownload" title="Download" :href="fileUrl(entry.path)" :download="entry.name"></v-list-item>
-							<v-list-item v-if="entry.canVideo" :prepend-icon="mdiMovieOpen" title="Make a video" @click="action(entry, 'video')"></v-list-item>
-							<v-list-item v-if="entry.canZip" :prepend-icon="mdiFolderZip" title="Zip" @click="action(entry, 'zip')"></v-list-item>
-							<v-list-item v-if="entry.canDelete" :prepend-icon="mdiDelete" title="Delete" base-color="error" @click="action(entry, 'delete')"></v-list-item>
-							<v-list-item v-if="entry.isDir && !entry.canDelete" title="The current print - in use" disabled></v-list-item>
+							<v-list-item v-if="!entry.isDir" :prepend-icon="mdiOpenInNew" :title="t('images.openTab')" :href="fileUrl(entry.path)" target="_blank"></v-list-item>
+							<v-list-item v-if="!entry.isDir" :prepend-icon="mdiDownload" :title="t('common.download')" :href="fileUrl(entry.path)" :download="entry.name"></v-list-item>
+							<v-list-item v-if="entry.canVideo" :prepend-icon="mdiMovieOpen" :title="t('images.makeVideo')" @click="action(entry, 'video')"></v-list-item>
+							<v-list-item v-if="entry.canZip" :prepend-icon="mdiFolderZip" :title="t('images.zip')" @click="action(entry, 'zip')"></v-list-item>
+							<v-list-item v-if="entry.canDelete" :prepend-icon="mdiDelete" :title="t('images.delete')" base-color="error" @click="action(entry, 'delete')"></v-list-item>
+							<v-list-item v-if="entry.isDir && !entry.canDelete" :title="t('images.inUse')" disabled></v-list-item>
 						</v-list>
 					</v-menu>
 				</template>
@@ -271,10 +272,10 @@ onMounted(() => open(remembered(sessionStorage, "duetLapse3.path", "")));
 									<v-btn v-bind="props" :icon="mdiDotsVertical" variant="text" size="small" @click.stop></v-btn>
 								</template>
 								<v-list density="compact">
-									<v-list-item v-if="!entry.isDir" :prepend-icon="mdiDownload" title="Download" :href="fileUrl(entry.path)" :download="entry.name"></v-list-item>
-									<v-list-item v-if="entry.canVideo" :prepend-icon="mdiMovieOpen" title="Make a video" @click="action(entry, 'video')"></v-list-item>
-									<v-list-item v-if="entry.canZip" :prepend-icon="mdiFolderZip" title="Zip" @click="action(entry, 'zip')"></v-list-item>
-									<v-list-item v-if="entry.canDelete" :prepend-icon="mdiDelete" title="Delete" base-color="error" @click="action(entry, 'delete')"></v-list-item>
+									<v-list-item v-if="!entry.isDir" :prepend-icon="mdiDownload" :title="t('common.download')" :href="fileUrl(entry.path)" :download="entry.name"></v-list-item>
+									<v-list-item v-if="entry.canVideo" :prepend-icon="mdiMovieOpen" :title="t('images.makeVideo')" @click="action(entry, 'video')"></v-list-item>
+									<v-list-item v-if="entry.canZip" :prepend-icon="mdiFolderZip" :title="t('images.zip')" @click="action(entry, 'zip')"></v-list-item>
+									<v-list-item v-if="entry.canDelete" :prepend-icon="mdiDelete" :title="t('images.delete')" base-color="error" @click="action(entry, 'delete')"></v-list-item>
 								</v-list>
 							</v-menu>
 						</div>
@@ -284,7 +285,7 @@ onMounted(() => open(remembered(sessionStorage, "duetLapse3.path", "")));
 		</v-container>
 
 		<div v-if="entries.length > shown" class="text-center pa-3">
-			<v-btn variant="tonal" @click="shown += PAGE">Show {{ Math.min(PAGE, entries.length - shown) }} more of {{ entries.length - shown }}</v-btn>
+			<v-btn variant="tonal" @click="shown += PAGE">{{ t("images.more", { n: Math.min(PAGE, entries.length - shown), total: entries.length - shown }) }}</v-btn>
 		</div>
 	</v-card>
 
@@ -293,8 +294,8 @@ onMounted(() => open(remembered(sessionStorage, "duetLapse3.path", "")));
 		<v-card v-if="viewer">
 			<v-toolbar density="compact" color="transparent">
 				<v-toolbar-title class="text-body-1">{{ viewer.name }}</v-toolbar-title>
-				<v-btn :icon="mdiDownload" :href="fileUrl(viewer.path)" :download="viewer.name" title="Download"></v-btn>
-				<v-btn :icon="mdiClose" title="Close" @click="viewer = null"></v-btn>
+				<v-btn :icon="mdiDownload" :href="fileUrl(viewer.path)" :download="viewer.name" :title="t('common.download')"></v-btn>
+				<v-btn :icon="mdiClose" :title="t('common.close')" @click="viewer = null"></v-btn>
 			</v-toolbar>
 			<div class="dl3-viewer" @keydown.left="step(-1)" @keydown.right="step(1)" tabindex="0">
 				<video v-if="viewer.kind === 'video'" :src="fileUrl(viewer.path)" controls autoplay></video>

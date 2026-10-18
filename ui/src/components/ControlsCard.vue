@@ -3,6 +3,7 @@
 import { computed, ref } from "vue";
 import { api } from "../api.js";
 import { confirm, notify } from "../notify.js";
+import { serverText, t } from "../i18n.js";
 import { refreshStatus, status } from "../status.js";
 import { mdiPause, mdiPlay, mdiPower, mdiPowerSleep, mdiRestart, mdiStop } from "../icons.js";
 
@@ -11,21 +12,20 @@ const busy = ref("");
 const stopped = ref(false);
 
 const commands = [
-	{ name: "start", label: "Start", icon: mdiPlay, color: "success" },
+	{ name: "start", label: t("controls.start"), icon: mdiPlay, color: "success" },
 	{
-		name: "standby", label: "Standby", icon: mdiPowerSleep, color: "warning",
-		confirm: "Standby does NOT create a video.\nAll captured images will be deleted.",
+		name: "standby", label: t("controls.standby"), icon: mdiPowerSleep, color: "warning",
+		confirm: t("controls.standbyConfirm"),
 	},
-	{ name: "pause", label: "Pause", icon: mdiPause, color: "info" },
-	{ name: "continue", label: "Continue", icon: mdiPlay, color: "info" },
+	{ name: "pause", label: t("controls.pause"), icon: mdiPause, color: "info" },
+	{ name: "continue", label: t("controls.continue"), icon: mdiPlay, color: "info" },
 	{
-		name: "restart", label: "Restart", icon: mdiRestart, color: "warning",
-		confirm: "Restart will try to create a video, then get ready for the next print.\n\nAll captured images will be deleted, unless keepfiles is set.",
+		name: "restart", label: t("controls.restart"), icon: mdiRestart, color: "warning",
+		confirm: t("controls.restartConfirm"),
 	},
 ];
 
 const allowed = (name) => s.value?.allowed.includes(name);
-const shown = computed(() => commands.filter((c) => !s.value?.hideButtons || allowed(c.name)));
 
 async function run(command) {
 	if (command.confirm && !await confirm(command.confirm, { title: command.label, color: command.color })) {
@@ -36,18 +36,17 @@ async function run(command) {
 		await api.getText(`/command/${command.name}`);
 		await refreshStatus();
 	} catch (err) {
-		notify(`${command.label} failed: ${err.message}`, "error", 6000);
+		notify(t("controls.failed", { command: command.label, error: err.message }), "error", 6000);
 	} finally {
 		busy.value = "";
 	}
 }
 
 async function terminate(type) {
-	const restart = s.value?.restart ? "\nA restart will occur after the terminate." : "";
-	const text = type === "graceful"
-		? `Make the video and terminate.\n${s.value?.imagesAvailable ? s.value.videoMessage : "There are no images available."}${restart}`
-		: "Terminate straight away.\nA video will NOT be created.";
-	const ok = await confirm(text, { title: type === "graceful" ? "Graceful terminate" : "Forced terminate", color: "error" });
+	const restart = s.value?.restart ? `\n${t("controls.restartAfter")}` : "";
+	const video = s.value?.imagesAvailable ? serverText(s.value.videoMessage, s.value.videoMessageCode) : t("controls.noImages");
+	const text = type === "graceful" ? t("controls.gracefulText", { video }) + restart : t("controls.forcedText");
+	const ok = await confirm(text, { title: type === "graceful" ? t("controls.graceful") : t("controls.forced"), color: "error" });
 	if (!ok) {
 		return;
 	}
@@ -64,11 +63,11 @@ async function terminate(type) {
 
 <template>
 	<v-card v-if="s">
-		<v-card-title>Controls</v-card-title>
+		<v-card-title>{{ t("controls.title") }}</v-card-title>
 		<v-card-text>
-			<v-alert v-if="stopped" type="info" variant="tonal" density="compact" class="mb-3">duetLapse3 is stopping.</v-alert>
+			<v-alert v-if="stopped" type="info" variant="tonal" density="compact" class="mb-3">{{ t("controls.stopping") }}</v-alert>
 			<div class="d-flex flex-wrap ga-2">
-				<v-btn v-for="c in shown" :key="c.name" :prepend-icon="c.icon" :color="c.color" variant="tonal"
+				<v-btn v-for="c in commands" :key="c.name" :prepend-icon="c.icon" :color="c.color" variant="tonal"
 					   :disabled="!allowed(c.name) || stopped" :loading="busy === c.name" @click="run(c)">
 					{{ c.label }}
 				</v-btn>
@@ -77,10 +76,10 @@ async function terminate(type) {
 				<v-divider class="my-3"></v-divider>
 				<div class="d-flex flex-wrap ga-2">
 					<v-btn :prepend-icon="mdiStop" color="success" variant="tonal" :disabled="stopped" @click="terminate('graceful')">
-						Graceful terminate
+						{{ t("controls.graceful") }}
 					</v-btn>
 					<v-btn :prepend-icon="mdiPower" color="error" variant="tonal" :disabled="stopped" @click="terminate('forced')">
-						Forced terminate
+						{{ t("controls.forced") }}
 					</v-btn>
 				</div>
 			</template>

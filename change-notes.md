@@ -33,9 +33,11 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
 - **The page address.**
   - `port` 0, the default, picks a free port from 17800 upwards. A port that's already in use also falls back to a free one.
   - The page always listens on every address of the computer. The `host` setting is gone.
-  - The computer's IP is shown in the log and on the Info tab, saved to the json (`ip`), and published for the DWC page.
+  - The computer's IP is shown in the log, saved to the json (`ip`), and published for the DWC page.
 - **`instances: oneip`** now means one duetLapse3 per settings folder (that is, per printer). The instance check also now spots copies started with a full path, which is how DSF starts plugins.
-- **Removed settings:** `camera1`, `camera2`, `camparam1`, `camparam2`, `vidparam1`, `vidparam2` (never used), `logtype`, `host`.
+- **Removed settings:** `camera1`, `camera2`, `camparam1`, `camparam2`, `vidparam1`, `vidparam2` (never used), `logtype`, `host`, `poll` (images are taken at each status or layer change, and timed images are checked every 5 seconds), `maxffmpeg`, `hidebuttons` (the controls always show every button, greyed out when it can't be used), and the Special Functions section: `execkey` and `M3291`.
+- **Special functions removed.** Gcode messages can no longer run commands on the SBC (`execkey`). The message macro is always `M3291`; it can no longer be renamed.
+- **New Files section.** `nolog`, `verbose`, `keeplogs`, `novideo`, `deletepics` and `keepfiles` moved from Environment to a new Files section. Sections are only for readability, so older files still work.
 - **New settings:** `duetport`, `ffmpegthreads`, `enable1`, `enable2`.
 
 ## The web page
@@ -44,12 +46,16 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
 - **Served** with FastAPI and uvicorn at `/` (and `/index`). The API is listed at `/docs`.
 - **Data as JSON.** The page reads `/api/status`, `/api/info`, `/api/files`, `/api/settings` and `/api/cameras`. Saving replies with any errors per setting, which are shown in red under the field.
 - **Removed:** the old HTML templates (`dsf/www/`), the `/tab/...` routes and the old `?displayStatus` style calls.
-- **Tabs:** Status (with the controls), Video, Files, Info, **Cameras**, **Config**. The controls moved onto the Status tab, so there's no separate Controls tab.
+- **Tabs:** Status (with the controls), Video, **Images**, **Cameras**, **Execution**, **Files**, **Config**. The controls moved onto the Status tab, so there's no separate Controls tab.
+  - **Images** is the file browser (it was the Files tab).
+  - **Execution** and **Files** hold the settings in those sections, moved off the Config tab.
+  - **Ready for other languages.** All the page's text is in `ui/src/locales/en.json`, including duetLapse3's own messages (save results, setting errors, the video message and results, the wrong-password banner), which it now sends with a code and values. The language is `?lang=<code>`, otherwise the browser's language, otherwise English; a partial translation falls back to English for the rest. Only English exists so far.
+  - **Info tab removed.** The page address is in the log, and the settings in use are written to the log at the start of each print.
+  - **Config** has a new **Pause** section (`pause`, `movehead`, `rest`), and a blank `basedir` shows the folder in use.
   - **Cameras:** each camera's URL with a preview, and an on/off switch (`enable1`, `enable2`) that keeps the URL. Saving checks the URLs, writes them to the json and starts using them straight away.
   - **Video:** the images captured by each camera, with how many are needed for a video. Then Snapshot (a button for each camera when there are two), plus the Video settings. Saving writes them to the json and starts using them straight away.
-  - **Files:** a file browser with a breadcrumb path, list or grid view with thumbnails, search and sorting. Images and videos open in a viewer, and each item has an action menu.
+  - **Images:** a file browser with a breadcrumb path, list or grid view with thumbnails, search and sorting. Images and videos open in a viewer, and each item has an action menu.
   - **Config:** every other setting, with checking before saving. Changes take effect after a restart.
-  - **Info:** shows the page address.
 - **Action URLs:** `/command/...`, `/snapshot`, `/makevideo`, `/getfile`, `/zip`, `/delete`, `/terminate/...` and `/videosettings`. Old action URLs such as `/?command=start` still work.
 - **Relative addresses.** The page uses relative URLs, so it works whatever address it's opened on (IP, hostname, VPN, localhost).
 - **Tab in the address.** `?tab=<name>` opens a tab directly.
@@ -76,12 +82,15 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
 - **Standalone.** One `rr_model` read per check returns the status, layer and position. The job and message queue are only re-read when the printer says they've changed (RRF's `seqs` counters).
 - **One shared read.** Status, layer, job name and head position come from the same read instead of a request each.
 - **Firmware version check removed.** The printer's firmware version is shown on the Status tab instead.
+- **Can't connect.** While the printer isn't connected, every tab shows a banner with the printer address, port and password. **Save and connect** saves them to `duetLapse3.json` and tries again at once, with no restart needed.
+- **Wrong password.** duetLapse3 stops trying and the banner says the password was refused, until it's changed on the page.
+- **Standalone login.** Once the board has answered as standalone, the SBC login calls are skipped.
 
 ## Videos
 
 - **Still made with ffmpeg**, now:
   - at low priority (`nice`), so the printer software always comes first;
-  - with a CPU thread limit worked out from the free cores (`ffmpegthreads`, 0 = automatic);
+  - with a CPU thread limit worked out from the free cores (`ffmpegthreads`, 0 = automatic), shared with any other ffmpeg already running. `maxffmpeg` is gone: videos no longer wait for other ffmpeg processes to finish;
   - with the `veryfast` preset, which uses much less CPU;
   - with `-pix_fmt yuv420p`, so videos play in browsers and on phones whatever the camera's JPEG format.
 - **Safe with spaces.** ffmpeg runs without a shell, so a path with spaces works.
@@ -114,6 +123,8 @@ Bugs that existed before this work:
 - **DWC page:** the page inside DWC would not have loaded (`?theme=` was treated as an unknown API call).
 - **Password:** the printer password was shown on the Info tab and written to the log at startup.
 - **Timed capture status:** timed capture (`dontwait`, or `detect none` with `seconds`) showed Waiting instead of Capturing when the printer was idle.
+- **Crash on reconnect:** duetLapse3 could stop (UNRECOVERABLE ERROR) when the printer came back quickly after being lost.
+- **Busy while disconnected:** while waiting for the printer to reconnect, the control loop woke every 50 ms.
 
 ## Code structure
 

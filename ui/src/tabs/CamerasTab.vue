@@ -1,8 +1,9 @@
-<!-- Cameras tab: each camera's url with a preview. Save puts the urls in duetLapse3.json and uses them straight away -->
+<!-- Cameras tab: each camera's url with a preview. Save saves the urls and uses them straight away -->
 <script setup>
 import { onMounted, reactive, ref } from "vue";
 import { api } from "../api.js";
 import { notify } from "../notify.js";
+import { serverText, settingDescription, settingLabel, t } from "../i18n.js";
 import { refreshStatus } from "../status.js";
 import { mdiCameraOff, mdiContentSave, mdiImageRefresh } from "../icons.js";
 
@@ -11,7 +12,6 @@ const urls = reactive({});
 const previews = reactive({});   // key: preview image url ('' = no camera)
 const failed = reactive({});     // key: true if the preview did not load
 const errors = reactive({});
-const configFile = ref("");
 const alert = reactive({ text: "", type: "success" });
 const saving = ref(false);
 const enabled = reactive({});    // enableKey: true / false
@@ -23,10 +23,10 @@ async function setEnabled(c, on) {
 	try {
 		const result = await api.postJson("/cameras/enable", { key: c.enableKey, enabled: on });
 		enabled[c.enableKey] = on;
-		notify(result.message, on ? "success" : "info");
+		notify(serverText(result.message, result.messageCode), on ? "success" : "info");
 		refreshStatus();
 	} catch (err) {
-		notify(`Could not switch Camera${c.number}: ${err.message}`, "error", 6000);
+		notify(t("cameras.couldNotSwitch", { camera: `Camera${c.number}`, error: err.message }), "error", 6000);
 	} finally {
 		switching[c.enableKey] = false;
 	}
@@ -43,17 +43,16 @@ async function load() {
 	try {
 		const data = await api.get("/api/cameras");
 		cameras.value = data.cameras;
-		configFile.value = data.configFile;
 		for (const c of data.cameras) {
 			urls[c.key] = c.url;
 			enabled[c.enableKey] = c.enabled;
 			preview(c.key);
 		}
 		if (data.error) {
-			Object.assign(alert, { text: data.error, type: "error" });
+			Object.assign(alert, { text: serverText(data.error, data.errorCode), type: "error" });
 		}
 	} catch (err) {
-		Object.assign(alert, { text: `Could not read the cameras: ${err.message}`, type: "error" });
+		Object.assign(alert, { text: t("cameras.couldNotRead", { error: err.message }), type: "error" });
 	}
 }
 
@@ -62,16 +61,19 @@ async function save() {
 	saving.value = true;
 	try {
 		const result = await api.postJson("/cameras/save", { ...urls });
-		Object.assign(alert, { text: result.message, type: "success" });
-		notify(result.message);
+		const message = serverText(result.message, result.messageCode);
+		Object.assign(alert, { text: message, type: "success" });
+		notify(message);
 		cameras.value.forEach((c) => preview(c.key));
 		refreshStatus();
 	} catch (err) {
 		if (err.status === 400 && err.data?.errors) {
-			Object.assign(errors, err.data.errors);
-			Object.assign(alert, { text: err.data.errors[""] || "Not saved - check the urls marked in red.", type: "error" });
+			for (const [key, text] of Object.entries(err.data.errors)) {
+				errors[key] = serverText(text, err.data.errorCodes?.[key]);
+			}
+			Object.assign(alert, { text: errors[""] || t("cameras.checkUrls"), type: "error" });
 		} else {
-			Object.assign(alert, { text: `Could not save: ${err.message}`, type: "error" });
+			Object.assign(alert, { text: t("common.couldNotSave", { error: err.message }), type: "error" });
 		}
 	} finally {
 		saving.value = false;
@@ -91,37 +93,36 @@ onMounted(load);
 				<v-card>
 					<v-card-title class="d-flex align-center">
 						Camera{{ c.number }}
-						<v-chip v-if="!enabled[c.enableKey]" size="small" class="ms-2" variant="tonal">Off</v-chip>
+						<v-chip v-if="!enabled[c.enableKey]" size="small" class="ms-2" variant="tonal">{{ t("common.off") }}</v-chip>
 						<v-spacer></v-spacer>
 						<v-switch :model-value="enabled[c.enableKey]" :loading="switching[c.enableKey]" color="success" inset hide-details
-								  density="compact" :label="enabled[c.enableKey] ? 'On' : 'Off'" class="flex-grow-0"
+								  density="compact" :label="enabled[c.enableKey] ? t('common.on') : t('common.off')" class="flex-grow-0"
 								  @update:model-value="setEnabled(c, $event)"></v-switch>
 					</v-card-title>
 					<v-card-text>
-						<v-text-field v-model="urls[c.key]" :label="`${c.key} - camera url`" :hint="c.help" persistent-hint
+						<v-text-field v-model="urls[c.key]" :label="settingLabel(c.key)" :hint="settingDescription(c.key)" persistent-hint
 									  :error-messages="errors[c.key]" placeholder="http://..." persistent-placeholder
 									  variant="outlined" density="comfortable" class="mb-4" @keydown.enter="preview(c.key)"></v-text-field>
 						<div class="dl3-media" :style="enabled[c.enableKey] ? '' : 'opacity: 0.45'">
 							<a v-if="previews[c.key] && !failed[c.key]" :href="previews[c.key]" target="_blank">
-								<img :src="previews[c.key]" alt="Camera preview" @error="failed[c.key] = true">
+								<img :src="previews[c.key]" :alt="t('cameras.previewAlt')" @error="failed[c.key] = true">
 							</a>
 							<div v-else class="dl3-media-overlay">
 								<v-icon :icon="mdiCameraOff" size="40"></v-icon>
-								<span>{{ previews[c.key] ? "No image from this url" : "No camera" }}</span>
+								<span>{{ previews[c.key] ? t("cameras.noImageFromUrl") : t("cameras.noCamera") }}</span>
 							</div>
 						</div>
 					</v-card-text>
 					<v-card-actions>
-						<v-btn :prepend-icon="mdiImageRefresh" @click="preview(c.key)">Preview</v-btn>
+						<v-btn :prepend-icon="mdiImageRefresh" @click="preview(c.key)">{{ t("cameras.preview") }}</v-btn>
 						<v-spacer></v-spacer>
-						<v-btn :prepend-icon="mdiContentSave" :loading="saving" @click="save">Save</v-btn>
+						<v-btn :prepend-icon="mdiContentSave" :loading="saving" @click="save">{{ t("common.save") }}</v-btn>
 					</v-card-actions>
 				</v-card>
 			</v-col>
 		</v-row>
 		<p class="text-caption text-medium-emphasis">
-			Use a snapshot url (preferred) or an MJPEG stream url. Save saves both cameras.
-			Settings file: {{ configFile }}
+			{{ t("cameras.help") }}
 		</p>
 	</div>
 </template>

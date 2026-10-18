@@ -2,20 +2,21 @@
 <script setup>
 import { computed } from "vue";
 import { status } from "../status.js";
+import { serverText, t, valueText } from "../i18n.js";
 import ControlsCard from "../components/ControlsCard.vue";
 import { mdiCameraOff } from "../icons.js";
 
 const s = computed(() => status.data);
 
 const rows = computed(() => s.value ? [
-	{ label: "duetLapse3 state", value: s.value.action },
-	{ label: "Capture status", value: s.value.printState },
-	{ label: "Printer status", value: s.value.connected ? s.value.duetStatus : "not connected" },
-	{ label: "Images captured", value: s.value.camera2 || s.value.frames2 ? `Camera1 ${s.value.frames}, Camera2 ${s.value.frames2}` : s.value.frames },
-	{ label: "Current layer", value: s.value.layer ?? "None" },
-	{ label: "Video", value: s.value.videoMessage },
-	{ label: "Printer", value: `${s.value.printer} (firmware ${s.value.printerVersion ?? "unknown"})` },
-	{ label: "duetLapse3 version", value: s.value.version },
+	{ label: t("status.state"), value: valueText("action", s.value.action) },
+	{ label: t("status.capture"), value: valueText("printState", s.value.printState) },
+	{ label: t("status.printerStatus"), value: s.value.connected ? valueText("duetStatus", s.value.duetStatus) : t("status.notConnected") },
+	{ label: t("status.images"), value: s.value.camera2 || s.value.frames2 ? t("status.imagesTwo", { frames: s.value.frames, frames2: s.value.frames2 }) : s.value.frames },
+	{ label: t("status.layer"), value: s.value.layer ?? t("status.none") },
+	{ label: t("status.video"), value: serverText(s.value.videoMessage, s.value.videoMessageCode) },
+	{ label: t("status.printer"), value: t("status.printerValue", { printer: s.value.printer, version: s.value.printerVersion ?? t("status.unknown") }) },
+	{ label: t("status.version"), value: s.value.version },
 ] : []);
 
 // A new image url when the frame count changes, so the browser shows the latest image
@@ -27,7 +28,7 @@ const imageSrc = computed(() => s.value?.lastImage ? `${s.value.lastImage}&n=${s
 		<v-col cols="12" md="5">
 			<ControlsCard class="mb-4"></ControlsCard>
 			<v-card>
-				<v-card-title>Status</v-card-title>
+				<v-card-title>{{ t("status.title") }}</v-card-title>
 				<v-table density="compact">
 					<tbody>
 						<tr v-for="row in rows" :key="row.label">
@@ -40,14 +41,14 @@ const imageSrc = computed(() => s.value?.lastImage ? `${s.value.lastImage}&n=${s
 		</v-col>
 		<v-col cols="12" md="7">
 			<v-card>
-				<v-card-title>Last image</v-card-title>
+				<v-card-title>{{ t("status.lastImage") }}</v-card-title>
 				<v-card-text>
 					<div class="dl3-media">
-						<a v-if="imageSrc" :href="imageSrc" target="_blank"><img :src="imageSrc" alt="Last image"></a>
+						<a v-if="imageSrc" :href="imageSrc" target="_blank"><img :src="imageSrc" :alt="t('status.lastImage')"></a>
 						<div v-else class="dl3-media-overlay">
 							<v-icon :icon="mdiCameraOff" size="40"></v-icon>
-							<span v-if="!s.camera1 && !s.camera2">No camera in use - set one on the Cameras tab</span>
-							<span v-else>Waiting for the first image to be captured</span>
+							<span v-if="!s.camera1 && !s.camera2">{{ t("status.noCamera") }}</span>
+							<span v-else>{{ t("status.waiting") }}</span>
 						</div>
 					</div>
 				</v-card-text>

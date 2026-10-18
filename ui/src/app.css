@@ -53,3 +53,15 @@
 .dl3-break {
 	word-break: break-all;
 }
+
+/* Settings forms: a clear gap after each setting's description, and the description close under its field */
+.dl3-setting {
+	margin-bottom: 28px;
+}
+.dl3-setting:last-child {
+	margin-bottom: 4px;
+}
+.dl3-setting .v-input__details {
+	padding-top: 2px;
+	min-height: 0;
+}

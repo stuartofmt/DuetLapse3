@@ -64,7 +64,7 @@ def getDuet(calledfrom, function): #  Helper function to call other specific get
                     onDisconnected()
                 response = [] # start with a list
                 for i in range(responseitems):
-                    response.append(None) # Dummy return
+                    response.append('disconnected') # Dummy return - text, so it is safe wherever it is used
                 return tuple(response)  # turn the response into a tuple 
         else:
             getstatus = True # We have a status
@@ -130,6 +130,7 @@ def loginPrinter(model = ''):
         return 'simulated_API', 200
     state.urlHeaders = {}
     logger.info('Logging in to Printer')
+    standalone = False  # The board answered as standalone - so it is not an SBC
 
     if model == '' or model == 'rr_model':
         URL = ('http://' + printerAddress() + '/rr_disconnect') # Close any open session
@@ -140,6 +141,7 @@ def loginPrinter(model = ''):
         if code == 200:
             j=json.loads(r.text)
             err = j['err']
+            standalone = j.get('apiLevel') != 1  # apiLevel 1 = SBC emulation
             if err == 0:
                 if j['apiLevel'] != None: # Check to see if in SBC emulation mode
                     if j['apiLevel'] == 1:
@@ -163,7 +165,7 @@ def loginPrinter(model = ''):
         else:
             logger.info('!!!!!  Could not connect. code = ' + str(code) + ' reason = ' + r.reason + ' !!!!!')
 
-    if model == '' or model == 'SBC':
+    if (model == '' or model == 'SBC') and not standalone:
         URL = ('http://' + printerAddress() + '/machine/disconnect') # Close any open session
         r = urlCall(URL,  False)
         URL = ('http://' + printerAddress() + '/machine/connect?password=' + state.password) # Connect with password

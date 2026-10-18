@@ -28,7 +28,7 @@ DSF installs the Python packages duetLapse3 needs (from `requirements.txt`) when
 
 ## Settings
 
-Settings are in `sys/duetLapse3/duetLapse3.json`. You can change them on the **Cameras**, **Video** and **Config** tabs of the duetLapse3 page, or edit the file in DWC under **System → sys → duetLapse3**. Restart the plugin after changing them.
+Settings are in `sys/duetLapse3/duetLapse3.json`. You can change them on the **Cameras**, **Video**, **Execution**, **Files** and **Config** tabs of the duetLapse3 page, or edit the file in DWC under **System → sys → duetLapse3**. Restart the plugin after changing them.
 
 The file is split into sections only to make it easier to read: any setting can go in any section. If the file is missing, duetLapse3 creates it with the default values. If a setting has the wrong kind of value (for example text where a number is needed), duetLapse3 says which one in the log and doesn't start.
 
@@ -70,20 +70,17 @@ The main settings are:
 | `minvideo` | `5` | Shortest video to make (seconds) |
 | `maxvideo` | `0` | Fixed video length in seconds (0 = off) |
 | `extratime` | `0` | Seconds to hold the last image at the end of the video |
-| `ffmpegthreads` | `0` | CPU threads ffmpeg may use for each video. 0 = automatic: shared from the cores that are free when the video starts, always leaving one spare. ffmpeg also runs at low priority, so making a video doesn't slow the printer |
+| `ffmpegthreads` | `0` | CPU threads ffmpeg may use for each video. 0 = automatic: the cores that are free when the video starts, always leaving one spare, shared with any other ffmpeg already running (e.g. another duetLapse3 making a video). ffmpeg also runs at low priority, so making a video doesn't slow the printer |
 | `novideo` | `false` | Don't make a video |
 | `deletepics` | `false` | Delete the images when duetLapse3 terminates |
 | `keepfiles` | `false` | Don't delete files on startup or shutdown |
 | `keeplogs` | `false` | Don't delete per-print logs left by earlier versions |
+| `nolog` | `false` | No logfile |
 | `basedir` | | Where images and videos go. Blank = the settings folder (with `duetLapse3.json` and the log): `sys/duetLapse3` for the plugin. Inside it they go in `<computer name>/<printer address>/` folders |
 | `password` | `reprap` | Printer password |
-| `poll` | `12` | Seconds between printer status checks |
 | `verbose` | `false` | Detailed logging |
-| `hidebuttons` | `false` | Only show the buttons that can be used now |
 | `port` | `0` | Port for the duetLapse3 page. 0 picks a free port from 17800 upwards |
 | `ip` | | Set by duetLapse3 to this computer's IP address. You don't need to change it |
-| `M3291` | `M3291` | Name of the message macro, if you renamed `M3291.g` |
-| `execkey` | | Prefix for messages that run a command on the SBC |
 | `instances` | `single` | `single`: only one duetLapse3 can run. `oneip`: one for each settings folder. `many`: no limit |
 | `duet` | (blank) | The printer's address (SBC or standalone). Blank = the computer duetLapse3 runs on, which is right for the plugin |
 | `duetport` | `80` | The printer's port. Blank or 0 = 80 |
@@ -104,16 +101,21 @@ USB and Pi cameras need a camera server to give them a URL, for example multiCam
 
 ## The duetLapse3 page
 
-Open **Plugins → duetLapse3** in DWC. The page has the same look as DWC 3.7 and follows its light or dark theme. It also works on its own in a browser, at the address shown on the Info tab and in the log. It has six tabs:
+Open **Plugins → duetLapse3** in DWC. The page has the same look as DWC 3.7 and follows its light or dark theme. It also works on its own in a browser, at the address shown in the log. It has seven tabs:
 
 - **Status:** the controls (start, standby, pause, continue, restart and terminate), what duetLapse3 is doing, and the last image.
 - **Video:** the images captured by each camera against the number needed for a video, make a video now (**Snapshot**, one for each camera when there are two), and the video settings (the Video section of `duetLapse3.json`). **Save** saves them and starts using them straight away.
-- **Files:** browse the images, videos and zip files. Each print has a folder with a folder for each camera, holding its `images` and `videos`. Browse them as a list or a grid with thumbnails, with search and sorting. Images and videos open in a viewer. Each item's menu has download, make a video, zip and delete.
-- **Info:** the settings in use and where files are kept.
+- **Images:** browse the images, videos and zip files. Each print has a folder with a folder for each camera, holding its `images` and `videos`. Browse them as a list or a grid with thumbnails, with search and sorting. Images and videos open in a viewer. Each item's menu has download, make a video, zip and delete.
 - **Cameras:** the URL of each camera, with a preview, and a switch to turn the camera on or off (the URL is kept). **Preview** shows a new image from the URL in the box, and **Save** saves the URLs to `duetLapse3.json` and starts using them straight away.
-- **Config:** the other settings in `duetLapse3.json`. **Save** checks every value first and saves nothing if any are wrong. Restart duetLapse3 for the changes to take effect.
+- **Execution:** when images are taken (the Execution section of `duetLapse3.json`).
+- **Files:** logging, and what happens to images, videos and logs: `nolog`, `verbose`, `keeplogs`, `novideo`, `deletepics` and `keepfiles` (the Files section).
+- **Config:** the other settings in `duetLapse3.json`, including the Pause section (`pause`, `movehead` and `rest`). `basedir` shows the folder in use when it's blank.
+
+On the Execution, Files and Config tabs, **Save** checks every value first and saves nothing if any are wrong. Restart duetLapse3 for the changes to take effect.
 
 Inside DWC, the plugin page shows a message if duetLapse3 stops, and shows the page again when it restarts.
+
+The page is in the browser's language when there is a translation for it, otherwise English. Add `?lang=<code>` to the address to choose one, e.g. `?lang=en`. Only English exists so far; see `ui/README.md` to add a language.
 
 ## Controlling duetLapse3 from gcode
 
@@ -147,7 +149,7 @@ python duetLapse3.py [folder]
 - All settings are in `duetLapse3.json` (see [Settings](#settings)). Set `"duet"` to the printer's address, for example `"duet": "192.168.1.5"`, and `"duetport"` if it doesn't use port 80. duetLapse3 can run on a different computer from the printer.
 - For testing, `"simulate": "all"` runs without a printer or camera.
 
-The page is at `http://<this computer>:<port>`. It answers on every address of the computer (its IP, `localhost`, a hostname). The address is shown in the log (`duetLapse3 page: http://…`) and on the Info tab.
+The page is at `http://<this computer>:<port>`. It answers on every address of the computer (its IP, `localhost`, a hostname). The address is shown in the log (`duetLapse3 page: http://…`).
 
 ## Web API
 
@@ -170,9 +172,8 @@ The page reads its data as JSON, which scripts can use too:
 | URL | What it returns |
 | --- | --- |
 | `/api/status` | What duetLapse3 and the printer are doing, images captured, layer, last image |
-| `/api/info` | The page address, where files are kept, and the settings in use |
 | `/api/files?path=<folder>` | The files in a folder (blank = the top folder) |
 
-The Config, Video and Cameras tabs save with a POST of the settings as JSON to `/config/save`, `/video/save` and `/cameras/save`. `/camera/preview?url=<camera url>` returns one image from a camera url. The page itself is built from `ui/` (see `ui/README.md`).
+The Config, Execution, Files, Video and Cameras tabs save with a POST of the settings as JSON to `/config/save` (Config, Execution and Files), `/video/save` and `/cameras/save`. `/camera/preview?url=<camera url>` returns one image from a camera url. The page itself is built from `ui/` (see `ui/README.md`).
 
 Action URLs from earlier versions, such as `http://<this computer>:<port>/?command=start`, still work. The old `?displayStatus` style calls, which returned parts of the old page, have been removed; use `/api/status` and the other JSON URLs instead.
