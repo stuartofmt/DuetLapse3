@@ -40,7 +40,7 @@
 		},
 		"verbose": {
 			"label": "Verbose Logging",
-			"description": "Detailed logging"
+			"description": "VERY Detailed logging. Only useful for debugging."
 		},
 		"keeplogs": {
 			"label": "Keep Logs",
