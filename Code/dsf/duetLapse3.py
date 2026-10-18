@@ -109,6 +109,8 @@ Standalone boards: the SBC login is skipped
 Fixed the control loop waking every 50ms while the printer was not connected
 All the page's text is in ui/src/locales/en.json - ready for other languages.  Messages for the page carry a code (messages.py)
 The page is told about changes as they happen (/api/events) instead of asking every 3 seconds
+detect none is now detect timed (none is still accepted)
+restart is now norestart (the opposite) - duetLapse3 gets ready for the next print unless norestart is set.  An old restart setting is still read
 Removed poll - a capture pass runs at each status or layer change, otherwise every 5 seconds
 Removed hidebuttons - the controls always show every button, greyed out when it can't be used
 Removed maxffmpeg - ffmpeg threads are shared with the ffmpeg processes already running, and videos no longer wait for them
@@ -235,14 +237,14 @@ DEFAULTS = {
     'Simulate': {'simulate': 'off'},
     'Environment': {'duet': '', 'duetport': 80, 'password': 'reprap', 'basedir': '', 'instances': 'single'},
     'Files': {'nolog': False, 'verbose': False, 'keeplogs': False, 'novideo': False, 'deletepics': False, 'keepfiles': False},
-    'Execution': {'dontwait': False, 'seconds': 0, 'detect': 'layer', 'numlayers': 1, 'standby': False, 'restart': False},
+    'Execution': {'dontwait': False, 'seconds': 0, 'detect': 'layer', 'numlayers': 1, 'standby': False, 'norestart': False},
     'Pause': {'pause': 'no', 'movehead': [0, 0], 'rest': 1},
     'Camera': {'weburl1': '', 'enable1': True, 'weburl2': '', 'enable2': True},
     'Video': {'extratime': 0, 'fps': 10, 'minvideo': 5, 'maxvideo': 0, 'ffmpegthreads': 0},
     'UI': {'port': 0, 'ip': ''},
 }
 CHOICES = {'simulate': ['off', 'all', 'printer', 'camera'], 'instances': ['single', 'oneip', 'many'],
-           'detect': ['layer', 'pause', 'none'], 'pause': ['yes', 'no']}
+           'detect': ['layer', 'pause', 'timed'], 'pause': ['yes', 'no']}
 configExtras = ['ip']  # Written by duetLapse3, not read as a setting
 
 def flatDefaults():
@@ -285,6 +287,8 @@ def checkSetting(key, val, default):
             raise ValueError(Message('notList', key + ' must be a list of ' + str(len(default)) + ' numbers e.g. ' + json.dumps(default),
                                      key = key, count = len(default), example = json.dumps(default)))
         return val
+    if key == 'detect' and val == 'none':  # The old name for timed
+        return 'timed'
     if not isinstance(val, str):
         raise ValueError(Message('notText', key + ' must be text (in quotes), not ' + json.dumps(val), key = key, value = json.dumps(val)))
     if key in CHOICES and val not in CHOICES[key]:
@@ -309,9 +313,13 @@ def loadSettings(filename):
             badSetting(filename, str(e))
 
     settings = flatDefaults()
+    keys = {key for section in config.values() for key in section}
     for section in config.values():  # Sections are only for readability
         for key, val in section.items():
             if key in configExtras:
+                continue
+            if key == 'restart' and 'norestart' not in keys and isinstance(val, bool):  # The old setting - the opposite of norestart
+                settings['norestart'] = not val
                 continue
             if key not in settings:
                 logger.warning('Ignoring unknown setting "' + key + '" in ' + filename)
@@ -447,7 +455,8 @@ def init():
 
     state.standby = args['standby']
 
-    state.restart = args['restart']
+    state.norestart = args['norestart']
+    state.restart = not state.norestart  # Get ready for the next print when one finishes
 
     # Camera
 
@@ -606,19 +615,19 @@ def init():
 
 def issue_warnings():
     # Information and Warnings
-    if state.seconds <= 0 and 'none' in state.detect:
+    if state.seconds <= 0 and 'timed' in state.detect:
         logger.info('************************************************************************************')
         logger.info('Warning:: seconds ' + str(state.seconds) + ' and detect ' + state.detect + ' nothing will be captured.')
-        logger.info('Specify "detect none" with "seconds > 0" to trigger on seconds alone.')
+        logger.info('Specify "detect timed" with "seconds > 0" to trigger on seconds alone.')
         logger.info('************************************************************************************\n')
 
-    if state.seconds > 0 and (not 'none' in state.detect):
+    if state.seconds > 0 and (not 'timed' in state.detect):
         logger.info('************************************************************************************')
         logger.info('Warning: seconds ' + str(state.seconds) + ' and detect ' + state.detect + ' will trigger on both.')
-        logger.info('Specify "detect none" with "seconds > 0" to trigger on seconds alone.')
+        logger.info('Specify "detect timed" with "seconds > 0" to trigger on seconds alone.')
         logger.info('************************************************************************************\n')
 
-    if state.seconds > 0  and 'none' in state.detect:
+    if state.seconds > 0  and 'timed' in state.detect:
         logger.info('************************************************************************************')
         logger.info('Warning: seconds ' + str(state.seconds) + ' and detect ' + state.detect)
         logger.info('This combination implies dontwait and will be set automatically')
@@ -709,7 +718,7 @@ def checkSeconds():
             updateglobals('seconds', str(state.mainLoopPoll * multiplier))     
         
         # Check for dontwait
-        if state.seconds > 0 and 'none' in state.detect:
+        if state.seconds > 0 and 'timed' in state.detect:
             updateglobals('dontwait', 'True')       
       
 def checkDependencies():
@@ -1149,7 +1158,7 @@ def startNow():
     if state.standby:
         state.action = 'standby'
         return False
-    elif (state.seconds > 0) and (state.dontwait or 'none' in state.detect):
+    elif (state.seconds > 0) and (state.dontwait or 'timed' in state.detect):
         state.action = 'start'
         return True
     else:
@@ -1421,7 +1430,7 @@ def oneInterval(cameraname, weburl, finalframe = False):
 
     logger.debug('elapsed: ' + str(elap))
 
-    if (state.seconds > 0) and (state.seconds < elap) and (state.dontwait or 'none' in state.detect or zn >= 1):
+    if (state.seconds > 0) and (state.seconds < elap) and (state.dontwait or 'timed' in state.detect or zn >= 1):
         checkForPause(zn)
         logger.info('Time - ' + cameraname + ': capturing frame ' + str(frame) + ' at layer ' + layer + ' after ' + str(
                 state.seconds) + ' seconds')
@@ -1810,7 +1819,7 @@ def controlLoop():
 def stateMachine(currentState):
     newState = currentState
     if currentState == 'Waiting':
-        if state.duetStatus == 'processing' or state.dontwait or (state.duetStatus in ['paused','pausing'] and state.detect != 'none'):
+        if state.duetStatus == 'processing' or state.dontwait or (state.duetStatus in ['paused','pausing'] and state.detect != 'timed'):
             newState = 'Capturing'
         elif state.duetStatus == 'cancelling':
             newState = 'Completed'
@@ -1827,7 +1836,7 @@ def stateMachine(currentState):
             pass
         elif state.duetStatus == 'busy':
             pass
-        elif state.dontwait or 'none' in state.detect:  # Timed capture - carries on whatever the printer is doing
+        elif state.dontwait or 'timed' in state.detect:  # Timed capture - carries on whatever the printer is doing
             pass
         else:
             newState = 'Waiting'
@@ -2024,7 +2033,7 @@ def actionM3291(displaymessage):
 
 def changehandling(command):
     command = command.replace(' ','') # Make sure it is well formed
-    changevariables = ['verbose', 'seconds', 'detect', 'movehead', 'dontwait', 'pause', 'restart','standby', 'novideo', 'keepfiles','minvideo','maxvideo', 'extratime', 'fps', 'rest']
+    changevariables = ['verbose', 'seconds', 'detect', 'movehead', 'dontwait', 'pause', 'norestart','standby', 'novideo', 'keepfiles','minvideo','maxvideo', 'extratime', 'fps', 'rest']
     variable = command.split('=')[0]
     value = command.split('=')[1]
     if variable in changevariables:
@@ -2036,13 +2045,14 @@ def changehandling(command):
             ## if int(value) >= minseconds or int(value) == 0:
             updateglobals(variable, value)
             checkSeconds()
-        elif variable == 'detect' and value in ['layer', 'pause', 'none']:
+        elif variable == 'detect' and value in ['layer', 'pause', 'timed']:
             command = "detect='" + value + "'"
             updateglobals(variable, value)
         elif variable == 'pause' and value in ['yes', 'no']:
             updateglobals(variable, value)
-        elif variable in ['restart', 'standby', 'novideo', 'keepfies'] and value in ['True', 'False']:  # Booleans
+        elif variable in ['norestart', 'standby', 'novideo', 'keepfiles'] and value in ['True', 'False']:  # Booleans
             updateglobals(variable, value)
+            state.restart = not state.norestart
         elif variable == 'movehead':
             if ',' in value: # Convert to list of integers, otherwise ignore
                 v = value.split(',')

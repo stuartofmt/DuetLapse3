@@ -38,6 +38,8 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
 - **Removed settings:** `camera1`, `camera2`, `camparam1`, `camparam2`, `vidparam1`, `vidparam2` (never used), `logtype`, `host`, `poll` (images are taken at each status or layer change, and timed images are checked every 5 seconds), `maxffmpeg`, `hidebuttons` (the controls always show every button, greyed out when it can't be used), and the Special Functions section: `execkey` and `M3291`.
 - **Special functions removed.** Gcode messages can no longer run commands on the SBC (`execkey`). The message macro is always `M3291`; it can no longer be renamed.
 - **New Files section.** `nolog`, `verbose`, `keeplogs`, `novideo`, `deletepics` and `keepfiles` moved from Environment to a new Files section. Sections are only for readability, so older files still work.
+- **`restart` replaced by `norestart`** (the opposite). duetLapse3 now gets ready for the next print by default; set `norestart` to stop it when a print finishes. An old `restart` setting is still read.
+- **`detect none` renamed `detect timed`.** `none` is still accepted and read as `timed`.
 - **New settings:** `duetport`, `ffmpegthreads`, `enable1`, `enable2`.
 
 ## The web page
@@ -123,7 +125,7 @@ Bugs that existed before this work:
 - **Camera2 URL check:** Camera2's URL was checked against Camera1's setting.
 - **DWC page:** the page inside DWC would not have loaded (`?theme=` was treated as an unknown API call).
 - **Password:** the printer password was shown on the Info tab and written to the log at startup.
-- **Timed capture status:** timed capture (`dontwait`, or `detect none` with `seconds`) showed Waiting instead of Capturing when the printer was idle.
+- **Timed capture status:** timed capture (`dontwait`, or `detect timed` with `seconds`) showed Waiting instead of Capturing when the printer was idle.
 - **Crash on reconnect:** duetLapse3 could stop (UNRECOVERABLE ERROR) when the printer came back quickly after being lost.
 - **Busy while disconnected:** while waiting for the printer to reconnect, the control loop woke every 50 ms.
 
@@ -160,7 +162,7 @@ Everything above was tested against a fake printer (SBC with WebSocket, SBC with
 
 ## Before releasing
 
-- **Reset the shipped settings.** `Code/sd/sys/duetLapse3/duetLapse3.json` still contains test values: `verbose`, `dontwait`, `seconds` 3, `detect` none, a camera URL and an `ip`. Put it back to the defaults.
+- **Reset the shipped settings.** `Code/sd/sys/duetLapse3/duetLapse3.json` still contains test values: `verbose`, `dontwait`, `seconds` 3, `detect` timed, a camera URL and an `ip`. Put it back to the defaults.
 - **Remove test output** from `Code/dsf/`: the `srsender/` image folder and `__pycache__/`. Add both to `.gitignore`.
 - **Check on a real SBC:**
   - `WebSocket connected` appears in the log;

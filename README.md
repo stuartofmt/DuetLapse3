@@ -57,7 +57,7 @@ The main settings are:
 | `weburl1` | | Required. URL of camera1: a snapshot URL (preferred) or an MJPEG stream URL |
 | `weburl2` | | URL of an optional second camera |
 | `enable1`, `enable2` | `true` | Whether each camera is used. Off keeps its URL but takes no images |
-| `detect` | `layer` | When to take images: `layer`, `pause` or `none` |
+| `detect` | `layer` | When to take images: `layer` (each layer change), `pause` (when the job pauses itself) or `timed` (only by `seconds`) |
 | `seconds` | `0` | Also take an image every n seconds (0 = off) |
 | `numlayers` | `1` | Take an image every n layers |
 | `pause` | `no` | `yes` parks the head before each image |
@@ -65,7 +65,7 @@ The main settings are:
 | `rest` | `1` | Seconds to wait after parking, before the image |
 | `dontwait` | `false` | Start taking images straight away, without waiting for a print |
 | `standby` | `false` | Wait for a start command before doing anything |
-| `restart` | `false` | Get ready for the next print when this one finishes |
+| `norestart` | `false` | Stop duetLapse3 when the print finishes, instead of getting ready for the next print. As a plugin, it then has to be started again in DWC |
 | `fps` | `10` | Video frames per second |
 | `minvideo` | `5` | Shortest video to make (seconds) |
 | `maxvideo` | `0` | Fixed video length in seconds (0 = off) |

@@ -42,7 +42,8 @@ numlayers = None
 movehead = None
 rest = None
 standby = None
-restart = None
+norestart = None  # The setting - don't get ready for the next print
+restart = None  # not norestart
 
 # Cameras
 weburl1 = None

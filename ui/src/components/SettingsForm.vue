@@ -7,7 +7,7 @@ import { computed, onMounted, reactive, ref, watch } from "vue";
 import { api } from "../api.js";
 import { notify } from "../notify.js";
 import { changes } from "../status.js";
-import { sectionTitle, serverText, settingDescription, settingLabel, t } from "../i18n.js";
+import { choiceText, sectionTitle, serverText, settingDescription, settingLabel, t } from "../i18n.js";
 import { mdiContentSave, mdiEye, mdiEyeOff } from "../icons.js";
 
 const props = defineProps({
@@ -118,7 +118,7 @@ onMounted(load);
 								  color="primary" density="comfortable" inset></v-switch>
 
 						<v-select v-else-if="setting.choices" v-model="values[setting.key]" :label="settingLabel(setting.key)"
-								  :items="setting.choices" :hint="settingDescription(setting.key)" persistent-hint
+								  :items="setting.choices.map((choice) => ({ title: choiceText(setting.key, choice), value: choice }))" :hint="settingDescription(setting.key)" persistent-hint
 								  :error-messages="errorFor(setting.key)" variant="outlined" density="comfortable"></v-select>
 
 						<div v-else-if="setting.type === 'list'">

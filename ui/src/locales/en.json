@@ -68,7 +68,7 @@
 		},
 		"detect": {
 			"label": "Event capture",
-			"description": "When to take images (in addition to timed capture if set)"
+			"description": "When to take images. On layer change - if Pause from job -  Timed Only"
 		},
 		"numlayers": {
 			"label": "Layers between capture",
@@ -78,12 +78,12 @@
 			"label": "Standby",
 			"description": "Wait for a start command unless Do not wait is set."
 		},
-		"restart": {
-			"label": "Restart",
-			"description": "Restart after completion of print. Get ready for the next print job"
+		"norestart": {
+			"label": "No restart",
+			"description": "Stop duetLapse3 when the print finishes, instead of getting ready for the next print job"
 		},
 		"pause": {
-			"label": "Pause",
+			"label": "Park before image",
 			"description": "Yes parks the head before each image"
 		},
 		"movehead": {
@@ -183,11 +183,11 @@
 		"restart": "Restart",
 		"standbyConfirm": "Standby does NOT create a video.\nAll captured images will be deleted.",
 		"restartConfirm": "Restart will try to create a video, then get ready for the next print.\n\nAll captured images will be deleted, unless keepfiles is set.",
-		"graceful": "Graceful terminate",
-		"forced": "Forced terminate",
-		"gracefulText": "Make the video and terminate.\n{video}",
+		"graceful": "Finish capture",
+		"forced": "Terminate the program",
+		"gracefulText": "Make the video and restart.\n{video}",
 		"noImages": "There are no images available.",
-		"restartAfter": "A restart will occur after the terminate.",
+		"restartAfter": "A restart will occur.",
 		"forcedText": "Terminate straight away.\nA video will NOT be created.",
 		"stopping": "The program is stopping.",
 		"failed": "{command} failed: {error}"
@@ -292,15 +292,37 @@
 		"inUse": "The current print - in use",
 		"more": "Show {n} more of {total}"
 	},
+	"choices": {
+		"detect": {
+			"layer": "On layer change",
+			"pause": "When paused in print job",
+			"timed": "Timed Only"
+		},
+		"pause": {
+			"yes": "Yes",
+			"no": "No"
+		},
+		"simulate": {
+			"off": "Off",
+			"all": "All",
+			"printer": "Printer",
+			"camera": "Camera"
+		},
+		"instances": {
+			"single": "Single",
+			"oneip": "One per IP",
+			"many": "Many"
+		}
+	},
 	"values": {
 		"action": {
-			"start": "start",
-			"standby": "standby",
-			"pause": "pause",
-			"continue": "continue",
-			"restart": "restart",
-			"terminate": "terminate",
-			"completed": "completed"
+			"start": "Start",
+			"standby": "Standby",
+			"pause": "Pause",
+			"continue": "Continue",
+			"restart": "Restart",
+			"terminate": "Terminate",
+			"completed": "Completed"
 		},
 		"printState": {
 			"Waiting": "Waiting",

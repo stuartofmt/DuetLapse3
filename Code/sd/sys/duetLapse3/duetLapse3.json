@@ -20,10 +20,10 @@
   "Execution": {
     "dontwait": true,
     "seconds": 3,
-    "detect": "none",
+    "detect": "timed",
     "numlayers": 1,
     "standby": false,
-    "restart": false
+    "norestart": false
   },
   "Pause": {
     "pause": "no",

@@ -5,6 +5,7 @@
 //   t("controls.title"), t("images.zipped", { name }) - {name} in the text is replaced by the value.
 //   A text with "one" and "other" forms picks one by the value n, e.g. t("video.captured", { n: 3 }).
 //   settings: each setting's label and description.  sections: each settings section's title.
+//   choices: the options of settings with a list to choose from - the setting keeps the option's own name.
 //   values: the status values duetLapse3 reports (e.g. its state, the printer status).
 //   server: duetLapse3's own messages, by the code it sends with them (see Code/dsf/messages.py).
 // Anything missing from English too falls back to its own name, or to the text duetLapse3 sent.
@@ -54,6 +55,7 @@ export const settingLabel = (key) => messages.settings[key]?.label ?? key;
 export const settingDescription = (key) => messages.settings[key]?.description ?? "";
 export const sectionTitle = (name) => messages.sections[name] ?? name;
 export const valueText = (group, value) => messages.values[group]?.[value] ?? value;
+export const choiceText = (key, choice) => messages.choices?.[key]?.[choice] ?? choice;
 
 // A message from duetLapse3: text is its English, coded is the { code, params } sent with it (or null)
 export function serverText(text, coded) {
