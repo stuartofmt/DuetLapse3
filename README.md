@@ -135,6 +135,7 @@ python duetLapse3.py [folder]
 - `folder` is where `duetLapse3.json` and `duetLapse3.log` are. If you leave it out, they go in the same folder as `duetLapse3.py`.
 - All settings are in `duetLapse3.json` (see [Settings](#settings)), changed on the page. On the first run it can't find the printer yet: enter the printer's address (and port, if it isn't 80) in the banner on the page and press **Save and connect**. duetLapse3 can run on a different computer from the printer.
 - For testing, `"simulate": "all"` runs without a printer or camera.
+- **ffmpeg** makes the videos. On Linux install it with `sudo apt install ffmpeg` (macOS: `brew install ffmpeg`). On Windows nothing extra is needed: `run.bat` in the standalone ZIP installs `imageio-ffmpeg` (from `Code\dsf\requirements-windows.txt`), which includes ffmpeg. An ffmpeg on the PATH is used first, if there is one. The included ffmpeg is a GPL build (it contains the x264 H.264 encoder).
 
 The page is at `http://<this computer>:<port>`. It answers on every address of the computer (its IP, `localhost`, a hostname). The address is shown in the log (`duetLapse3 page: http://…`).
 

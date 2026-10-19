@@ -121,6 +121,8 @@ Removed unused code (getPidDirs, getThisInstance, lastaction, mainLoopIterate, g
 Removed poll - a capture pass runs at each status or layer change, otherwise every 5 seconds
 Removed hidebuttons - the controls always show every button, greyed out when it can't be used
 Fixed 'Process is already running' on Windows - a venv's python.exe launcher was counted as a second duetLapse3
+Windows: ffmpeg runs at below normal priority (elsewhere it already runs with nice)
+Windows: ffmpeg comes with imageio-ffmpeg (requirements-windows.txt, installed by run.bat) - ffmpeg on the PATH is used first
 Removed maxffmpeg - ffmpeg threads are shared with the ffmpeg processes already running, and videos no longer wait for them
 Removed the Info tab.  New Pause section (pause, movehead, rest) on the Config tab.  poll moved to Execution
 Removed the Special Functions (execkey, M3291 settings) - the message macro is always M3291
@@ -390,11 +392,13 @@ def saveUiAddress(ip):
 ################################################
 
 
-def runsubprocess(cmd):
+def runsubprocess(cmd, lowPriority = False):
+    # lowPriority: on Windows, run it at below normal priority (elsewhere the command starts with nice - see ffmpegCommand)
     logger.debug('RUNNING SUBPROCESS WITH ' + str(cmd))
+    flags = getattr(subprocess, 'BELOW_NORMAL_PRIORITY_CLASS', 0) if lowPriority and state.win else 0
     try:
         # A list of arguments runs without a shell, so paths with spaces etc. are safe
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True, shell=isinstance(cmd, str))
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True, shell=isinstance(cmd, str), creationflags=flags)
 
         logger.debug('Return Code = ' + str(result.returncode))
         logger.debug('stdout = ' + str(result.stdout))
@@ -755,13 +759,28 @@ def checkSeconds():
         if state.capture_seconds > 0 and 'timed' in state.capture_on:
             updateglobals('start_now', 'True')       
       
+def findFfmpeg():
+    # ffmpeg on the PATH, otherwise the one bundled with imageio-ffmpeg (installed on Windows - requirements-windows.txt)
+    found = shutil.which('ffmpeg')
+    if found:
+        return found
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except (ImportError, RuntimeError):
+        return None
+
 def checkDependencies():
     # ffmpeg is needed to make the videos
-    if runsubprocess('ffmpeg -version') is False:
-        logger.info("Module 'ffmpeg' is required. ")
-        if not state.win:
+    state.ffmpeg = findFfmpeg()
+    if state.ffmpeg is None or runsubprocess([state.ffmpeg, '-version']) is False:
+        logger.info("ffmpeg is required to make the videos")
+        if state.win:
+            logger.info("Run duetLapse3 with run.bat (it installs one), or 'pip install imageio-ffmpeg' in its venv, or put ffmpeg on the PATH")
+        else:
             logger.info("Obtain via 'sudo apt install ffmpeg'")
         sys.exit(3)
+    logger.info('Using ffmpeg: ' + state.ffmpeg)
 
     """
     ########################################################################
@@ -1015,7 +1034,7 @@ def createVideo(directory, cameras = None):
 
         cmd = ffmpegCommand(thisfps, location, tmpfn)
 
-        if runsubprocess(cmd) is False:
+        if runsubprocess(cmd, lowPriority = True) is False:
             msg = ('!!!!!  There was a problem creating the video for '+cameraname+' !!!!!')
             logger.info(msg)
             videoEvent(False, Message('videoProblem', 'There was a problem creating the video for ' + cameraname + ' (see the log)', camera = cameraname), cameraname)
@@ -1066,11 +1085,11 @@ def ffmpegThreads():
 
 
 def ffmpegCommand(fps, location, outfile):
-    # ffmpeg runs at low priority so the printer software, cameras and web page always come first
+    # ffmpeg runs at low priority so the printer software, cameras and web page always come first (on Windows: see runsubprocess)
     cmd = []
     if not state.win and shutil.which('nice'):
         cmd += ['nice', '-n', '19']
-    cmd += ['ffmpeg']
+    cmd += [state.ffmpeg]
     if not state.verbose:
         cmd += ['-loglevel', 'quiet']
     cmd += ['-r', str(fps), '-i', location,

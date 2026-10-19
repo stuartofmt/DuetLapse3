@@ -64,6 +64,7 @@ ffmpeg_threads = None  # 0 = automatic
 ###########################
 
 win = None  # True if running on Windows
+ffmpeg = None  # The ffmpeg program used to make videos - set in checkDependencies()
 pid = None  # pid for this instance - used for temp filenames
 duetname = None
 httpListener = None  # True if an integral http listener should be started
