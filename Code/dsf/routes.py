@@ -60,7 +60,7 @@ def status_data():
         'videoMessageCode': coded(videoMessage),
         'imagesAvailable': state.workingDirStatus != -1,
         'allowed': dl3.allowedNextAction(state.action),  # The commands that can be used now
-        'canTerminate': state.apiModel != 'SBC',  # DSF stops the plugin itself
+        'canTerminate': not state.plugin,  # As a plugin, DWC starts and stops it
         'restart': bool(state.restart),
         'run': str(state.pid),  # Video result numbers start again when duetLapse3 restarts
         'videoEvents': state.videoEvents,  # The last 10 videos made (or not)
@@ -388,7 +388,7 @@ def terminate_process(ttype):
     if ttype in ['terminatehttp', 'terminateg']:
         dl3.queueAction('completed')
     elif ttype == 'terminatef':
-        if duet_printer.isPlugin(state.apiModel):
+        if state.plugin:
             duet_printer.stopPlugin(state.apiModel, 'duetLapse3')
         else:
             dl3.quit_forcibly()

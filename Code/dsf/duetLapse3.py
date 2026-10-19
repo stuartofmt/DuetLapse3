@@ -120,6 +120,8 @@ Settings renamed for clarity: duet_port, duet_password, image_dir, capture_on, c
 Removed unused code (getPidDirs, getThisInstance, lastaction, mainLoopIterate, getDuet's calledfrom) and printer_status.py
 Removed poll - a capture pass runs at each status or layer change, otherwise every 5 seconds
 Removed hidebuttons - the controls always show every button, greyed out when it can't be used
+Finish capture / Terminate buttons show whenever duetLapse3 is not running as a plugin (they were hidden for any SBC printer)
+Fixed capture_on pause (When paused in print job) not resuming the print, and taking an image every 5 seconds while paused
 Fixed 'Process is already running' on Windows - a venv's python.exe launcher was counted as a second duetLapse3
 Windows: ffmpeg runs at below normal priority (elsewhere it already runs with nice)
 Windows: ffmpeg comes with imageio-ffmpeg (requirements-windows.txt, installed by run.bat) - ffmpeg on the PATH is used first
@@ -1576,7 +1578,7 @@ def terminate():
     else:
         closeHttpListener()
         logger.info('Program Terminated')
-        if isPlugin(state.apiModel):
+        if state.plugin:
             stopPlugin(state.apiModel, 'duetLapse3')  # DSF stops this program
             time.sleep(10)
         exitProgram(0)
@@ -1905,8 +1907,9 @@ def capturePass():
             logger.debug('Calling oneInterval for Camera 2')
             oneInterval('Camera2', cameraUrl(2))
         state.duetStatus, _ = getDuet(Status)  #  latest state to avoid polling delay
-        if state.duetStatus == 'paused' and state.park: # will be ignored if a manual pause
-            unPause()  # Nothing should be paused at this point
+        # Resume after the image: duetLapse3 paused the print (park), or the print's own gcode did (capture_on pause)
+        if state.duetStatus == 'paused' and (state.park or state.capture_on == 'pause'):
+            unPause()
         state.printState = stateMachine(state.printState)
 
     if state.printState == 'Completed' and state.lastPrintState != 'Completed':  # Once - later passes may run before it is carried out
@@ -2211,7 +2214,8 @@ def startup():
 
     checkforPrinter()  # Needs to be connected before following are executed
 
-    if isPlugin(state.apiModel):  # Switch to local host as it may be more reliable than actual ip
+    state.plugin = isPlugin(state.apiModel)  # Asked at each start - stored, as it can't change while running
+    if state.plugin:  # Switch to local host as it may be more reliable than actual ip
         state.duet = "127.0.0.1"
         logger.info("Switching to 127.0.0.1")
         publishUiAddress(state.ip, state.port)
@@ -2236,6 +2240,7 @@ def main():
     state.videoEvents, state.videoSeq = [], 0  # Videos made (or not) - announced by the page
     state.filesVersion = state.settingsVersion = 0  # Changes the page is told about (/api/events)
     state.connectionState = state.restarting = False
+    state.plugin = False  # Until startup() asks the printer
     state.connectError = ''
     state.connectRetry = threading.Event()
     state.workingDirStatus = -1

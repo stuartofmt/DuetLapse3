@@ -525,6 +525,7 @@ def sendDuetGcode(model, command):
         return
 
 def isPlugin(model):
+    # True if DSF started this program as its duetLapse3 plugin (its pid is the plugin's) - only possible with an SBC
     if model == 'SBC':
         URL = ('http://' + printerAddress() + '/machine/status')
         r = urlCall(URL,  False)
@@ -540,9 +541,7 @@ def isPlugin(model):
             except Exception as e:
                 logger.debug('Could not get plugin information')
                 logger.debug(str(e))
-    else:
-        logger.debug('isPlugin ignored - only valid for SBC')
-        return False
+    return False
             
 def stopPlugin(model, command):
     # Used to send a command to Duet
