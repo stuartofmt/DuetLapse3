@@ -57,7 +57,6 @@ video_length = None
 ffmpeg_threads = None  # 0 = automatic
 
 
-
 ###########################
 # Derived from options / environment - set in init(), setdebug()
 ###########################

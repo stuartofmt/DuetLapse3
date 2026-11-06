@@ -21,6 +21,7 @@
 import json
 import os
 
+
 def _plugin_version():
     # The version from the plugin manifest - installed by DSF as plugins/<id>.json, or plugin.json in the source tree
     here = os.path.dirname(os.path.abspath(__file__))
@@ -31,6 +32,7 @@ def _plugin_version():
         except (OSError, ValueError, KeyError):
             continue
     return 'unknown'
+
 
 duetLapse3Version = _plugin_version()
 
@@ -211,7 +213,6 @@ from duet_printer import (getDuet, loginPrinter, getDuetVersion, Jobname, Status
                           sendDuetGcode, isPlugin, stopPlugin, publishUiAddress)
 
 
-
 def setstartvalues():
     logger.debug('*****  Initializing state and counters  *****')
     state.printState = 'Waiting'
@@ -223,10 +224,10 @@ def setstartvalues():
     state.timePriorPhoto2 = time.time()
 
     # frame counters and layer (zo) state
-    state.frame1 = 0 # Camera1
-    state.zo1 = -1  
-    state.frame2 = 0 # Camera2
-    state.zo2 = -1 
+    state.frame1 = 0  # Camera1
+    state.zo1 = -1
+    state.frame2 = 0  # Camera2
+    state.zo2 = -1
 
     # last image captured
     state.lastImage = ''
@@ -235,18 +236,19 @@ def setstartvalues():
 # General purpose methods begin here
 ###########################
 
+
 def returncode(code):  # Defined here - used by calling programs
-    codes = { 0 : 'Not Used',
-              1 : 'OS error',
-              2 : 'Invalid options combination',
-              3 : 'Missing software dependency',
-              4 : 'No response from Printer',
-              5 : 'Incorrect Printer version',
-              6 : 'Process is already running',
-              7 : 'HTTP server terminated',
-              8 : 'Port already in use',
-              9 : 'Cannot connect to printer'
-            }
+    codes = {0: 'Not Used',
+             1: 'OS error',
+             2: 'Invalid options combination',
+             3: 'Missing software dependency',
+             4: 'No response from Printer',
+             5: 'Incorrect Printer version',
+             6: 'Process is already running',
+             7: 'HTTP server terminated',
+             8: 'Port already in use',
+             9: 'Cannot connect to printer'
+             }
     if code in codes:
         text = codes[code]
     else:
@@ -278,15 +280,18 @@ DEFAULTS = {
 CHOICES = {'capture_on': ['layer', 'pause', 'timed']}
 configExtras = ['UI_ip']  # Written by duetLapse3, not read as a setting
 
+
 def flatDefaults():
     return {key: val for section in DEFAULTS.values() for key, val in section.items()}
 
 # duetLapse3.json is not plain JSON, so it is changed on the page rather than by hand.  It has two lines:
 #   the sha256 checksum of the settings (as JSON), then the settings JSON compressed (zlib) and base64 encoded
 
+
 def encodeConfig(config):
     text = json.dumps(config, indent=2).encode('utf-8')
     return hashlib.sha256(text).hexdigest() + '\n' + base64.b64encode(zlib.compress(text, 9)).decode('ascii') + '\n'
+
 
 def decodeConfig(data):
     # The settings - ValueError if data is not in that form or its checksum does not match
@@ -302,9 +307,11 @@ def decodeConfig(data):
         raise ValueError('not a duetLapse3 settings file')
     return config
 
+
 def readConfig(filename):
     with open(filename, encoding='ascii', errors='replace') as f:
         return decodeConfig(f.read())
+
 
 def writeConfig(filename, config):
     # Written to a temporary file that then replaces the old one - so an interrupted save cannot leave a broken file
@@ -313,9 +320,11 @@ def writeConfig(filename, config):
         f.write(encodeConfig(config))
     os.replace(temp, filename)
 
+
 def badSetting(filename, message):
     logger.critical('Invalid setting in ' + filename + ': ' + message)
     sys.exit(2)
+
 
 def checkSetting(key, val, default):
     # Returns val as the same type as default.  Raises ValueError (with the reason) if it can't be
@@ -326,12 +335,12 @@ def checkSetting(key, val, default):
             return val
         if isinstance(val, str) and val.lower() in ['true', 'false']:
             return val.lower() == 'true'
-        raise ValueError(Message('notBool', key + ' must be true or false, not ' + json.dumps(val), key = key, value = json.dumps(val)))
+        raise ValueError(Message('notBool', key + ' must be true or false, not ' + json.dumps(val), key=key, value=json.dumps(val)))
     if isinstance(default, int):
         try:
             return int(val)
         except (ValueError, TypeError):
-            raise ValueError(Message('notWhole', key + ' must be a whole number, not ' + json.dumps(val), key = key, value = json.dumps(val)))
+            raise ValueError(Message('notWhole', key + ' must be a whole number, not ' + json.dumps(val), key=key, value=json.dumps(val)))
     if isinstance(default, list):
         try:
             val = [int(v) for v in val]
@@ -339,16 +348,17 @@ def checkSetting(key, val, default):
             val = []
         if len(val) != len(default):
             raise ValueError(Message('notList', key + ' must be a list of ' + str(len(default)) + ' numbers e.g. ' + json.dumps(default),
-                                     key = key, count = len(default), example = json.dumps(default)))
+                                     key=key, count=len(default), example=json.dumps(default)))
         return val
     if key == 'capture_on' and val == 'none':  # The old name for timed
         return 'timed'
     if not isinstance(val, str):
-        raise ValueError(Message('notText', key + ' must be text (in quotes), not ' + json.dumps(val), key = key, value = json.dumps(val)))
+        raise ValueError(Message('notText', key + ' must be text (in quotes), not ' + json.dumps(val), key=key, value=json.dumps(val)))
     if key in CHOICES and val not in CHOICES[key]:
         raise ValueError(Message('notChoice', key + ' must be one of ' + ', '.join(CHOICES[key]) + ', not "' + val + '"',
-                                 key = key, choices = ', '.join(CHOICES[key]), value = val))
+                                 key=key, choices=', '.join(CHOICES[key]), value=val))
     return val
+
 
 def loadSettings(filename):
     # Returns every setting: the defaults, replaced by any values in the config file
@@ -386,6 +396,7 @@ def loadSettings(filename):
                 badSetting(filename, str(e))
     return settings
 
+
 def saveUiAddress(ip):
     # Record the ip address in use in the config file (if it changed) - same as duetPrintGuard
     # The port is not saved so that 0 keeps selecting a free port at each startup
@@ -405,13 +416,12 @@ def saveUiAddress(ip):
         logger.warning('Could not save ip address to ' + state.configfile + ' ' + str(e))
 
 
-
 ################################################
-##  Main routines for calling subprocesses
+# Main routines for calling subprocesses
 ################################################
 
 
-def runsubprocess(cmd, lowPriority = False):
+def runsubprocess(cmd, lowPriority=False):
     # lowPriority: on Windows, run it at below normal priority (elsewhere the command starts with nice - see ffmpegCommand)
     logger.debug('RUNNING SUBPROCESS WITH ' + str(cmd))
     flags = getattr(subprocess, 'BELOW_NORMAL_PRIORITY_CLASS', 0) if lowPriority and state.win else 0
@@ -422,7 +432,7 @@ def runsubprocess(cmd, lowPriority = False):
         logger.debug('Return Code = ' + str(result.returncode))
         logger.debug('stdout = ' + str(result.stdout))
         logger.debug('stderr = ' + str(result.stderr))
-        ## if str(result.stderr) == '0' or str(result.stderr) == '':   # some apps dont provide stderr
+        # if str(result.stderr) == '0' or str(result.stderr) == '':   # some apps dont provide stderr
         if result.returncode == 0:
             logger.debug('Command Success : ' + str(cmd))
             if result.stdout != '':
@@ -441,29 +451,25 @@ def runsubprocess(cmd, lowPriority = False):
         logger.info('Exception = ' + str(e))
         return False
 
+
 def applySettings(args):
     # Use the settings from duetLapse3.json - at startup, and again on a restart command.  UI_port is handled separately
-    
+
     # Environment
-    
+
     setPrinter(args)
 
-        
     state.image_dir = args['image_dir']
-    
-    
+
     state.allow_multiple_instances = args['allow_multiple_instances']
-    
+
     state.no_log = args['no_log']
-    
+
     state.verbose = args['verbose']
-
-
 
     state.no_video = args['no_video']
 
     state.delete_images = args['delete_images']
-
 
     state.keep_files = args['keep_files']
 
@@ -514,9 +520,8 @@ def applySettings(args):
 
     state.video_length = args['video_length']
     if state.video_length > 0:
-       if state.video_length < state.min_video_seconds:
-           state.video_length = state.min_video_seconds
-
+        if state.video_length < state.min_video_seconds:
+            state.video_length = state.min_video_seconds
 
     state.ffmpeg_threads = max(0, args['ffmpeg_threads'])
 
@@ -557,14 +562,14 @@ def setTopDir():
         state.image_dir = state.configdir
     # clean up the separators
     state.image_dir = state.image_dir.replace('\\', '/')
-    if state.image_dir.startswith('.'):  #  this little trick so as not to drop ./ or ../
+    if state.image_dir.startswith('.'):  # this little trick so as not to drop ./ or ../
         state.image_dir = './' + state.image_dir
-        state.image_dir = os.path.normpath(state.image_dir) # get slashes in correct direction
+        state.image_dir = os.path.normpath(state.image_dir)  # get slashes in correct direction
 
     state.topDir = os.path.join(state.image_dir, socket.getfqdn(), state.duetname)
     logger.debug('The top level dir is ' + state.topDir)
 
-    if not os.path.isdir(state.topDir): # If not already exists - create
+    if not os.path.isdir(state.topDir):  # If not already exists - create
         try:
             os.makedirs(state.topDir)  # Use recursive form to create intermediate directories
         except OSError as e:
@@ -649,7 +654,6 @@ def init():
 
     args = loadSettings(state.configfile)
 
-
     state.port = args['UI_port']
     applySettings(args)
 
@@ -657,8 +661,7 @@ def init():
     setdebug(state.verbose)
 
     # Create handler for console output - file output handler is created later if needed
-    logger_module.setup_logger(state.duet, console = state.no_log is False)
-
+    logger_module.setup_logger(state.duet, console=state.no_log is False)
 
     ########################################################################
     # Check to see if this instance is allowed to run
@@ -683,7 +686,7 @@ def init():
     setdebug(state.verbose)
 
     # set directories for files
-    state.pidIncrement = 0 # Used to create a new path for each job.
+    state.pidIncrement = 0  # Used to create a new path for each job.
     if not setTopDir():
         sys.exit(1)
 
@@ -696,13 +699,12 @@ def init():
             state.pidIncrement += 1
             state.nextWorkingDir = os.path.join(state.topDir, state.pid + '_' + str(state.pidIncrement))
 
-
     #  Clean up older files
     cleanupFiles('startup')
 
     setuplogfile()
     setNextWorkingDir()
-    
+
     ###############################################
     # derived parameters
     ##############################################
@@ -724,13 +726,12 @@ def init():
 
     checkDependencies()  # Exits if ffmpeg is missing
 
-
     conflict = settingsConflict(args)
     if conflict:
         logBox([conflict])
         sys.exit(2)
 
-    return # init()
+    return  # init()
 
 
 def issue_warnings():
@@ -747,7 +748,7 @@ def issue_warnings():
         logger.info('Specify "capture_on timed" with "capture_seconds > 0" to trigger on seconds alone.')
         logger.info('************************************************************************************\n')
 
-    if state.capture_seconds > 0  and 'timed' in state.capture_on:
+    if state.capture_seconds > 0 and 'timed' in state.capture_on:
         logger.info('************************************************************************************')
         logger.info('Warning: capture_seconds ' + str(state.capture_seconds) + ' and capture_on ' + state.capture_on)
         logger.info('This combination implies start_now and will be set automatically')
@@ -781,7 +782,7 @@ def issue_warnings():
         logger.info('Warning: The combination of no_video and delete_images will not create any output')
         logger.info('************************************************************************************\n')
 
-    return # issue_warnings()
+    return  # issue_warnings()
 
 
 ####################################################
@@ -809,7 +810,7 @@ def setuplogfile():  # Called at start and for each new print - the logfile, in 
         state.logNumber += 1
 
         logger.info('duetLapse3 Version --- ' + str(duetLapse3Version))
-        logger.info('Process Id  ---  ' + str(state.pid) )
+        logger.info('Process Id  ---  ' + str(state.pid))
         logger.info('Settings from  ---  ' + state.configfile)
         logger.info('-------------------------------------------------------------------------------\n')
     else:
@@ -823,25 +824,26 @@ def setNextWorkingDir():  # Called at start and restart - the folder for the nex
 ####################################################
 # Misc settings
 ####################################################
-   
-def setdebug(val): # How much output
-    logger_module.set_log_level(val)
 
+
+def setdebug(val):  # How much output
+    logger_module.set_log_level(val)
 
 
 def checkSeconds():
     # Seconds needs to be an integer multiple of mainLoopPoll - capture passes are that far apart when nothing changes
     if state.capture_seconds != 0:
-        multiplier,remainder = divmod(max(state.capture_seconds,state.minseconds), state.mainLoopPoll)    
-        if remainder == 0: # use the max
-            state.capture_seconds = max(state.capture_seconds,state.minseconds)
+        multiplier, remainder = divmod(max(state.capture_seconds, state.minseconds), state.mainLoopPoll)
+        if remainder == 0:  # use the max
+            state.capture_seconds = max(state.capture_seconds, state.minseconds)
         else:  # round down
             state.capture_seconds = state.mainLoopPoll * multiplier
-        
+
         # Check for start_now
         if state.capture_seconds > 0 and 'timed' in state.capture_on:
             state.start_now = True
-      
+
+
 def findFfmpeg():
     # ffmpeg on the PATH, otherwise the one bundled with imageio-ffmpeg (installed on Windows - requirements-windows.txt)
     found = shutil.which('ffmpeg')
@@ -852,6 +854,7 @@ def findFfmpeg():
         return imageio_ffmpeg.get_ffmpeg_exe()
     except (ImportError, RuntimeError):
         return None
+
 
 def checkDependencies():
     # ffmpeg is needed to make the videos
@@ -871,11 +874,14 @@ def checkDependencies():
     #########################################################################
     """
 
+
 RECONNECT_QUICK = 4     # Quick attempts (every mainLoopPoll seconds) before slowing down
 RECONNECT_SLOW = 3*60   # Then try every 3 minutes
 
+
 def reconnectDelay(attempts):
     return state.mainLoopPoll if attempts <= RECONNECT_QUICK else RECONNECT_SLOW
+
 
 def setPrinter(settings):
     # Use the printer settings (duet_ip, duet_port, duet_password) in settings - from duetLapse3.json, or changed on the page
@@ -887,6 +893,7 @@ def setPrinter(settings):
         state.duet_password = settings['duet_password']
         #  password is not displayed
 
+
 def printerChanged(settings):
     # Called by the page when the printer settings are changed while the printer is not connected - try again at once
     setPrinter(settings)
@@ -895,15 +902,17 @@ def printerChanged(settings):
     state.connectRetry.set()
     wakeControlLoop()
 
+
 def wrongPassword(code):
     # True (and the reason is shown on the page) if the printer refused the password - no more tries until it is changed
     if code != 403:
         return False
     if not state.connectError:
         state.connectError = Message('wrongPassword', 'The printer at ' + duet_printer.printerAddress() + ' did not accept the password',
-                                     printer = duet_printer.printerAddress())
+                                     printer=duet_printer.printerAddress())
         logger.info('!!!!! ' + state.connectError + ' - no more tries until the printer settings are changed on the page !!!!!')
     return True
+
 
 def waitForRetry(seconds):
     # Wait seconds (None = until the printer settings are changed on the page) - or less if they are changed or duetLapse3 is terminating
@@ -912,6 +921,7 @@ def waitForRetry(seconds):
         if state.connectRetry.wait(1):
             state.connectRetry.clear()
             return
+
 
 def checkforPrinter():
     # The first connection to the printer.  Keeps trying until connected (or terminated)
@@ -923,7 +933,7 @@ def checkforPrinter():
             waitForRetry(None)
             attempts = 0
             continue
-        if Model == '': #  Could not connect
+        if Model == '':  # Could not connect
             if attempts == 0:
                 logger.info('#########################################################')
                 logger.info('The printer at ' + duet_printer.printerAddress() + ' is not responding')
@@ -946,7 +956,7 @@ def checkforPrinter():
 
         state.connectionState = True
         state.connectError = ''
-        state.apiModel = Model # We have a good connection
+        state.apiModel = Model  # We have a good connection
         logger.info('###############################################################')
         logger.info('Connected to printer at ' + duet_printer.printerAddress())
         logger.info('Using Duet version ' + state.printerVersion)
@@ -976,7 +986,7 @@ def reconnectPrinter(model):
 
 
 #####################################################
-##  Utility Functions
+# Utility Functions
 #####################################################
 
 def listTopDir():
@@ -989,11 +999,12 @@ def listTopDir():
         sys.exit(1)
     return listdir
 
+
 def make_archive(source):
     destination = source + '.zip'
     format = pathlib.Path(destination).suffix
-    name = destination.replace(format,'')
-    format = format.replace('.','')
+    name = destination.replace(format, '')
+    format = format.replace('.', '')
     archive_from = os.path.dirname(source)
     archive_to = os.path.basename(source.strip(os.sep))
     try:
@@ -1008,10 +1019,12 @@ def make_archive(source):
     state.filesVersion += 1
     return msg
 
+
 def cameraFolder(directory):
     # The CameraN name if directory is a camera's subfolder of a print's folder, else ''
     name = os.path.basename(os.path.normpath(directory))
     return name if re.fullmatch(r'Camera[0-9]', name) else ''
+
 
 def printFolder(directory):
     # (print folder, CameraN or '') for a print's folder, one of its CameraN folders, or a CameraN/images or CameraN/videos folder
@@ -1023,11 +1036,14 @@ def printFolder(directory):
         return os.path.dirname(d), name
     return d, ''
 
+
 def imageFolder(jobdir, cameraname):
     return os.path.join(jobdir, cameraname, 'images')
 
+
 def videoFolder(jobdir, cameraname):
     return os.path.join(jobdir, cameraname, 'videos')
+
 
 def countImages(folder, cameraname):
     try:
@@ -1035,9 +1051,11 @@ def countImages(folder, cameraname):
     except OSError:
         return 0
 
+
 videoEventsLock = threading.Lock()
 
-def videoEvent(ok, message, camera = '', file = ''):
+
+def videoEvent(ok, message, camera='', file=''):
     # The result of making a video, for the page - it announces each one, wherever the video was started
     # (end of a print, restart, gcode, or the page).  The last 10 are kept
     with videoEventsLock:
@@ -1046,7 +1064,8 @@ def videoEvent(ok, message, camera = '', file = ''):
                  'file': file, 'name': os.path.basename(file), 'message': message, 'messageCode': coded(message)}
         state.videoEvents = (state.videoEvents + [event])[-10:]
 
-def createVideo(directory, cameras = None):
+
+def createVideo(directory, cameras=None):
     # Make a video for each camera with images (or just the cameras listed e.g. ['Camera2']).
     # directory is a print's folder, or one camera's folder (CameraN, CameraN/images or CameraN/videos).
     # Images are in <print>/CameraN/images - videos go in <print>/CameraN/videos
@@ -1074,28 +1093,27 @@ def createVideo(directory, cameras = None):
         msg = 'Cannot create a video.\n\
               Are there any images captured?'
         logger.info(msg)
-        videoEvent(False, Message('videoNoImages', 'Cannot create a video - there are no images in ' + os.path.basename(jobdir), folder = os.path.basename(jobdir)))
+        videoEvent(False, Message('videoNoImages', 'Cannot create a video - there are no images in ' + os.path.basename(jobdir), folder=os.path.basename(jobdir)))
         return msg
 
     for cameraname, (folder, frame) in found.items():
         if state.video_length > 0:
             if frame < state.video_length:
-                thisfps = 1.0                         #  make it as long as we can     
+                thisfps = 1.0  # make it as long as we can
             else:
-                thisfps = float(frame/state.video_length)       #  set for video_length duration
+                thisfps = float(frame/state.video_length)  # set for video_length duration
         else:
-            thisfps = float(state.fps)                      #  set for fixed fps
-
+            thisfps = float(state.fps)  # set for fixed fps
 
         if frame/thisfps < state.min_video_seconds:
-            msg = 'Error: ' + cameraname + ': Cannot create video shorter than ' + str(state.min_video_seconds) + ' second(s).\n Length would have been ' + str(frame/thisfps) + ' second(s).' 
+            msg = 'Error: ' + cameraname + ': Cannot create video shorter than ' + str(state.min_video_seconds) + ' second(s).\n Length would have been ' + str(frame/thisfps) + ' second(s).'
             logger.info(msg)
             logger.info('frame = ' + str(frame) + ' thisfps = ' + str(thisfps) + ' fps = ' + str(state.fps) + ' video_length = ' + str(state.video_length) + ' min_video_seconds = ' + str(state.min_video_seconds))
             videoEvent(False, Message('videoTooShort', cameraname + ': not enough images for a video (' + str(frame) + ' - ' + str(imagesForVideo()) + ' needed)',
-                                      camera = cameraname, frames = frame, needed = imagesForVideo()), cameraname)
+                                      camera=cameraname, frames=frame, needed=imagesForVideo()), cameraname)
             return msg
 
-        logger.info(cameraname + ': now making ' + str(frame) + ' frames into a video with fps = ' +str(thisfps))
+        logger.info(cameraname + ': now making ' + str(frame) + ' frames into a video with fps = ' + str(thisfps))
         if 250 < frame:
             logger.info("This can take a while...")
 
@@ -1115,11 +1133,11 @@ def createVideo(directory, cameras = None):
 
         cmd = ffmpegCommand(thisfps, location, tmpfn)
 
-        if runsubprocess(cmd, lowPriority = True) is False:
+        if runsubprocess(cmd, lowPriority=True) is False:
             msg = ('!!!!!  There was a problem creating the video for '+cameraname+' !!!!!')
             logger.info(msg)
-            videoEvent(False, Message('videoProblem', 'There was a problem creating the video for ' + cameraname + ' (see the log)', camera = cameraname), cameraname)
-            if os.path.isfile(tmpfn): 
+            videoEvent(False, Message('videoProblem', 'There was a problem creating the video for ' + cameraname + ' (see the log)', camera=cameraname), cameraname)
+            if os.path.isfile(tmpfn):
                 try:
                     os.remove(tmpfn)
                 except OSError as e:
@@ -1129,14 +1147,14 @@ def createVideo(directory, cameras = None):
             try:
                 shutil.move(tmpfn, fn)
                 logger.info('Video processing completed for ' + cameraname)
-                logger.info('Video is in file ' + fn)                
+                logger.info('Video is in file ' + fn)
                 msg = 'Video(s) successfully created'
                 videoEvent(True, Message('videoCreated', 'Video created'), cameraname, fn)
             except shutil.Error as e:
                 msg = 'Error on move of temp video file ' + str(e)
                 logger.info(msg)
                 videoEvent(False, msg, cameraname)
- 
+
     return msg
 
 
@@ -1147,6 +1165,7 @@ def ffmpegRunning():
         if 'ffmpeg' in (p.info['name'] or ''):
             count += 1
     return count
+
 
 def ffmpegThreads():
     # Threads for one ffmpeg - the cpu cores that are free now, leaving one spare, shared with any ffmpeg already running
@@ -1191,7 +1210,7 @@ def getRunningInstancePids():
 
 
 def createworkingDir():
-    logger.debug('Calling stack ' + currentFuncName(2) + ' --> '  + currentFuncName(1) + ' --> '  + currentFuncName(0))
+    logger.debug('Calling stack ' + currentFuncName(2) + ' --> ' + currentFuncName(1) + ' --> ' + currentFuncName(0))
     try:
         os.mkdir(state.nextWorkingDir)
         logger.debug('Created working directory: ' + state.nextWorkingDir)
@@ -1200,6 +1219,7 @@ def createworkingDir():
         logger.info('Could not create working directory ' + str(e))
         state.workingDirStatus = -1
     return state.nextWorkingDir
+
 
 def renameworkingDir(thisDir):
     # The folder gets the print job's name, once there is one.  The printer keeps the name of the last job after it ends, so only while a job is running
@@ -1217,13 +1237,13 @@ def renameworkingDir(thisDir):
     jobname = jobname.replace(' ', '_')  # prevents quoting of file names
     jobname = jobname.replace('.gcode', '')  # get rid of the extension
     jobname = jobname.replace(':', '_')  # replace any colons because Win does not like
-    jobname = jobname.replace('(', '_')  # replace any ( because ffmpeg does not like    
+    jobname = jobname.replace('(', '_')  # replace any ( because ffmpeg does not like
     jobname = jobname.replace(')', '_')  # replace any ) because ffmpeg does not like
     jobname = jobname.replace('__', '_')  # replace and ugly double _ with single _
     if jobname.endswith('_'):
         jobname = jobname[:-1]           # get rid of the last character
 
-    if thisDir.endswith(jobname): # No change
+    if thisDir.endswith(jobname):  # No change
         state.workingDirStatus = 1
         return thisDir
     nextWorkingDir = thisDir + '_' + jobname
@@ -1247,9 +1267,10 @@ def cleanupFiles(phase):
     # Make and clean up directorys.
 
     if phase == 'startup':
-        if state.keep_files: return
+        if state.keep_files:
+            return
 
-        for dirs in dirlist: #  Delete old dirs and files
+        for dirs in dirlist:  # Delete old dirs and files
             split_dirs = dirs.split("_", 1)
             dirpid = split_dirs[0]
 
@@ -1271,7 +1292,8 @@ def cleanupFiles(phase):
         pass
 
     elif phase == 'terminate':
-        if state.keep_files: return
+        if state.keep_files:
+            return
 
         if state.delete_images:
             for dirs in dirlist:
@@ -1282,6 +1304,7 @@ def cleanupFiles(phase):
             # Assume sucess even if error from above
             state.workingDirStatus = -1
     return  # cleanupFiles
+
 
 def startNow():
     #  Determine if program should logically start now
@@ -1297,7 +1320,7 @@ def startNow():
 
 
 #####################################################
-##  Processing Functions
+# Processing Functions
 #####################################################
 
 def checkInstances():
@@ -1328,11 +1351,11 @@ def checkForPause(layer):
 
     if (layer < 1):  # Do not try to pause
         return
-    
+
     state.duetStatus, _ = getDuet(Status)
     if state.connectionState is False or state.duetStatus == 'idle':
         return
-    
+
     loopmax = 10  # sec
     loopinterval = 0.5  # sec
     loopcount = loopmax / loopinterval
@@ -1341,7 +1364,7 @@ def checkForPause(layer):
         sendDuetGcode(state.apiModel, 'M25')  # Ask for a pause
         loop = 0
         while True:
-            time.sleep(loopinterval)  # wait and try again    
+            time.sleep(loopinterval)  # wait and try again
             state.duetStatus, _ = getDuet(Status)
             if state.connectionState is False:
                 return
@@ -1381,20 +1404,20 @@ def checkForPause(layer):
 
 
 def unPause():  # Only gets called if duetStatus = paused
-    if state.connectionState is False: # This traps the call being made unnecessarily
+    if state.connectionState is False:  # This traps the call being made unnecessarily
         return
     #  duetStatus, _ = getDuet(Status)
     # if connectionState is False: # Need to check after each getDuet
     #     return
     if state.duetStatus == 'paused':
-        loopmax = 10 # sec
-        loopinterval = 0.5 # sec  short so as to not miss start of next layer
+        loopmax = 10  # sec
+        loopinterval = 0.5  # sec  short so as to not miss start of next layer
         loopcount = loopmax / loopinterval
         logger.debug('Requesting un pause via M24')
         sendDuetGcode(state.apiModel, 'M24')  # Ask for an un pause
         loop = 0
         while True:
-            time.sleep(loopinterval)  # wait a short time so as to not miss transition on short layer            
+            time.sleep(loopinterval)  # wait a short time so as to not miss transition on short layer
             state.duetStatus, _ = getDuet(Status)
             if state.connectionState is False:
                 return
@@ -1414,13 +1437,14 @@ def setCameraFiles():
     for number in ['1', '2']:
         setattr(state, 'camfile' + number, os.path.join(state.workingDir, 'Camera' + number, 'images', 'Camera' + number + '_'))
 
+
 def onePhoto(cameraname, weburl):
 
-    if state.workingDirStatus == -1: # Create as late as possible
+    if state.workingDirStatus == -1:  # Create as late as possible
         state.workingDir = createworkingDir()
         setCameraFiles()
 
-    if state.workingDirStatus == 0: # Keep checking until jobname is known
+    if state.workingDirStatus == 0:  # Keep checking until jobname is known
         state.workingDir = renameworkingDir(state.workingDir)
         setCameraFiles()
 
@@ -1438,7 +1462,7 @@ def onePhoto(cameraname, weburl):
     except OSError as e:
         logger.info('Could not create folder for ' + fn + ' -- ' + str(e))
 
-    if camera.capture_image(weburl, fn) is False: #  order is important
+    if camera.capture_image(weburl, fn) is False:  # order is important
         logger.info('!!!!!  There was a problem capturing an image !!!!!')
         # Decrement the frame counter because we did not capture anything
         if cameraname == 'Camera1':
@@ -1460,7 +1484,8 @@ def onePhoto(cameraname, weburl):
         state.timePriorPhoto2 = time.time()
         return
 
-def oneInterval(cameraname, weburl, finalframe = False):
+
+def oneInterval(cameraname, weburl, finalframe=False):
     if state.connectionState is False:
         logger.debug('Bypassing oneInterval because of connectionState')
         return
@@ -1482,10 +1507,10 @@ def oneInterval(cameraname, weburl, finalframe = False):
 
     if state.park and zn < 1:  # Dont capture anything until first layers is done
         logger.debug('Bypassing onePhoto from oneInterval because park is set and layer = ' + str(zn))
-    else:    
+    else:
         if 'layer' in state.capture_on:
             checkForPause(zn)
-            if zn%state.layer_interval == 0: #  Every layer_interval layers
+            if zn % state.layer_interval == 0:  # Every layer_interval layers
                 if (not zn == state.zo1 and cameraname == 'Camera1') or (not zn == state.zo2 and cameraname == 'Camera2'):
                     # Layer changed, take a picture.
                     logger.info('Layer - ' + cameraname + ': capturing frame ' + str(frame) + ' at layer ' + layer + ' after layer change')
@@ -1500,7 +1525,6 @@ def oneInterval(cameraname, weburl, finalframe = False):
             checkForPause(zn)
             logger.info('finalframe - ' + cameraname + ': capturing frame ' + str(frame) + ' at layer ' + layer + ' after layer change')
             onePhoto(cameraname, weburl)
-
 
     # update the layer counter
     if cameraname == 'Camera1':
@@ -1522,17 +1546,20 @@ def oneInterval(cameraname, weburl, finalframe = False):
                 state.capture_seconds) + ' seconds')
         onePhoto(cameraname, weburl)
 
+
 def cameraUrl(number):
     # The url of a camera that is in use - '' if it has no url or is switched off
     if not getattr(state, 'camera' + str(number) + '_on'):
         return ''
     return getattr(state, 'camera' + str(number) + '_url')
 
+
 def imagesForVideo():
     # The fewest images that make a video - createVideo refuses one shorter than min_video_seconds
     if state.video_length > 0:  # Fewer images than video_length seconds are shown at 1 per second
         return max(1, int(state.min_video_seconds))
     return max(1, math.ceil(state.min_video_seconds * state.fps))
+
 
 def getVideoMsg():
     seconds = None
@@ -1545,25 +1572,26 @@ def getVideoMsg():
         seconds = state.frame1/state.fps
     if seconds is None:
         return Message('videoNotEnough', 'Not enough images for video to be created')
-    return Message('videoWillBe', 'Video will be ' + str(seconds) + ' seconds long', seconds = str(seconds))
+    return Message('videoWillBe', 'Video will be ' + str(seconds) + ' seconds long', seconds=str(seconds))
 
-def makeVideo(directory, xtratime = False, cameras = None):  #  Adds and extra frame
+
+def makeVideo(directory, xtratime=False, cameras=None):  # Adds and extra frame
     try:
         # Get a final frame
         # Make copies if appropriate
 
-        if xtratime and state.end_hold >= 1: #  Do not add images if called from snapshot or video
-            if cameraUrl(1) != '':   #  Camera 1
+        if xtratime and state.end_hold >= 1:  # Do not add images if called from snapshot or video
+            if cameraUrl(1) != '':  # Camera 1
                 logger.debug('For Camera1')
                 oneInterval('Camera1', cameraUrl(1), True)
-                ## if end_hold != 0 and frame1/fps > min_video_seconds:
+                # if end_hold != 0 and frame1/fps > min_video_seconds:
                 if state.frame1 > 0:
                     state.frame1 = copyLastFrame(state.camfile1, state.frame1)
 
-            if cameraUrl(2) != '':   #  Camera 2
+            if cameraUrl(2) != '':  # Camera 2
                 logger.debug('For Camera2')
                 oneInterval('Camera2', cameraUrl(2), True)
-                ## if end_hold != 0 and frame2/fps > min_video_seconds:
+                # if end_hold != 0 and frame2/fps > min_video_seconds:
                 if state.frame2 > 0:
                     state.frame2 = copyLastFrame(state.camfile2, state.frame2)
 
@@ -1571,10 +1599,11 @@ def makeVideo(directory, xtratime = False, cameras = None):  #  Adds and extra f
         return result
     except Exception as e:
         logger.info('!!!!!#####!!!!! UNRECOVERABLE ERROR ENCOUNTERED IN MAKE VIDEO -- ' + str(e))
-        quit_forcibly()        
+        quit_forcibly()
+
 
 def copyLastFrame(f, frame):  # Makes copies and updates frame counter
-    logger.info('Copying last frame to extend video by ' +str(state.end_hold) + ' seconds')
+    logger.info('Copying last frame to extend video by ' + str(state.end_hold) + ' seconds')
     fr = str(frame).zfill(8)
     sourcefile = f + fr + '.jpeg'
     copies = int(state.end_hold)*int(state.fps)
@@ -1588,16 +1617,18 @@ def copyLastFrame(f, frame):  # Makes copies and updates frame counter
             shutil.copy(sourcefile, targetfile)
         except shutil.Error as e:
             logger.info('Error on copy ' + str(e))
-    return int(nf) # Must be an integer for later math
+    return int(nf)  # Must be an integer for later math
+
 
 def restartAction():
-        state.workingDirStatus = -1 # Force creation of a new workingDir
-        setNextWorkingDir()
-        logger.info('################### Restarted - images will go in ' + state.nextWorkingDir + ' ###################')
-        startNow() # determine start state
-        listOptions() # List the current values
-        issue_warnings() # list any warnings about setting combinations
-        startup() # Warp speed Mr Sulu
+    state.workingDirStatus = -1  # Force creation of a new workingDir
+    setNextWorkingDir()
+    logger.info('################### Restarted - images will go in ' + state.nextWorkingDir + ' ###################')
+    startNow()  # determine start state
+    listOptions()  # List the current values
+    issue_warnings()  # list any warnings about setting combinations
+    startup()  # Warp speed Mr Sulu
+
 
 def terminate():
     # Runs in the control loop.  The video (if any) is finished first
@@ -1626,8 +1657,8 @@ def terminate():
             logger.info('printjob did not complete')
         state.lastDuetStatus = state.duetStatus  # So the end of the job it waited for isn't taken as the end of the next one
         # ready to restart
-        setdebug(state.verbose)        
-        state.restarting = True    
+        setdebug(state.verbose)
+        state.restarting = True
         logger.info('----------')
         logger.info('RESTARTING')
         logger.info('----------')
@@ -1643,18 +1674,22 @@ def terminate():
             time.sleep(10)
         exitProgram(0)
 
+
 def quit_sigint(*args):
     logger.info('Terminating because of Ctl + C (SIGINT)')
     quit_forcibly()
 
+
 def quit_sigterm(*args):
     logger.info('Terminating because of SIGTERM')
-    quit_forcibly()  
+    quit_forcibly()
+
 
 def quit_forcibly():
     state.restart = False
     logger.info('!!!!! Forced Termination !!!!!')
     exitProgram(1)
+
 
 def exitProgram(code):
     # Write out the log, then end the program and all its threads straight away
@@ -1669,6 +1704,7 @@ def exitProgram(code):
 # Integral Web Server - the routes are in routes.py
 ###########################
 
+
 def changeFps(thisfps):
     try:
         thisfps = int(thisfps)
@@ -1676,6 +1712,7 @@ def changeFps(thisfps):
         logger.info('-fps changed to: ' + str(state.fps))
     except ValueError as e:
         logger.info('Error changing fps: ' + str(e))
+
 
 def changeMinvideo(thisminvideo):
     try:
@@ -1685,6 +1722,7 @@ def changeMinvideo(thisminvideo):
     except ValueError as e:
         logger.info('Error changing min_video_seconds: ' + str(e))
 
+
 def changeMaxvideo(thismaxvideo):
     try:
         thismaxvideo = int(thismaxvideo)
@@ -1692,6 +1730,7 @@ def changeMaxvideo(thismaxvideo):
         logger.info('video_length changed to: ' + str(state.video_length))
     except ValueError as e:
         logger.info('Error changing video_length: ' + str(e))
+
 
 def deleteImages(folder):
     # Delete a print's images and keep its videos.  Folders left empty are removed (including the print's folder)
@@ -1705,8 +1744,9 @@ def deleteImages(folder):
             pass
     logger.debug('Deleted the images in ' + folder)
 
+
 def deleteFileFolder(fname):
-    fn = pathlib.Path(fname)  #  fn is a pathlib object
+    fn = pathlib.Path(fname)  # fn is a pathlib object
 
     if fn.exists():
         def remove_readonly(func, path, exc_info):
@@ -1722,7 +1762,7 @@ def deleteFileFolder(fname):
             except Exception as e:
                 logger.info('Error deleting file ' + str(e))
         elif fn.is_dir():
-                shutil.rmtree(fn, onerror=remove_readonly)
+            shutil.rmtree(fn, onerror=remove_readonly)
         state.filesVersion += 1
     return
 
@@ -1822,27 +1862,31 @@ WAKE = 'wake'                 # Not a command - wakes the control loop (the prin
 videoWorker = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix='makeVideo')  # One video at a time, in order
 gcodeWorker = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix='gcode')  # Gcode commands, in order
 
-def queueAction(command, done = None):
+
+def queueAction(command, done=None):
     # Ask the control loop to carry out command (start, standby, pause, continue, restart, completed).  From any thread
-    if state.terminateState == 1: # Block it if terminating
+    if state.terminateState == 1:  # Block it if terminating
         logger.info(command + ' ignored - terminating')
         if done is not None:
             done.set()
         return
     commandQueue.put((command, done))
 
+
 def wakeControlLoop():
     # Called by duet_printer when the SBC pushes a status, layer or message change
     commandQueue.put((WAKE, None))
 
-def startMakeVideo(directory, xtratime = False, thread = True, cameras = None):
+
+def startMakeVideo(directory, xtratime=False, thread=True, cameras=None):
     # Make the video(s) on the video worker.  thread = False waits for the result.  cameras e.g. ['Camera2'] - default all
-    if state.terminateState == 1: # Block it if terminating
+    if state.terminateState == 1:  # Block it if terminating
         return 'Cannot create video when Terminating'
     state.videoJob = videoWorker.submit(makeVideo, directory, xtratime, cameras)
     if thread:
         return
     return state.videoJob.result()
+
 
 def waitforMakeVideo():
     job = state.videoJob
@@ -1878,7 +1922,7 @@ def controlLoop():
             else:
                 due = reconnectAt  # No capture passes until connected again
             try:
-                command, done = commandQueue.get(timeout = min(60, max(0.05, due - time.time())))
+                command, done = commandQueue.get(timeout=min(60, max(0.05, due - time.time())))
             except queue.Empty:
                 command, done = None, None
 
@@ -1918,23 +1962,24 @@ def controlLoop():
             logger.info('!!!!! UNRECOVERABLE ERROR ENCOUNTERED IN CONTROL LOOP -- ' + str(e))
             quit_forcibly()
 
+
 def stateMachine(currentState):
     newState = currentState
     if currentState == 'Waiting':
-        if state.duetStatus == 'processing' or state.start_now or (state.duetStatus in ['paused','pausing'] and state.capture_on != 'timed'):
+        if state.duetStatus == 'processing' or state.start_now or (state.duetStatus in ['paused', 'pausing'] and state.capture_on != 'timed'):
             newState = 'Capturing'
         elif state.duetStatus == 'cancelling':
             newState = 'Completed'
     elif currentState == 'Capturing':
         if state.duetStatus == 'processing':
             pass
-        elif (state.duetStatus == 'idle' and state.lastDuetStatus in ['processing','cancelling']) or state.terminateState == 1:
+        elif (state.duetStatus == 'idle' and state.lastDuetStatus in ['processing', 'cancelling']) or state.terminateState == 1:
             newState = 'Completed'
         elif state.duetStatus == 'cancelling':
             newState = 'Completed'
-        elif state.duetStatus in ['pausing','paused'] and state.lastDuetStatus in ['processing','paused','pausing','resuming']:
+        elif state.duetStatus in ['pausing', 'paused'] and state.lastDuetStatus in ['processing', 'paused', 'pausing', 'resuming']:
             pass
-        elif state.duetStatus == 'resuming' and state.lastDuetStatus in ['processing','paused','pausing','resuming']:
+        elif state.duetStatus == 'resuming' and state.lastDuetStatus in ['processing', 'paused', 'pausing', 'resuming']:
             pass
         elif state.duetStatus == 'busy':
             pass
@@ -1959,7 +2004,8 @@ def stateMachine(currentState):
 
     if newState != currentState:
         logger.info('****** Print State changed to: ' + newState + ' from ' + currentState + '*****')
-    return newState        
+    return newState
+
 
 def capturePass():
     # One look at the printer: update the print state, take any images that are due, and end the job when the print has finished
@@ -1982,7 +2028,7 @@ def capturePass():
         if cameraUrl(2) != '':
             logger.debug('Calling oneInterval for Camera 2')
             oneInterval('Camera2', cameraUrl(2))
-        state.duetStatus, _ = getDuet(Status)  #  latest state to avoid polling delay
+        state.duetStatus, _ = getDuet(Status)  # latest state to avoid polling delay
         # Resume after the image: duetLapse3 paused the print (park), or the print's own gcode did (capture_on pause)
         if state.duetStatus == 'paused' and (state.park or state.capture_on == 'pause'):
             unPause()
@@ -1996,13 +2042,14 @@ def capturePass():
     state.lastDuetStatus = state.duetStatus
     state.lastCaptureLoop = time.time()
 
+
 def nextAction(nextaction):
     # Carry out a command - in the control loop (or at startup)
 
-    logger.debug('Calling nextaction ' + nextaction + ' from ' + currentFuncName(2) + ' --> '  + currentFuncName(1) + ' --> '  + currentFuncName(0))
+    logger.debug('Calling nextaction ' + nextaction + ' from ' + currentFuncName(2) + ' --> ' + currentFuncName(1) + ' --> ' + currentFuncName(0))
     logger.info('++++++ ' + nextaction + ' state requested ++++++')
 
-    if state.connectionState is False: #traps any requests during a disconnect
+    if state.connectionState is False:  # traps any requests during a disconnect
         logger.info('nextaction ignored - the printer is not connected')
         return
 
@@ -2014,7 +2061,8 @@ def nextAction(nextaction):
         if state.no_video:
             logger.info('Video creation was skipped')
         else:
-            if state.workingDirStatus != -1:  startMakeVideo(state.workingDir, True)  # Add end_hold if appropriate
+            if state.workingDirStatus != -1:
+                startMakeVideo(state.workingDir, True)  # Add end_hold if appropriate
         nextaction = 'terminate'
 
     logger.debug('++++++ Determining next logical action ++++++')
@@ -2038,8 +2086,8 @@ def nextAction(nextaction):
             logger.info('Video creation was skipped')
         else:
             if state.workingDirStatus != -1:
-                startMakeVideo(state.workingDir, True) # Add end_hold if appropriate
-            waitforMakeVideo() # Wait until done before deleting files
+                startMakeVideo(state.workingDir, True)  # Add end_hold if appropriate
+            waitforMakeVideo()  # Wait until done before deleting files
         setuplogfile()
         reloadSettings()
         restartAction()
@@ -2059,11 +2107,13 @@ def nextAction(nextaction):
     logger.debug('nextAction exiting normally')
     return
 
+
 ###################################
 #  Utility Functions
 ###################################
 # gcode command prefix - matched ignoring case so older DuetLapse3. commands still work
 messageMacro = 'M3291'  # The gcode macro that queues messages for duetLapse3 (M3291.g)
+
 
 def handleMessages(seq, ring):
     # Called by duet_printer.Status when the printer's M3291 command count (global.DL3seq) changes.
@@ -2094,6 +2144,7 @@ def handleMessages(seq, ring):
         except Exception as e:
             logger.info('Error carrying out ' + message + ': ' + str(e))
 
+
 def actionM3291(message):
     # A gcode command is a request to the http api, e.g. /command/start or /change?capture_seconds=30.  Only these ones: gcode can't delete files etc
     path = message.partition('?')[0]
@@ -2102,16 +2153,18 @@ def actionM3291(message):
     else:
         logger.info('M3291 command not recognised: ' + message)
 
+
 def callApi(request):
     # On gcodeWorker, as /command waits for the control loop - which is what reads the gcode commands
     try:
-        reply = requests.get('http://127.0.0.1:' + str(state.port) + request, timeout = (5, 1))
+        reply = requests.get('http://127.0.0.1:' + str(state.port) + request, timeout=(5, 1))
         if reply.status_code >= 400:
             logger.info('M3291 command ' + request + ' failed: ' + str(reply.status_code))
     except requests.exceptions.ReadTimeout:  # Still being carried out, e.g. making a video - the next command doesn't wait for it
         pass
     except requests.exceptions.RequestException as e:
         logger.info('M3291 command ' + request + ' failed: ' + str(e))
+
 
 def changeSettings(settings):
     # /change: {setting: value as text}, checked as saved settings are, then used straight away.  They are not saved
@@ -2123,7 +2176,7 @@ def changeSettings(settings):
     values, errors = {}, {}
     for key, value in settings.items():
         if key not in changeable:
-            errors[key] = Message('notChangeable', key + ' can not be changed while running', key = key)
+            errors[key] = Message('notChangeable', key + ' can not be changed while running', key=key)
             continue
         try:
             value = checkSetting(key, value.replace(' ', '').split(',') if key == 'park_xy' else value.strip(), defaults[key])
@@ -2151,6 +2204,7 @@ def changeSettings(settings):
         logger.info(key + ' has been changed to ' + str(getattr(state, key)))
     return {}
 
+
 def startMessages():
     if startNow():
         logger.info('##########################################################')
@@ -2168,12 +2222,12 @@ def startMessages():
     if state.standby:
         logger.info('##########################################################')
         logger.info('Will not start until command=start received from http listener')
-        logger.info('or ' + messageMacro +  ' B"/command/start" sent as gcode')
+        logger.info('or ' + messageMacro + ' B"/command/start" sent as gcode')
         logger.info('##########################################################\n')
 
     logger.info('##########################################################')
     logger.info('Video will be created when printing ends')
-    logger.info('or if requested from the UI or ' + messageMacro +  ' B"/terminate/terminateg"')
+    logger.info('or if requested from the UI or ' + messageMacro + ' B"/terminate/terminateg"')
     logger.info('##########################################################\n')
 
     logger.info('##########################################################')
@@ -2188,6 +2242,7 @@ def startMessages():
     return
 
 #  port_in_use, validate_port and force_quit are from duetPrintGuard
+
 
 def port_in_use(ip_address, port):
     #  A successful connection means something is already listening there
@@ -2243,10 +2298,8 @@ def force_quit(code):
 def startup():
     setstartvalues()  # Default startup global values
 
-    
     if state.httpListener and state.restarting is False:
         startHttpListener()
-
 
     checkforPrinter()  # Needs to be connected before following are executed
 
@@ -2259,6 +2312,7 @@ def startup():
     logger.info('Initiating with action set to ' + state.action)
     nextAction(state.action)
 
+
 def main():
     # Hooks for the printer communication module
     duet_printer.onDisconnected = printerLost
@@ -2267,7 +2321,7 @@ def main():
 
     # Allow process running in background or foreground to be forcibly
     # shutdown with SIGINT (kill -2 <pid> or SIGTERM)
-    signal.signal(signal.SIGINT, quit_sigint) # Ctrl + C
+    signal.signal(signal.SIGINT, quit_sigint)  # Ctrl + C
     signal.signal(signal.SIGTERM, quit_sigterm)
     # Globals
     # Set in startup code
@@ -2283,16 +2337,15 @@ def main():
     state.workingDirStatus = -1
 
     # timers
-    state.mainLoopPoll = 5 # seconds
+    state.mainLoopPoll = 5  # seconds
     state.minseconds = 20  # seconds
-
 
     # Initial time for mainLoop events
     state.lastCaptureLoop = time.time()
     state.lastStatusCall = 0
 
     # logical state on start is unknown
-    state.lastPrintState = state.lastDuetStatus = 'unknown' 
+    state.lastPrintState = state.lastDuetStatus = 'unknown'
 
     # SBC session key
     state.urlHeaders = {}
@@ -2300,10 +2353,9 @@ def main():
     # Keep track of M3291 messages
     state.lastMessageSeq = None  # Set from the printer's count at the first look - see handleMessages
 
-    # Allowed Commands 
+    # Allowed Commands
     # commands = ['start','standby','pause','continue', 'restart', 'terminate']
- 
-    
+
     state.httpListener = False  # Indicates if an integral httpListener should be started
     state.win = False  # Windows OS
     state.pid = ''  # pid for this instance - used for temp filenames
@@ -2322,6 +2374,7 @@ def main():
 # Program  begins here
 ###########################
 
+
 if __name__ == "__main__":  # Do not run anything below if the file is imported by another program
-    
+
     main()

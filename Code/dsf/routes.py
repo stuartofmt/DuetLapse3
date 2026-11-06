@@ -36,6 +36,7 @@ appDir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'static', 'ap
 
 LOG_TAIL = 256 * 1024  # The most of the logfile sent to the page at once (bytes)
 
+
 def status_data():
     videoMessage = dl3.getVideoMsg()
     return {
@@ -69,6 +70,7 @@ def status_data():
         'run': str(state.pid),  # Video result numbers start again when duetLapse3 restarts
         'videoEvents': state.videoEvents,  # The last 10 videos made (or not)
     }
+
 
 def files_data(path):
     # The files and folders in path ('' = the top folder), and what can be done with each
@@ -112,10 +114,11 @@ def files_data(path):
                         'videos': folderVideos(full) if isDir else None,
                         'thumbnail': thumbnail(full, imageFiles) if images else (full if kinds.get(ext) == 'image' else None),
                         'canDelete': deletable, 'canZip': deletable and images, 'canVideo': deletable and images})
-    entries.sort(key = lambda e: -e['modified'])  # Newest first
+    entries.sort(key=lambda e: -e['modified'])  # Newest first
 
     isTop = os.path.realpath(path) == os.path.realpath(state.topDir)
     return {'path': path, 'top': state.topDir, 'parent': None if isTop else os.path.dirname(path), 'entries': entries}
+
 
 def log_size():
     try:
@@ -123,7 +126,8 @@ def log_size():
     except OSError:
         return 0
 
-def log_data(offset, number = 0):
+
+def log_data(offset, number=0):
     # The logfile from offset (bytes) - whole lines only.  offset < 0, or one that can't be carried on from
     # (another logfile than number, if given, or too much is new), gives the end of the logfile instead: reset is then true
     if state.no_log:
@@ -147,11 +151,13 @@ def log_data(offset, number = 0):
             'offset': start + len(data), 'reset': reset, 'truncated': truncated,
             'text': data.decode('utf-8', errors='replace').replace('\r\n', '\n')}
 
+
 def filesIn(folder, extensions):
     try:
         return [os.path.join(folder, f) for f in os.listdir(folder) if os.path.splitext(f)[1].lower() in extensions]
     except OSError:
         return []
+
 
 def subfolders(folder):
     # The folders whose files count for a folder: itself, the images and videos folders of a camera folder,
@@ -166,21 +172,25 @@ def subfolders(folder):
             cameras = []
     return [folder] + [os.path.join(c, sub) for c in cameras for sub in ['images', 'videos']]
 
+
 def folderImages(folder, jpegfiles):
     # The images (full paths) in a folder - for a print's folder, those in its camera folders too
     found = []
     for sub in subfolders(folder):
         found += filesIn(sub, jpegfiles)
-    return sorted(found, key = os.path.basename)
+    return sorted(found, key=os.path.basename)
+
 
 def folderVideos(folder):
     # How many videos are in a folder - for a print's folder, those in its camera folders too
     return sum(len(filesIn(sub, ['.mp4'])) for sub in subfolders(folder))
 
+
 def thumbnail(folder, imageFiles):
     # The latest Camera1 image (or the latest image if there is no Camera1 image)
     camera1 = [f for f in imageFiles if os.path.basename(f).startswith('Camera1_')]
     return (camera1 or imageFiles)[-1]
+
 
 def get_file(path):
     if not os.path.isfile(path):
@@ -191,7 +201,8 @@ def get_file(path):
         return FileResponse(path, filename=fn)  # must be downloaded
     return FileResponse(path, filename=fn, content_disposition_type='inline')  # Can be displayed in browser
 
-def make_video(path, xtratime, cameras = None):
+
+def make_video(path, xtratime, cameras=None):
     return dl3.startMakeVideo(path, xtratime, False, cameras) or ''  # False => waits for the video
 
 
@@ -206,13 +217,15 @@ tabSections = {'video': videoSections, 'capture': ['Capture', 'Pause'], 'executi
 cameraUrls = ['camera1_url', 'camera2_url']  # Camera1, Camera2
 cameraEnables = ['camera1_on', 'camera2_on']
 
+
 def config_values():
     # ({setting: value} from duetLapse3.json, error message or '')
     try:
         config = dl3.readConfig(state.configfile)
     except (OSError, ValueError) as e:
-        return {}, Message('settingsUnreadableDefaults', 'Could not read the settings file - showing the defaults. ' + str(e), error = str(e))
+        return {}, Message('settingsUnreadableDefaults', 'Could not read the settings file - showing the defaults. ' + str(e), error=str(e))
     return {k: v for section in config.values() if isinstance(section, dict) for k, v in section.items()}, ''
+
 
 def setting_type(key, default):
     if isinstance(default, bool):  # Before int - bool is a kind of int
@@ -224,6 +237,7 @@ def setting_type(key, default):
     if key == 'duet_password':
         return 'password'
     return 'str'
+
 
 def settings_data(names):
     # The settings in the named sections of DEFAULTS - their values, type and choices.  Labels and descriptions are in the page (ui/src/locales)
@@ -244,11 +258,13 @@ def settings_data(names):
         sections.append({'name': name, 'settings': settings})
     return {'error': error, 'errorCode': coded(error), 'sections': sections}
 
+
 def tab_sections(tab):
     if tab in tabSections:
         return tabSections[tab]
     elsewhere = [cameraSection] + [name for names in tabSections.values() for name in names]
     return [name for name in dl3.DEFAULTS if name not in elsewhere]
+
 
 def update_config_file(settings):
     # Check every value in settings, then save them all to duetLapse3.json - or nothing if any are invalid
@@ -290,6 +306,7 @@ def update_config_file(settings):
     state.settingsVersion += 1
     return {}
 
+
 def save_result(errors, success):
     # The reply to a save - 400 with the errors if nothing was saved.  The codes let the page show the messages in its language
     if errors:
@@ -298,9 +315,11 @@ def save_result(errors, success):
         return JSONResponse({'saved': False, 'errors': errors, 'errorCodes': errorCodes, 'message': message, 'messageCode': coded(message)}, status_code=400)
     return {'saved': True, 'errors': {}, 'errorCodes': {}, 'message': success, 'messageCode': coded(success)}
 
+
 def save_config(settings):
     errors = update_config_file(settings)
     return save_result(errors, Message('savedRestart', 'Saved. The changes take effect when you press Restart on the Status tab.'))
+
 
 def video_length_errors(settings):
     # min_video_seconds can't be more than video_length (unless video_length is 0 - off)
@@ -312,9 +331,10 @@ def video_length_errors(settings):
     except ValueError:
         return {}  # Reported when the values are checked
     if maxvideo > 0 and minvideo > maxvideo:
-        return {'min_video_seconds': Message('minvideoTooBig', 'Minimum video length (' + str(minvideo) + ') can not be more than Maximum video length (' + str(maxvideo) + ')', min = minvideo, max = maxvideo),
-                'video_length': Message('maxvideoTooSmall', 'Maximum video length must be 0 (off) or at least Minimum video length (' + str(minvideo) + ')', min = minvideo)}
+        return {'min_video_seconds': Message('minvideoTooBig', 'Minimum video length (' + str(minvideo) + ') can not be more than Maximum video length (' + str(maxvideo) + ')', min=minvideo, max=maxvideo),
+                'video_length': Message('maxvideoTooSmall', 'Maximum video length must be 0 (off) or at least Minimum video length (' + str(minvideo) + ')', min=minvideo)}
     return {}
+
 
 def save_video(settings):
     # Save the Video settings to duetLapse3.json and use them straight away
@@ -340,6 +360,7 @@ def save_video(settings):
             state.video_length = state.min_video_seconds
     return save_result(errors, Message('savedVideo', 'Saved. The video settings are in use now.'))
 
+
 def connect_printer(settings):
     # New printer settings (duet_ip, duet_port, duet_password) from the page while the printer is not connected:
     # save them to duetLapse3.json, use them, and try to connect at once.  A blank password keeps the one in use
@@ -351,14 +372,16 @@ def connect_printer(settings):
     if errors:
         return save_result(errors, '')
     dl3.printerChanged({k: dl3.checkSetting(k, v, dl3.DEFAULTS['Environment'][k]) for k, v in settings.items()})
-    return save_result({}, Message('savedConnecting', 'Saved - connecting to the printer at ' + duet_printer.printerAddress(), printer = duet_printer.printerAddress()))
+    return save_result({}, Message('savedConnecting', 'Saved - connecting to the printer at ' + duet_printer.printerAddress(), printer=duet_printer.printerAddress()))
+
 
 def cameras_data():
     values, error = config_values()
     return {'error': error, 'errorCode': coded(error),
             'cameras': [{'number': number, 'key': key, 'url': values.get(key, ''),
                          'enableKey': cameraEnables[number - 1], 'enabled': values.get(cameraEnables[number - 1], True) is not False}
-                        for number, key in enumerate(cameraUrls, start = 1)]}
+                        for number, key in enumerate(cameraUrls, start=1)]}
+
 
 def save_cameras(settings):
     # Save the camera urls to duetLapse3.json and use them straight away
@@ -379,6 +402,7 @@ def save_cameras(settings):
                 setattr(state, key, url)
     return save_result(errors, Message('savedCameras', 'Saved. The cameras are in use now.'))
 
+
 def enable_camera(key, enabled):
     # Switch a camera on or off - saved to duetLapse3.json and used straight away
     if key not in cameraEnables:
@@ -389,16 +413,17 @@ def enable_camera(key, enabled):
         logger.info('Camera' + key[-1] + (' switched on' if enabled else ' switched off'))
     camera = 'Camera' + key[-1]
     if enabled:
-        return save_result(errors, Message('cameraOn', camera + ' is on', camera = camera))
-    return save_result(errors, Message('cameraOff', camera + ' is off - no images will be taken from it', camera = camera))
+        return save_result(errors, Message('cameraOn', camera + ' is on', camera=camera))
+    return save_result(errors, Message('cameraOff', camera + ' is off - no images will be taken from it', camera=camera))
+
 
 def preview_image(url):
     if not camera.is_http_url(url):
-        return PlainTextResponse('Not an http url', status_code = 400)
+        return PlainTextResponse('Not an http url', status_code=400)
     data = camera.fetch_image(url)  # The same capture as the time lapse
     if data is None:
-        return PlainTextResponse('No image from ' + url, status_code = 502)
-    return Response(data, media_type = 'image/jpeg', headers = {'Cache-Control': 'no-store'})
+        return PlainTextResponse('No image from ' + url, status_code=502)
+    return Response(data, media_type='image/jpeg', headers={'Cache-Control': 'no-store'})
 
 
 ###########################
@@ -416,7 +441,7 @@ def update_command(command):
         dl3.queueAction(command, done)
         done.wait(10)
 
-    elif command == 'terminate':  #command=terminate - backward compatible
+    elif command == 'terminate':  # command=terminate - backward compatible
         terminate_process('terminatehttp')
 
     else:
@@ -424,10 +449,11 @@ def update_command(command):
         logger.info('The current state is: ' + state.action)
     return
 
+
 def terminate_process(ttype):
-    if ttype not in ['terminatehttp','terminateg', 'terminatef']:
-       logger.info (ttype + ' invalid terminate requested')
-       return
+    if ttype not in ['terminatehttp', 'terminateg', 'terminatef']:
+        logger.info(ttype + ' invalid terminate requested')
+        return
 
     if ttype in ['terminatehttp', 'terminateg']:
         dl3.queueAction('completed')
@@ -453,11 +479,13 @@ def index(request: Request):
     page = os.path.join(appDir, 'index.html')
     if not os.path.isfile(page):
         return PlainTextResponse('The duetLapse3 page has not been built - see ui/README.md', status_code=500)
-    return FileResponse(page, headers = {'Cache-Control': 'no-cache'})  # So an updated plugin's page is used
+    return FileResponse(page, headers={'Cache-Control': 'no-cache'})  # So an updated plugin's page is used
+
 
 @router.get('/api/status')
 def api_status():
     return status_data()
+
 
 # Server-Sent Events: the page keeps this open and is sent each change as it happens, instead of asking every few seconds.
 #   status   - /api/status, whenever any of it changes
@@ -468,9 +496,11 @@ def api_status():
 EVENT_CHECK = 1     # seconds
 EVENT_KEEPALIVE = 15
 
+
 def event_data():
     return {'status': status_data(), 'files': {'version': state.filesVersion}, 'settings': {'version': state.settingsVersion},
             'log': {'number': state.logNumber, 'size': log_size()}}
+
 
 async def event_stream():
     sent = {}
@@ -493,14 +523,17 @@ async def event_stream():
         await asyncio.sleep(EVENT_CHECK)
         quiet += EVENT_CHECK
 
+
 @router.get('/api/events')
 async def api_events():
     return StreamingResponse(event_stream(), media_type='text/event-stream',
                              headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})  # No buffering by a proxy
 
+
 @router.get('/api/log')
 def api_log(offset: int = -1, number: int = 0):  # offset -1 = the end of the logfile.  number - the logfile offset is in, 0 = whichever is current
     return log_data(offset, number)
+
 
 @router.get('/api/files')
 def api_files(path: str = ''):  # '' = the top folder
@@ -509,38 +542,47 @@ def api_files(path: str = ''):  # '' = the top folder
         return JSONResponse({'detail': 'Requested path ' + path + ' is not a folder.'}, status_code=404)
     return data
 
+
 @router.get('/api/settings')
 def api_settings(tab: str = 'config'):  # config, capture, execution, files or video
     return settings_data(tab_sections(tab))
+
 
 @router.get('/api/cameras')
 def api_cameras():
     return cameras_data()
 
+
 @router.post('/config/save')
 def config_save(settings: dict = Body(...)):  # {setting: value}
     return save_config(settings)
+
 
 @router.post('/settings/alert/clear')
 def settings_alert_clear():
     state.settingsAlert = ''
     return {}
 
+
 @router.post('/video/save')
 def video_save(settings: dict = Body(...)):  # {setting: value}
     return save_video(settings)
+
 
 @router.post('/printer/connect')
 def printer_connect(settings: dict = Body(...)):  # {duet_ip: address, duet_port: port, duet_password: password ('' = keep)}
     return connect_printer(settings)
 
+
 @router.post('/cameras/save')
 def cameras_save(settings: dict = Body(...)):  # {camera1_url: url, camera2_url: url}
     return save_cameras(settings)
 
+
 @router.post('/cameras/enable')
 def cameras_enable(settings: dict = Body(...)):  # {key: camera1_on | camera2_on, enabled: true | false}
     return enable_camera(settings.get('key'), settings.get('enabled'))
+
 
 @router.get('/camera/preview')
 def camera_preview(url: str):  # One image from the camera url, fetched by duetLapse3
@@ -556,10 +598,12 @@ def command(command: str):  # start, standby, pause, continue, restart, terminat
     update_command(command)
     return Response(status_code=204)
 
+
 @router.get('/terminate/{ttype}')
 def terminate(ttype: str):  # terminateg (graceful), terminatef (forced) or terminatehttp
     terminate_process(ttype)
     return Response(status_code=204)
+
 
 @router.get('/change')
 def change(request: Request):  # ?capture_seconds=30&park=True - used straight away, not saved
@@ -568,15 +612,18 @@ def change(request: Request):  # ?capture_seconds=30&park=True - used straight a
         return JSONResponse({'changed': False, 'errors': errors, 'errorCodes': {key: coded(text) for key, text in errors.items() if coded(text)}}, status_code=400)
     return {'changed': True, 'errors': {}, 'errorCodes': {}}
 
+
 @router.get('/snapshot', response_class=PlainTextResponse)
 def snapshot(camera: int = 0):  # camera 1 or 2 makes a video for that camera only - default both
     if state.workingDirStatus != -1:
         return make_video(state.workingDir, False, ['Camera' + str(camera)] if camera in [1, 2] else None)  # False => no end_hold
     return 'There are no images captured yet.\nTry again later.'
 
+
 @router.get('/makevideo', response_class=PlainTextResponse)
 def makevideo(path: str, xtratime: bool = False):
     return make_video(path, xtratime)
+
 
 @router.get('/videosettings')
 def videosettings(fps: str = None, minvideo: str = None, maxvideo: str = None):
@@ -588,15 +635,18 @@ def videosettings(fps: str = None, minvideo: str = None, maxvideo: str = None):
         dl3.changeMaxvideo(maxvideo)
     return Response(status_code=204)
 
+
 @router.get('/delete')
 def delete(path: str):
     dl3.deleteFileFolder(path)
     return Response(status_code=204)
 
+
 @router.get('/zip')
 def zip_folder(path: str):
     dl3.make_archive(path)
     return Response(status_code=204)
+
 
 @router.get('/getfile')
 def getfile(path: str):
@@ -623,6 +673,7 @@ legacyActions = {
     'minvideo': lambda args: dl3.changeMinvideo(args),
     'maxvideo': lambda args: dl3.changeMaxvideo(args),
 }
+
 
 def legacy_api(request):
     query = urllib.parse.parse_qs(request.url.query)
