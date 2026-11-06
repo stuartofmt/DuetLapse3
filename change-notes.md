@@ -1,15 +1,24 @@
 # duetLapse3 6.0.0 – change notes
 
-What changed on 16 and 17 October 2026, described by what it does rather than how the code does it. This is the work for the 3.7.x branch (DWC / DSF 3.7).
+What changed since the 3.6 version (DuetLapse3 5.3.7, for DWC / DSF 3.6), described by what it does rather than how the code does it. This is the work for the 3.7.x branch (DWC / DSF 3.7).
 
 ## At a glance
 
-- Renamed from **DuetLapse3** to **duetLapse3**. The plugin id has changed, so it installs as a new plugin.
-- All settings are in **`duetLapse3.json`**. There are no command-line options any more.
-- **Only http cameras**, using a snapshot URL or an MJPEG stream URL. USB and Pi cameras need a camera server.
-- **New web page** in **Vue 3 and Vuetify 4** with the DWC 3.7 look, following DWC's light / dark theme. It's served with FastAPI and uvicorn, with new **Cameras**, **Video** and **Config** tabs, and settings saved from the page.
-- On an SBC, the printer is followed over **DSF's WebSocket**, so **images are taken at the moment the layer changes**.
-- Long-standing bugs fixed: pause didn't stop images, `end_hold` was never added, gcode messages didn't work on standalone printers, Continue never returned, and others (see [Bug fixes](#bug-fixes)).
+- **Everything is on the page.** The page is rebuilt with the DWC 3.7 look and DWC's light or dark theme, and updates by itself. All settings are saved from it. There are no command-line options or hand-edited config file. **Restart** applies saved settings without restarting the program.
+- **New layout.** The tabs are Status, Video, Cameras, Config (General, Image Capture, Execution, File Settings) and Files (Images, Log).
+- **Easier setup.** If the printer can't be reached, every tab shows a banner to correct its address, port and password. The Cameras tab has a preview and an on/off switch for each camera. On Windows, `run.bat` sets everything up, including ffmpeg.
+- **Better capture.** On an SBC, images are taken at the moment the layer changes. There's no wait after a print, and duetLapse3 gets ready for the next print by default. Pause stops images, and **When paused in print job** takes one image per pause, then resumes the print.
+- **Better files and videos.** Each print has a folder per camera, and videos are kept when images are cleaned up. Videos play in browsers and on phones. The Images tab is a file browser with thumbnails, search and a viewer.
+- **Easier to see what's happening.** The Log tab follows the log live, each print gets its own log, and settings that aren't applied raise an alert on the page.
+- **Long-standing bugs fixed:** see [Bug fixes](#bug-fixes).
+
+### What you need to do
+
+- **Reinstall.** The name and plugin id changed from **DuetLapse3** to **duetLapse3**, so uninstall the old plugin first. Old settings have to be entered again.
+- **Change your slicer gcode.** `M3291 B"DuetLapse3.start"` becomes `M3291 B"/command/start"`, and setting changes become `/change?capture_seconds=30`. Old commands are logged as not recognised, and aren't carried out. See [gcode](docs/gcode.md).
+- **Use an http camera.** A snapshot or MJPEG URL is required. USB, Pi and RTSP cameras need a camera server.
+- **Check your firmware.** `M3291` needs RepRapFirmware 3.5 or later.
+- **Removed features.** Special functions (running SBC commands from gcode), simulation mode and the Info tab are gone.
 
 ## Installing and upgrading
 
@@ -18,16 +27,16 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
 - **Python packages.** DSF installs them from `requirements.txt`: requests, psutil, dsf-python, fastapi, uvicorn and websocket-client.
 - **Version.** It's 6.0.0, read from `plugin.json`, so the version only lives in one place.
 - **DWC page.** It finds duetLapse3's address from the plugin data that duetLapse3 publishes at startup, instead of reading `-duet`/`-port` from the old `.config`. It shows "The duetLapse3 plugin has stopped" if the program stops, and shows the page again when it restarts. The page itself is a copy of duetPrintGuard's, which uses the current DWC API.
-- **Old gcode still works.** Commands now start with `duetLapse3.`, but `DuetLapse3.` and any other capitalisation are still accepted.
+- **Gcode commands changed.** Commands are now the web API's paths, such as `M3291 B"/command/start"`. The old `DuetLapse3.` and `duetLapse3.` spellings are logged as not recognised, and aren't carried out.
 
 ## Settings
 
 - **One settings file.** `duetLapse3.json` is the only source of settings. The command-line options (argparse), `-file` and the `logtype` option are gone.
 - **Where the file is.** The program takes one optional argument: the folder for `duetLapse3.json` and `duetLapse3.log`. With no argument, that's the program's own folder. If the folder doesn't exist, it's created. If the file is missing, damaged or edited, it's created again with the defaults.
-- **Simpler M3291.** The macro is now a short ring of the last 10 commands (`global.DL3seq`, `global.DL3msg`) that duetLapse3 only reads. It no longer sends `set global.DL3del` / `M3291 B"Del"` back after each command or `M3291 B"Clear"` at startup, so it needs no write access to the printer. `M3291 B"duetLapse3.…"` in slicer gcode is unchanged. Needs RepRapFirmware 3.5 or later.
+- **Simpler M3291.** The macro is now a short ring of the last 10 commands (`global.DL3seq`, `global.DL3msg`) that duetLapse3 only reads. It no longer sends `set global.DL3del` / `M3291 B"Del"` back after each command or `M3291 B"Clear"` at startup, so it needs no write access to the printer. Needs RepRapFirmware 3.5 or later.
 - **ffmpeg on Windows.** The standalone `run.bat` installs `imageio-ffmpeg` (`Code/dsf/requirements-windows.txt`), which includes ffmpeg, so it doesn't have to be installed separately. ffmpeg on the PATH is still used first, and the plugin uses the system ffmpeg as before.
 - **Restart picks up the settings.** The Restart button (and `/command/restart`, from gcode or http) now reads `duetLapse3.json` again and uses it, as if duetLapse3 had been started again: all the settings, including another printer, image folder, page port and logging. If the saved settings can't be used, the page shows an alert and the current ones are kept, rather than stopping duetLapse3. The automatic restart at the end of a print doesn't read them.
-- **Conflicting settings.** Save refuses settings that conflict, such as a Park Location with Park before image off. A gcode `change.` that would conflict isn't applied, and the page shows an alert.
+- **Conflicting settings.** Save refuses settings that conflict, such as a Park Location with Park before image off. A gcode or API `/change` that would conflict isn't applied, and the page shows an alert.
 - **Gcode commands go through the web API.** Each gcode command is now a request to the web API: `M3291 B"/command/start"`, `/snapshot`, `/terminate/terminateg`, `/terminate/terminatef` and the new `/change?<setting>=<value>` replace `duetLapse3.start` and the rest. Slicer gcode using the old spellings needs changing: they are logged as not recognised.
 - **Print job names.** Images taken with no print job running went in a folder named after the previous job, because the printer keeps that name after a job ends. A folder now only gets a job's name while that job is running. If a print then starts, the folder takes its name.
 - **No wait after a print.** duetLapse3 waited up to a minute after every print for the printer to clear the job name, which it doesn't do, so images could be missed if another print started straight away.
@@ -70,26 +79,25 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
   The gcode `/change?<setting>=` commands use the new names (e.g. `/change?capture_seconds=30`). `keeplogs` is removed: per-print logs left by earlier versions are always cleaned up.
 - **`restart` replaced by `norestart`** (the opposite). duetLapse3 now gets ready for the next print by default; set `norestart` to stop it when a print finishes. The Graceful terminate button is now **Finish capture**, and Forced terminate is **Terminate the program**. An old `restart` setting is still read.
 - **`capture_on none` renamed `capture_on timed`.** `none` is still accepted and read as `timed`.
-- **New settings:** `duet_port`, `ffmpeg_threads`, `camera1_on`, `camera2_on`.
+- **New settings:** `duet_port`, `ffmpeg_threads`, `camera1_on`, `camera2_on`, `allow_multiple_instances`, `start_mode`.
 
 ## The web page
 
 - **Rebuilt** as a Vue 3 and Vuetify 4 page with the DWC 3.7 look: DWC's tab bar, cards, fields, Roboto font and icons. It follows DWC's light or dark theme, including when you change it. It's built from `ui/` (see `ui/README.md`) into `Code/dsf/static/app`, and the built files are committed, so the plugin needs no Node.js.
 - **Served** with FastAPI and uvicorn at `/` (and `/index`). The API is listed at `/docs`.
-- **Data as JSON.** The page reads `/api/status`, `/api/info`, `/api/files`, `/api/settings` and `/api/cameras`. Saving replies with any errors per setting, which are shown in red under the field.
+- **Data as JSON.** The page reads `/api/status`, `/api/files`, `/api/settings` and `/api/cameras`. Saving replies with any errors per setting, which are shown in red under the field.
 - **Updates as they happen.** Instead of asking for the status every 3 seconds, the page keeps one connection open (`/api/events`, Server-Sent Events) and duetLapse3 sends each change within about a second. Nothing is sent while nothing changes. The Images tab refreshes itself when images are captured, a video is made or files are deleted or zipped, and the settings tabs reload when the settings are saved elsewhere (unless they're being edited). If the connection can't be used, the page falls back to reading the status every 3 seconds.
 - **Removed:** the old HTML templates (`dsf/www/`), the `/tab/...` routes and the old `?displayStatus` style calls.
 - **Tabs:** Status (with the controls), Video, **Cameras**, **Config**, **Files**. Config has its own tabs: **General**, **Image Capture**, **Execution** and **File Settings**. The main Files tab has **Images** and **Log**. The controls moved onto the Status tab, so there's no separate Controls tab.
   - **Images** is the file browser (it was the Files tab).
-  - **Image Capture** holds Timed capture, Event capture and Layers between capture, and a new **Pause** section (`park`, `park_xy`, `park_wait`). **Execution** and **Files** hold the settings in those sections, moved off the Config tab.
+  - **Image Capture** holds Timed capture, Event capture and Layers between capture, and a new **Pause** section (`park`, `park_xy`, `park_wait`). **Execution** has When to start and No restart. **File Settings** has the logging and image clean-up settings.
   - **Ready for other languages.** All the page's text is in `ui/src/locales/en.json`, including duetLapse3's own messages (save results, setting errors, the video message and results, the wrong-password banner), which it now sends with a code and values. The language is `?lang=<code>`, otherwise the browser's language, otherwise English; a partial translation falls back to English for the rest. Only English exists so far.
-  - **Log** shows the current logfile, updated as it grows, with follow, a filter and download.
+  - **Log** shows the current logfile, updated as it grows, with follow, a filter, download and the previous log.
   - **Info tab removed.** The page address is in the log, and the settings in use are written to the log at the start of each print.
-  - **Config:** a blank `image_dir` shows the folder in use.
   - **Cameras:** each camera's URL with a preview, and an on/off switch (`camera1_on`, `camera2_on`) that keeps the URL. Saving checks the URLs, writes them to the json and starts using them straight away.
   - **Video:** the images captured by each camera, with how many are needed for a video. Then Snapshot (a button for each camera when there are two), plus the Video settings. Saving writes them to the json and starts using them straight away.
   - **Images:** a file browser with a breadcrumb path, list or grid view with thumbnails, search and sorting. Images and videos open in a viewer, and each item has an action menu.
-  - **Config:** every other setting, with checking before saving. Changes take effect after a restart.
+  - **General:** the printer, image folder and page settings. All the Config tabs check values before saving, and changes take effect when you press **Restart**.
 - **Action URLs:** `/command/...`, `/snapshot`, `/makevideo`, `/getfile`, `/zip`, `/delete`, `/terminate/...` and `/videosettings`. Old action URLs such as `/?command=start` still work.
 - **Relative addresses.** The page uses relative URLs, so it works whatever address it's opened on (IP, hostname, VPN, localhost).
 - **Tab in the address.** `?tab=<name>` opens a tab directly.
@@ -157,7 +165,7 @@ Bugs that existed before this work:
 - **DWC page:** the page inside DWC would not have loaded (`?theme=` was treated as an unknown API call).
 - **Password:** the printer password was shown on the Info tab and written to the log at startup.
 - **Passwords in the verbose log:** with Verbose Logging on, the printer password was written to the log in its login URLs, and a login in a camera URL could be too. They now appear as `***`.
-- **Timed capture status:** timed capture (`start_now`, or `capture_on timed` with `capture_seconds`) showed Waiting instead of Capturing when the printer was idle.
+- **Timed capture status:** timed capture (starting straight away, or `capture_on timed` with `capture_seconds`) showed Waiting instead of Capturing when the printer was idle.
 - **Crash on reconnect:** duetLapse3 could stop (UNRECOVERABLE ERROR) when the printer came back quickly after being lost.
 - **Busy while disconnected:** while waiting for the printer to reconnect, the control loop woke every 50 ms.
 
@@ -177,7 +185,7 @@ For maintainers: `duetLapse3.py` is split into modules.
 
 ## Testing so far
 
-Everything above was tested against a fake printer (SBC with WebSocket, SBC without, and standalone) and a fake camera:
+Almost all of this was tested against a test printer (SBC with WebSocket, SBC without, and standalone) and a test camera:
 
 - capture timing and pause;
 - `end_hold`;
@@ -188,16 +196,3 @@ Everything above was tested against a fake printer (SBC with WebSocket, SBC with
 - Finish capture and Ctrl-C;
 - the Config, Cameras and Video tabs;
 - the new page in headless Chromium: every tab in light, dark and phone width, and clicking through the controls, Config and Files.
-
-**None of it has been tried on a real printer or inside DWC yet.**
-
-## Before releasing
-
-- **Remove test output** from `Code/dsf/`: the `srsender/` image folder and `__pycache__/`. Add both to `.gitignore`.
-- **Check on a real SBC:**
-  - `WebSocket connected` appears in the log;
-  - images arrive at each layer change;
-  - the DWC page loads and finds the address;
-  - pause, continue, restart and terminate all work.
-- **Check on a standalone board:** that its `rr_model?flags=d99fn` response includes the `seqs` counters. Without them it still works, but with more requests.
-- **Check the plugin uninstall:** whether uninstalling removes `sys/duetLapse3/`, which now also holds the images and videos.
