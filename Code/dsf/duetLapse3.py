@@ -126,6 +126,7 @@ Settings that conflict are refused when saved.  If a restart command or a gcode 
 Gcode (M3291) commands are http api requests: /command/start, /snapshot, /terminate/terminateg, /terminate/terminatef, and the new /change?<setting>=<value>.  duetLapse3.start etc are no longer recognised
 /command only carries out what is allowed in the current state
 Removed simulate
+Fixed images taken with no print job running going in a folder named after the previous job, and a one minute wait after every print
 Fixed the gcode change of layer_interval not being accepted
 A new logfile for each print (each restart, by the button or at the end of a print).  The last one is kept as duetLapse3.previous.log
 Gcode changes are checked as saved settings are, and a bad value raises the alert.  Values are no longer run as Python code
@@ -256,6 +257,7 @@ def returncode(code):  # Defined here - used by calling programs
 configFileName = 'duetLapse3.json'
 logFileName = 'duetLapse3.log'
 previousLogFileName = 'duetLapse3.previous.log'
+jobStatuses = ['processing', 'paused', 'pausing', 'resuming', 'cancelling', 'changingTool', 'simulating']  # The printer has a print job running
 
 # Every setting and its default.  The type of the default is the type of the setting.
 # The sections match duetLapse3.json - they are only for readability
@@ -1196,6 +1198,11 @@ def createworkingDir():
     return state.nextWorkingDir
 
 def renameworkingDir(thisDir):
+    # The folder gets the print job's name, once there is one.  The printer keeps the name of the last job after it ends, so only while a job is running
+    if state.duetStatus not in jobStatuses:
+        logger.debug('no print job is running')
+        return thisDir
+
     jobname = getDuet(Jobname)
 
     if state.connectionState is False or jobname == '':
@@ -1623,17 +1630,18 @@ def terminate():
     cleanupFiles('terminate')
 
     if state.restart:
-        # wait for jobname to be reset
-        jobname = getDuet(Jobname)
+        # wait for the print job to end - e.g. Finish capture during a print
+        state.duetStatus, _ = getDuet(Status)
         loopcounter = 0
-        if jobname != '':
+        if state.duetStatus in jobStatuses:
             logger.info('Waiting for printjob to complete')
-        while jobname !='' and loopcounter < 30:  # Don't wait more than a minute
+        while state.duetStatus in jobStatuses and loopcounter < 30:  # Don't wait more than a minute
             time.sleep(2)
             loopcounter += 1
-            jobname = getDuet(Jobname)
+            state.duetStatus, _ = getDuet(Status)
         if loopcounter >= 30:
-            logger.info('jobname was not reset')
+            logger.info('printjob did not complete')
+        state.lastDuetStatus = state.duetStatus  # So the end of the job it waited for isn't taken as the end of the next one
         # ready to restart
         setdebug(state.verbose)        
         state.restarting = True    
