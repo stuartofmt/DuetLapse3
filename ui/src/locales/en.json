@@ -98,13 +98,9 @@
 			"label": "Rest Time",
 			"description": "Seconds to wait after parking, before the image is captured"
 		},
-		"start_now": {
-			"label": "Start straight away",
-			"description": "Start taking images as soon as the program starts, don't wait for printing to start"
-		},
-		"standby": {
-			"label": "Standby",
-			"description": "Wait for a start command before doing anything"
+		"start_mode": {
+			"label": "When to start",
+			"description": "When to start taking images. Event capture set to Timed Only, with Timed capture above 0, always starts straight away or at the Start command"
 		},
 		"norestart": {
 			"label": "No restart",
@@ -307,6 +303,11 @@
 			"layer": "On layer change",
 			"pause": "When paused in print job",
 			"timed": "Timed Only"
+		},
+		"start_mode": {
+			"on_print": "When a print starts",
+			"now": "Straight away",
+			"standby": "Wait for the Start command"
 		}
 	},
 	"values": {

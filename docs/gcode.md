@@ -54,7 +54,8 @@ These settings can be changed:
 | `capture_on` | `layer`, `pause` or `timed` |
 | `capture_seconds` | seconds (0 = off) |
 | `layer_interval` | number of layers |
-| `park`, `start_now`, `standby`, `norestart`, `no_video`, `keep_files`, `verbose` | `True` or `False` |
+| `start_mode` | `on_print`, `now` or `standby`. `now` and `on_print` act at once. `standby` applies from the end of the current print |
+| `park`, `norestart`, `no_video`, `keep_files`, `verbose` | `True` or `False` |
 | `park_xy` | two numbers: `X,Y` |
 | `park_wait`, `end_hold`, `min_video_seconds`, `video_length` | seconds |
 | `fps` | frames per second |

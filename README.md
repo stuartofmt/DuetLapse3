@@ -119,10 +119,30 @@ When duetLapse3 starts and stops.
 
 | Setting | Name in `duetLapse3.json` | Default | What it does |
 | --- | --- | --- | --- |
-| Start straight away | `start_now` | off | Start taking images as soon as duetLapse3 starts, without waiting for a print |
-| Standby | `standby` | off | Wait for a Start command before doing anything |
+| When to start | `start_mode` | When a print starts | See below |
 | No restart | `norestart` | off | Stop duetLapse3 when the print finishes, instead of getting ready for the next print. As a plugin, it then has to be started again in DWC |
 
+**When to start** has three choices:
+
+| Choice | Value | What happens |
+| --- | --- | --- |
+| **When a print starts** | `on_print` | The usual setup. duetLapse3 waits, then starts capturing when a print begins |
+| **Straight away** | `now` | Starts capturing as soon as duetLapse3 is ready, whatever the printer is doing. This includes after each print, so images are taken between prints, and they go in the next print's video |
+| **Wait for the Start command** | `standby` | Does nothing until the Start button or command. Then it starts capturing when a print begins. A print that runs without it gets no images |
+
+With **When a print starts**:
+
+1. **Waiting:** with the printer idle, the Status tab shows Waiting and no images are taken.
+2. **The print begins:** when the printer's status becomes `processing`, duetLapse3 starts capturing. A print that's already running when it starts counts too, and so does one that's paused or pausing, unless Event capture is Timed Only.
+3. **Images:** these follow the settings on the [Image Capture](#image-capture) tab.
+4. **The print ends:** it makes the video, starts a new log and gets ready for the next print, unless **No restart** is on.
+
+With **Wait for the Start command**, it goes back to waiting for the command after each print.
+
+There are two exceptions when Event capture is **Timed Only**:
+
+- **Timed capture above 0:** duetLapse3 doesn't wait for a print. It starts capturing straight away, or as soon as you press Start with **Wait for the Start command**.
+- **Timed capture 0:** no images are taken, so there's no video.
 
 #### File Settings
 

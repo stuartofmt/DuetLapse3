@@ -128,6 +128,7 @@ Settings that conflict are refused when saved.  If a restart command or a gcode 
 Gcode (M3291) commands are http api requests: /command/start, /snapshot, /terminate/terminateg, /terminate/terminatef, and the new /change?<setting>=<value>.  duetLapse3.start etc are no longer recognised
 /command only carries out what is allowed in the current state
 Removed simulate
+start_now and standby replaced by start_mode: on_print (the default), now or standby
 New Image Capture tab with capture_seconds, capture_on and layer_interval, moved from the Execution tab, and park, park_xy and park_wait, moved from the Config tab
 Image Capture, Execution and File Settings are now tabs under the Config tab, with General for the rest
 New Files tab with the Images and Log tabs under it
@@ -271,13 +272,13 @@ DEFAULTS = {
     'Environment': {'duet_ip': '', 'duet_port': 80, 'duet_password': 'reprap', 'image_dir': '', 'allow_multiple_instances': False},
     'Files': {'no_log': False, 'verbose': False, 'no_video': False, 'delete_images': False, 'keep_files': False},
     'Capture': {'capture_seconds': 0, 'capture_on': 'layer', 'layer_interval': 1},
-    'Execution': {'start_now': False, 'standby': False, 'norestart': False},
+    'Execution': {'start_mode': 'on_print', 'norestart': False},
     'Pause': {'park': False, 'park_xy': [0, 0], 'park_wait': 1},
     'Camera': {'camera1_url': '', 'camera1_on': True, 'camera2_url': '', 'camera2_on': True},
     'Video': {'end_hold': 0, 'fps': 10, 'min_video_seconds': 5, 'video_length': 0, 'ffmpeg_threads': 0},
     'UI': {'UI_port': 0, 'UI_ip': ''},
 }
-CHOICES = {'capture_on': ['layer', 'pause', 'timed']}
+CHOICES = {'capture_on': ['layer', 'pause', 'timed'], 'start_mode': ['on_print', 'now', 'standby']}
 configExtras = ['UI_ip']  # Written by duetLapse3, not read as a setting
 
 
@@ -474,7 +475,7 @@ def applySettings(args):
 
     # Execution
 
-    state.start_now = args['start_now']
+    setStartMode(args['start_mode'])
 
     state.capture_seconds = args['capture_seconds']
     if state.capture_seconds != 0 and state.capture_seconds < state.minseconds:
@@ -493,8 +494,6 @@ def applySettings(args):
     state.park_wait = args['park_wait']
     if state.park_wait < 0:
         state.park_wait = 0
-
-    state.standby = args['standby']
 
     state.norestart = args['norestart']
     state.restart = not state.norestart  # Get ready for the next print when one finishes
@@ -528,6 +527,13 @@ def applySettings(args):
     state.printerSettings = (args['duet_ip'], args['duet_port'], args['duet_password'])
 
     setDebug(state.verbose)
+
+
+def setStartMode(mode):
+    # When to start: when a print starts (on_print), straight away (now), or at a start command (standby)
+    state.start_mode = mode
+    state.start_now = mode == 'now'
+    state.standby = mode == 'standby'
 
 
 def settingsConflict(args):
@@ -2163,7 +2169,7 @@ def callApi(request):
 def changeSettings(settings):
     # /change: {setting: value as text}, checked as saved settings are, then used straight away.  They are not saved
     # All of them are used, or none (with an alert).  Returns {setting: error} ({} if used) - '' is used for a conflict
-    changeable = ['verbose', 'capture_seconds', 'capture_on', 'layer_interval', 'park_xy', 'start_now', 'park', 'norestart', 'standby', 'no_video', 'keep_files',
+    changeable = ['verbose', 'capture_seconds', 'capture_on', 'layer_interval', 'park_xy', 'start_mode', 'park', 'norestart', 'no_video', 'keep_files',
                   'min_video_seconds', 'video_length', 'end_hold', 'fps', 'park_wait']
     smallest = {'layer_interval': 1, 'fps': 1, 'park_wait': 0, 'min_video_seconds': 0, 'video_length': 0, 'end_hold': 0}
     defaults = flatDefaults()
@@ -2191,6 +2197,7 @@ def changeSettings(settings):
 
     for key, value in values.items():
         setattr(state, key, value)
+    setStartMode(state.start_mode)
     setDebug(state.verbose)
     state.restart = not state.norestart
     checkSeconds()

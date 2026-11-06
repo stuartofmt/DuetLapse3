@@ -31,6 +31,7 @@ delete_images = None
 keep_files = None
 
 # Execution
+start_mode = None  # The setting - start_now and standby below come from it
 start_now = None
 capture_seconds = None
 capture_on = None

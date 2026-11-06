@@ -31,6 +31,7 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
 - **Gcode commands go through the web API.** Each gcode command is now a request to the web API: `M3291 B"/command/start"`, `/snapshot`, `/terminate/terminateg`, `/terminate/terminatef` and the new `/change?<setting>=<value>` replace `duetLapse3.start` and the rest. Slicer gcode using the old spellings needs changing: they are logged as not recognised.
 - **Print job names.** Images taken with no print job running went in a folder named after the previous job, because the printer keeps that name after a job ends. A folder now only gets a job's name while that job is running. If a print then starts, the folder takes its name.
 - **No wait after a print.** duetLapse3 waited up to a minute after every print for the printer to clear the job name, which it doesn't do, so images could be missed if another print started straight away.
+- **When to start.** `start_mode` (When to start) replaces `start_now` and `standby`: `on_print`, the default, `now` or `standby`. Having both on is no longer possible. `start_now` and `standby` in a settings file are ignored, so duetLapse3 goes back to starting when a print starts until this is set. Slicer gcode that changes them needs `/change?start_mode=`.
 - **Gcode fix.** `/change?layer_interval=` is now accepted, as documented.
 - **Gcode security fix.** `change` values were run as Python code, so a crafted value in gcode could run code on the computer running duetLapse3. They are now checked like saved settings, and a bad value isn't applied and shows the alert.
 - **Restart fixes.** Restart did nothing with No Video on, and couldn't be used in standby.
@@ -60,7 +61,7 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
   | `duet`, `duetport`, `password` | `duet_ip`, `duet_port`, `duet_password` |
   | `ip`, `port` | `UI_ip`, `UI_port` |
   | `basedir` | `image_dir` |
-  | `detect`, `seconds`, `numlayers`, `dontwait` | `capture_on`, `capture_seconds`, `layer_interval`, `start_now` |
+  | `detect`, `seconds`, `numlayers`, `dontwait` | `capture_on`, `capture_seconds`, `layer_interval`, `start_mode` (see below) |
   | `pause` (yes / no), `movehead`, `rest` | `park` (true / false), `park_xy`, `park_wait` |
   | `weburl1`, `enable1`, `weburl2`, `enable2` | `camera1_url`, `camera1_on`, `camera2_url`, `camera2_on` |
   | `maxvideo`, `minvideo`, `extratime`, `ffmpegthreads` | `video_length`, `min_video_seconds`, `end_hold`, `ffmpeg_threads` |
