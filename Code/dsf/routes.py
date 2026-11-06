@@ -103,7 +103,7 @@ def files_data(path):
         deletable = False
         imageFiles = []
         if isDir:
-            imageFiles = folderImages(full, jpegfiles)
+            imageFiles = folder_images(full, jpegfiles)
             deletable = dirPid not in full
         elif ext in deletablefiles and name != 'startup.log' and dirPid not in full:
             deletable = True
@@ -111,7 +111,7 @@ def files_data(path):
         entries.append({'name': name, 'path': full, 'isDir': isDir, 'kind': 'folder' if isDir else kinds.get(ext, 'file'),
                         'size': None if isDir else info.st_size, 'modified': info.st_mtime,
                         'images': len(imageFiles) if isDir else None,
-                        'videos': folderVideos(full) if isDir else None,
+                        'videos': folder_videos(full) if isDir else None,
                         'thumbnail': thumbnail(full, imageFiles) if images else (full if kinds.get(ext) == 'image' else None),
                         'canDelete': deletable, 'canZip': deletable and images, 'canVideo': deletable and images})
     entries.sort(key=lambda e: -e['modified'])  # Newest first
@@ -152,7 +152,7 @@ def log_data(offset, number=0):
             'text': data.decode('utf-8', errors='replace').replace('\r\n', '\n')}
 
 
-def filesIn(folder, extensions):
+def files_in(folder, extensions):
     try:
         return [os.path.join(folder, f) for f in os.listdir(folder) if os.path.splitext(f)[1].lower() in extensions]
     except OSError:
@@ -173,17 +173,17 @@ def subfolders(folder):
     return [folder] + [os.path.join(c, sub) for c in cameras for sub in ['images', 'videos']]
 
 
-def folderImages(folder, jpegfiles):
+def folder_images(folder, jpegfiles):
     # The images (full paths) in a folder - for a print's folder, those in its camera folders too
     found = []
     for sub in subfolders(folder):
-        found += filesIn(sub, jpegfiles)
+        found += files_in(sub, jpegfiles)
     return sorted(found, key=os.path.basename)
 
 
-def folderVideos(folder):
+def folder_videos(folder):
     # How many videos are in a folder - for a print's folder, those in its camera folders too
-    return sum(len(filesIn(sub, ['.mp4'])) for sub in subfolders(folder))
+    return sum(len(files_in(sub, ['.mp4'])) for sub in subfolders(folder))
 
 
 def thumbnail(folder, imageFiles):
@@ -461,7 +461,7 @@ def terminate_process(ttype):
         if state.plugin:
             duet_printer.stopPlugin(state.apiModel, 'duetLapse3')
         else:
-            dl3.quit_forcibly()
+            dl3.quitForcibly()
     return
 
 
@@ -644,7 +644,7 @@ def delete(path: str):
 
 @router.get('/zip')
 def zip_folder(path: str):
-    dl3.make_archive(path)
+    dl3.makeArchive(path)
     return Response(status_code=204)
 
 
@@ -667,7 +667,7 @@ legacyPages = {
 legacyActions = {
     'command': lambda args: update_command(args),
     'delete': lambda args: dl3.deleteFileFolder(args),
-    'zip': lambda args: dl3.make_archive(args),
+    'zip': lambda args: dl3.makeArchive(args),
     'terminate': lambda args: terminate_process(args),
     'fps': lambda args: dl3.changeFps(args),
     'minvideo': lambda args: dl3.changeMinvideo(args),

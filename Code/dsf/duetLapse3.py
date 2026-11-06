@@ -206,14 +206,14 @@ import requests
 import state  # Shared state - always use state.<name>
 import camera
 import logger_module
-from logger_module import logger, currentFuncName
+from logger_module import logger, current_func_name
 import duet_printer  # Communication with the printer
 from messages import Message, coded
-from duet_printer import (getDuet, loginPrinter, getDuetVersion, Jobname, Status, Layer, Position,
+from duet_printer import (getDuet, loginPrinter, getDuetVersion, getJobname, getStatus, getLayer, getPosition,
                           sendDuetGcode, isPlugin, stopPlugin, publishUiAddress)
 
 
-def setstartvalues():
+def setStartValues():
     logger.debug('*****  Initializing state and counters  *****')
     state.printState = 'Waiting'
     state.lastPrintState = 'Waiting'
@@ -421,7 +421,7 @@ def saveUiAddress(ip):
 ################################################
 
 
-def runsubprocess(cmd, lowPriority=False):
+def runSubprocess(cmd, lowPriority=False):
     # lowPriority: on Windows, run it at below normal priority (elsewhere the command starts with nice - see ffmpegCommand)
     logger.debug('RUNNING SUBPROCESS WITH ' + str(cmd))
     flags = getattr(subprocess, 'BELOW_NORMAL_PRIORITY_CLASS', 0) if lowPriority and state.win else 0
@@ -527,7 +527,7 @@ def applySettings(args):
     # To tell if the printer changed on a restart command
     state.printerSettings = (args['duet_ip'], args['duet_port'], args['duet_password'])
 
-    setdebug(state.verbose)
+    setDebug(state.verbose)
 
 
 def settingsConflict(args):
@@ -629,7 +629,7 @@ def reloadSettings():
             logger_module.close_log_file()
             state.logfilename = 'None (no_log is set)'
         else:
-            setuplogfile()
+            setupLogFile()
 
     checkSeconds()
     checkCameras()
@@ -656,8 +656,8 @@ def init():
     state.port = args['UI_port']
     applySettings(args)
 
-    # Configure the custom logger #####
-    setdebug(state.verbose)
+    # Configure the custom logger
+    setDebug(state.verbose)
 
     # Create handler for console output - file output handler is created later if needed
     logger_module.setup_logger(state.duet, console=state.no_log is False)
@@ -682,7 +682,7 @@ def init():
     state.pid = str(os.getpid())
 
     # set debug value
-    setdebug(state.verbose)
+    setDebug(state.verbose)
 
     # set directories for files
     state.pidIncrement = 0  # Used to create a new path for each job.
@@ -701,7 +701,7 @@ def init():
     #  Clean up older files
     cleanupFiles('startup')
 
-    setuplogfile()
+    setupLogFile()
     setNextWorkingDir()
 
     ###############################################
@@ -711,7 +711,7 @@ def init():
     checkSeconds()
 
     # Select a free port if port = 0 (or the given port is in use) - same as duetPrintGuard
-    state.ip, state.port = validate_port(state.port)
+    state.ip, state.port = validatePort(state.port)
     state.httpListener = True
     saveUiAddress(state.ip)
 
@@ -733,7 +733,7 @@ def init():
     return  # init()
 
 
-def issue_warnings():
+def issueWarnings():
     # Information and Warnings
     if state.capture_seconds <= 0 and 'timed' in state.capture_on:
         logger.info('************************************************************************************')
@@ -781,7 +781,7 @@ def issue_warnings():
         logger.info('Warning: The combination of no_video and delete_images will not create any output')
         logger.info('************************************************************************************\n')
 
-    return  # issue_warnings()
+    return  # issueWarnings()
 
 
 ####################################################
@@ -802,7 +802,7 @@ def listOptions():
 # Logfile setup
 ####################################################
 
-def setuplogfile():  # Called at start and for each new print - the logfile, in the config folder.  The last one is kept
+def setupLogFile():  # Called at start and for each new print - the logfile, in the config folder.  The last one is kept
     if state.no_log is False:
         state.logfilename = os.path.join(state.configdir, logFileName)
         logger_module.create_log_file(state.logfilename, os.path.join(state.configdir, previousLogFileName))
@@ -825,7 +825,7 @@ def setNextWorkingDir():  # Called at start and restart - the folder for the nex
 ####################################################
 
 
-def setdebug(val):  # How much output
+def setDebug(val):  # How much output
     logger_module.set_log_level(val)
 
 
@@ -858,7 +858,7 @@ def findFfmpeg():
 def checkDependencies():
     # ffmpeg is needed to make the videos
     state.ffmpeg = findFfmpeg()
-    if state.ffmpeg is None or runsubprocess([state.ffmpeg, '-version']) is False:
+    if state.ffmpeg is None or runSubprocess([state.ffmpeg, '-version']) is False:
         logger.info("ffmpeg is required to make the videos")
         if state.win:
             logger.info("Run duetLapse3 with run.bat (it installs one), or 'pip install imageio-ffmpeg' in its venv, or put ffmpeg on the PATH")
@@ -999,7 +999,7 @@ def listTopDir():
     return listdir
 
 
-def make_archive(source):
+def makeArchive(source):
     destination = source + '.zip'
     format = pathlib.Path(destination).suffix
     name = destination.replace(format, '')
@@ -1132,7 +1132,7 @@ def createVideo(directory, cameras=None):
 
         cmd = ffmpegCommand(thisfps, location, tmpfn)
 
-        if runsubprocess(cmd, lowPriority=True) is False:
+        if runSubprocess(cmd, lowPriority=True) is False:
             msg = ('!!!!!  There was a problem creating the video for '+cameraname+' !!!!!')
             logger.info(msg)
             videoEvent(False, Message('videoProblem', 'There was a problem creating the video for ' + cameraname + ' (see the log)', camera=cameraname), cameraname)
@@ -1184,7 +1184,7 @@ def ffmpegThreads():
 
 
 def ffmpegCommand(fps, location, outfile):
-    # ffmpeg runs at low priority so the printer software, cameras and web page always come first (on Windows: see runsubprocess)
+    # ffmpeg runs at low priority so the printer software, cameras and web page always come first (on Windows: see runSubprocess)
     cmd = []
     if not state.win and shutil.which('nice'):
         cmd += ['nice', '-n', '19']
@@ -1208,8 +1208,8 @@ def getRunningInstancePids():
     return pidlist
 
 
-def createworkingDir():
-    logger.debug('Calling stack ' + currentFuncName(2) + ' --> ' + currentFuncName(1) + ' --> ' + currentFuncName(0))
+def createWorkingDir():
+    logger.debug('Calling stack ' + current_func_name(2) + ' --> ' + current_func_name(1) + ' --> ' + current_func_name(0))
     try:
         os.mkdir(state.nextWorkingDir)
         logger.debug('Created working directory: ' + state.nextWorkingDir)
@@ -1220,13 +1220,13 @@ def createworkingDir():
     return state.nextWorkingDir
 
 
-def renameworkingDir(thisDir):
+def renameWorkingDir(thisDir):
     # The folder gets the print job's name, once there is one.  The printer keeps the name of the last job after it ends, so only while a job is running
     if state.duetStatus not in jobStatuses:
         logger.debug('no print job is running')
         return thisDir
 
-    jobname = getDuet(Jobname)
+    jobname = getDuet(getJobname)
 
     if state.connectionState is False or jobname == '':
         logger.debug('jobname was not available')
@@ -1351,7 +1351,7 @@ def checkForPause(layer):
     if (layer < 1):  # Do not try to pause
         return
 
-    state.duetStatus, _ = getDuet(Status)
+    state.duetStatus, _ = getDuet(getStatus)
     if state.connectionState is False or state.duetStatus == 'idle':
         return
 
@@ -1364,7 +1364,7 @@ def checkForPause(layer):
         loop = 0
         while True:
             time.sleep(loopinterval)  # wait and try again
-            state.duetStatus, _ = getDuet(Status)
+            state.duetStatus, _ = getDuet(getStatus)
             if state.connectionState is False:
                 return
             if state.duetStatus == 'paused':
@@ -1384,7 +1384,7 @@ def checkForPause(layer):
             loop = 0
             while True:
                 time.sleep(loopinterval)  # wait and try again
-                xpos, ypos, _ = getDuet(Position)
+                xpos, ypos, _ = getDuet(getPosition)
                 if state.connectionState is False:
                     return
                 if (abs(xpos - state.park_xy[0]) < .05) and (
@@ -1414,7 +1414,7 @@ def unPause():  # Only gets called if duetStatus = paused
         loop = 0
         while True:
             time.sleep(loopinterval)  # wait a short time so as to not miss transition on short layer
-            state.duetStatus, _ = getDuet(Status)
+            state.duetStatus, _ = getDuet(getStatus)
             if state.connectionState is False:
                 return
             if state.duetStatus in ['idle', 'processing']:
@@ -1437,11 +1437,11 @@ def setCameraFiles():
 def onePhoto(cameraname, weburl):
 
     if state.workingDirStatus == -1:  # Create as late as possible
-        state.workingDir = createworkingDir()
+        state.workingDir = createWorkingDir()
         setCameraFiles()
 
     if state.workingDirStatus == 0:  # Keep checking until jobname is known
-        state.workingDir = renameworkingDir(state.workingDir)
+        state.workingDir = renameWorkingDir(state.workingDir)
         setCameraFiles()
 
     if cameraname == 'Camera1':
@@ -1493,7 +1493,7 @@ def oneInterval(cameraname, weburl, finalframe=False):
     else:
         frame = state.frame2 + 1
 
-    zn = getDuet(Layer)
+    zn = getDuet(getLayer)
     if state.connectionState is False:
         return
     if zn == -1:
@@ -1593,7 +1593,7 @@ def makeVideo(directory, xtratime=False, cameras=None):  # Adds and extra frame
         return result
     except Exception as e:
         logger.info('!!!!!#####!!!!! UNRECOVERABLE ERROR ENCOUNTERED IN MAKE VIDEO -- ' + str(e))
-        quit_forcibly()
+        quitForcibly()
 
 
 def copyLastFrame(f, frame):  # Makes copies and updates frame counter
@@ -1620,13 +1620,13 @@ def restartAction():
     logger.info('################### Restarted - images will go in ' + state.nextWorkingDir + ' ###################')
     startNow()  # determine start state
     listOptions()  # List the current values
-    issue_warnings()  # list any warnings about setting combinations
+    issueWarnings()  # list any warnings about setting combinations
     startup()  # Warp speed Mr Sulu
 
 
 def terminate():
     # Runs in the control loop.  The video (if any) is finished first
-    setdebug(True)  # Force verbose messaging
+    setDebug(True)  # Force verbose messaging
 
     state.terminateState = 1
     logger.info('Terminating')
@@ -1639,26 +1639,26 @@ def terminate():
 
     if state.restart:
         # wait for the print job to end - e.g. Finish capture during a print
-        state.duetStatus, _ = getDuet(Status)
+        state.duetStatus, _ = getDuet(getStatus)
         loopcounter = 0
         if state.duetStatus in jobStatuses:
             logger.info('Waiting for printjob to complete')
         while state.duetStatus in jobStatuses and loopcounter < 30:  # Don't wait more than a minute
             time.sleep(2)
             loopcounter += 1
-            state.duetStatus, _ = getDuet(Status)
+            state.duetStatus, _ = getDuet(getStatus)
         if loopcounter >= 30:
             logger.info('printjob did not complete')
         state.lastDuetStatus = state.duetStatus  # So the end of the job it waited for isn't taken as the end of the next one
         # ready to restart
-        setdebug(state.verbose)
+        setDebug(state.verbose)
         state.restarting = True
         logger.info('----------')
         logger.info('RESTARTING')
         logger.info('----------')
 
         state.terminateState = -1
-        setuplogfile()
+        setupLogFile()
         restartAction()
     else:
         closeHttpListener()
@@ -1669,17 +1669,17 @@ def terminate():
         exitProgram(0)
 
 
-def quit_sigint(*args):
+def quitSigint(*args):
     logger.info('Terminating because of Ctl + C (SIGINT)')
-    quit_forcibly()
+    quitForcibly()
 
 
-def quit_sigterm(*args):
+def quitSigterm(*args):
     logger.info('Terminating because of SIGTERM')
-    quit_forcibly()
+    quitForcibly()
 
 
-def quit_forcibly():
+def quitForcibly():
     state.restart = False
     logger.info('!!!!! Forced Termination !!!!!')
     exitProgram(1)
@@ -1743,7 +1743,7 @@ def deleteFileFolder(fname):
     fn = pathlib.Path(fname)  # fn is a pathlib object
 
     if fn.exists():
-        def remove_readonly(func, path, exc_info):
+        def removeReadonly(func, path, exc_info):
             if func not in (os.unlink, os.rmdir) or exc_info[1].winerror != 5:
                 raise exc_info[1]
             os.chmod(path, stat.S_IWRITE)
@@ -1756,7 +1756,7 @@ def deleteFileFolder(fname):
             except Exception as e:
                 logger.info('Error deleting file ' + str(e))
         elif fn.is_dir():
-            shutil.rmtree(fn, onerror=remove_readonly)
+            shutil.rmtree(fn, onerror=removeReadonly)
         state.filesVersion += 1
     return
 
@@ -1829,7 +1829,7 @@ def moveListener():
     logger.info('The page is moving to port ' + str(port))
     closeHttpListener()
     state.listenerThread.join(8)
-    state.ip, state.port = validate_port(port)
+    state.ip, state.port = validatePort(port)
     startHttpListener()
     if state.plugin:
         publishUiAddress(state.ip, state.port)  # So the DWC page finds it
@@ -1935,7 +1935,7 @@ def controlLoop():
                     if reconnectPrinter(reconnectModel):
                         lastSeen = None
                         reconnectModel = state.apiModel
-                        state.duetStatus, _ = getDuet(Status)  # The status now - not the one from before
+                        state.duetStatus, _ = getDuet(getStatus)  # The status now - not the one from before
                     elif state.connectError:  # Wrong password - no more tries until it is changed on the page
                         reconnectAt = math.inf
                     else:
@@ -1944,17 +1944,17 @@ def controlLoop():
                 continue
 
             if command == WAKE or time.time() >= state.lastStatusCall + state.mainLoopPoll:
-                state.duetStatus, _ = getDuet(Status)
+                state.duetStatus, _ = getDuet(getStatus)
                 if not state.connectionState:
                     continue
 
-            seen = (state.duetStatus, Layer())  # Layer comes from the same object model read - no extra request
+            seen = (state.duetStatus, getLayer())  # Layer comes from the same object model read - no extra request
             if seen != lastSeen or time.time() >= state.lastCaptureLoop + state.mainLoopPoll:  # e.g. timed (seconds) images
                 lastSeen = seen
                 capturePass()
         except Exception as e:
             logger.info('!!!!! UNRECOVERABLE ERROR ENCOUNTERED IN CONTROL LOOP -- ' + str(e))
-            quit_forcibly()
+            quitForcibly()
 
 
 def stateMachine(currentState):
@@ -2022,7 +2022,7 @@ def capturePass():
         if cameraUrl(2) != '':
             logger.debug('Calling oneInterval for Camera 2')
             oneInterval('Camera2', cameraUrl(2))
-        state.duetStatus, _ = getDuet(Status)  # latest state to avoid polling delay
+        state.duetStatus, _ = getDuet(getStatus)  # latest state to avoid polling delay
         # Resume after the image: duetLapse3 paused the print (park), or the print's own gcode did (capture_on pause)
         if state.duetStatus == 'paused' and (state.park or state.capture_on == 'pause'):
             unPause()
@@ -2040,7 +2040,7 @@ def capturePass():
 def nextAction(nextaction):
     # Carry out a command - in the control loop (or at startup)
 
-    logger.debug('Calling nextaction ' + nextaction + ' from ' + currentFuncName(2) + ' --> ' + currentFuncName(1) + ' --> ' + currentFuncName(0))
+    logger.debug('Calling nextaction ' + nextaction + ' from ' + current_func_name(2) + ' --> ' + current_func_name(1) + ' --> ' + current_func_name(0))
     logger.info('++++++ ' + nextaction + ' state requested ++++++')
 
     if state.connectionState is False:  # traps any requests during a disconnect
@@ -2066,7 +2066,7 @@ def nextAction(nextaction):
 
     elif nextaction == 'standby':
         cleanupFiles(nextaction)  # clean up and start again
-        setstartvalues()
+        setStartValues()
         state.action = 'standby'
 
     elif nextaction == 'pause':
@@ -2082,7 +2082,7 @@ def nextAction(nextaction):
             if state.workingDirStatus != -1:
                 startMakeVideo(state.workingDir, True)  # Add end_hold if appropriate
             waitforMakeVideo()  # Wait until done before deleting files
-        setuplogfile()
+        setupLogFile()
         reloadSettings()
         restartAction()
 
@@ -2110,7 +2110,7 @@ messageMacro = 'M3291'  # The gcode macro that queues messages for duetLapse3 (M
 
 
 def handleMessages(seq, ring):
-    # Called by duet_printer.Status when the printer's M3291 command count (global.DL3seq) changes.
+    # Called by duet_printer.getStatus when the printer's M3291 command count (global.DL3seq) changes.
     # Command number n is in ring[n mod len(ring)] - act on those since the last one handled
     last = state.lastMessageSeq
     state.lastMessageSeq = seq
@@ -2191,7 +2191,7 @@ def changeSettings(settings):
 
     for key, value in values.items():
         setattr(state, key, value)
-    setdebug(state.verbose)
+    setDebug(state.verbose)
     state.restart = not state.norestart
     checkSeconds()
     for key in values:
@@ -2235,10 +2235,10 @@ def startMessages():
 
     return
 
-#  port_in_use, validate_port and force_quit are from duetPrintGuard
+#  portInUse, validatePort and forceQuit are from duetPrintGuard
 
 
-def port_in_use(ip_address, port):
+def portInUse(ip_address, port):
     #  A successful connection means something is already listening there
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.settimeout(1)
@@ -2254,17 +2254,17 @@ def localIp():
     except Exception as e:
         logger.critical(f'''Unknown error trying to get the local IP address''')
         logger.critical(f'''{e}''')
-        force_quit(1)
+        forceQuit(1)
     finally:
         s.close()
 
 
-def validate_port(port=0, start_port=17800, max_tries=100):
+def validatePort(port=0, start_port=17800, max_tries=100):
     this_ip_address = localIp()
 
     if port:
         #  A port was provided - check that it is available
-        if port_in_use(this_ip_address, port):
+        if portInUse(this_ip_address, port):
             logger.warning(f'''Port {port} is already in use - falling back to searching from {start_port}''')
             port = 0
     else:
@@ -2273,24 +2273,24 @@ def validate_port(port=0, start_port=17800, max_tries=100):
     if not port:
         #  No usable port yet - search for one starting at start_port
         for candidate in range(start_port, start_port + max_tries):
-            if not port_in_use(this_ip_address, candidate):
+            if not portInUse(this_ip_address, candidate):
                 port = candidate
                 break
         else:
             logger.critical(f'''No free port found between {start_port} and {start_port + max_tries - 1}''')
-            force_quit(1)
+            forceQuit(1)
 
     logger.info(f'''IP address {this_ip_address} with port {port} is available''')
     return this_ip_address, port
 
 
-def force_quit(code):
+def forceQuit(code):
     logger.critical(f'''Terminating the program with exit code {code}''')
     sys.exit(code)
 
 
 def startup():
-    setstartvalues()  # Default startup global values
+    setStartValues()  # Default startup global values
 
     if state.httpListener and state.restarting is False:
         startHttpListener()
@@ -2315,8 +2315,8 @@ def main():
 
     # Allow process running in background or foreground to be forcibly
     # shutdown with SIGINT (kill -2 <pid> or SIGTERM)
-    signal.signal(signal.SIGINT, quit_sigint)  # Ctrl + C
-    signal.signal(signal.SIGTERM, quit_sigterm)
+    signal.signal(signal.SIGINT, quitSigint)  # Ctrl + C
+    signal.signal(signal.SIGTERM, quitSigterm)
     # Globals
     # Set in startup code
 
@@ -2359,7 +2359,7 @@ def main():
     init()
 
     listOptions()
-    issue_warnings()
+    issueWarnings()
     startMessages()
     startup()
     controlLoop()  # Runs until duetLapse3 ends

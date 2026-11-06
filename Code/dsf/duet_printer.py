@@ -16,7 +16,7 @@ import requests
 import websocket  # websocket-client
 
 import state  # Shared state - always use state.<name>
-from logger_module import logger, currentFuncName
+from logger_module import logger, current_func_name
 
 
 def printerAddress():
@@ -41,7 +41,7 @@ def getDuet(function):  # Helper function to call other specific getDuet(x) call
     while getstatus is False:
         #  The working code gets executed here
 
-        logger.debug('Calling ' + function.__name__ + ' from ' + currentFuncName(2) + ' --> ' + currentFuncName(1) + ' --> ' + currentFuncName(0))
+        logger.debug('Calling ' + function.__name__ + ' from ' + current_func_name(2) + ' --> ' + current_func_name(1) + ' --> ' + current_func_name(0))
 
         result = function()
 
@@ -246,7 +246,7 @@ def getDuetVersion(model):
         return ''  # Failed to determine API and firmware version
 
 ###########################
-# Object model - one read is shared by Status, Layer, Jobname and Position
+# Object model - one read is shared by getStatus, getLayer, getJobname and getPosition
 ###########################
 
 
@@ -455,7 +455,7 @@ def _wsReader():
 # Values from the object model
 ###########################
 
-def Jobname():
+def getJobname():
     # Used to get the print jobname from Duet
     model = getModel()
     try:
@@ -469,7 +469,7 @@ def Jobname():
     return 'disconnected'
 
 
-def Status():
+def getStatus():
     state.lastStatusCall = time.time()
     # Used to get the status information from Duet
     # Note return "disconnected" in different place than ususal due to post processing of messages
@@ -497,7 +497,7 @@ def Status():
     return status, ''
 
 
-def Layer():
+def getLayer():
     # Used to get the the current layer
     model = getModel()
     try:
@@ -512,7 +512,7 @@ def Layer():
     return 'disconnected'
 
 
-def Position():
+def getPosition():
     # Used to get the current head position from Duet - always read fresh, as it is used to wait for the head to move
     model = getModel(maxAge=0)
     try:

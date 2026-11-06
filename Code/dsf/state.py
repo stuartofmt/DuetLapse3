@@ -58,7 +58,7 @@ ffmpeg_threads = None  # 0 = automatic
 
 
 ###########################
-# Derived from options / environment - set in init(), setdebug()
+# Derived from options / environment - set in init(), setDebug()
 ###########################
 
 win = None  # True if running on Windows
@@ -70,7 +70,7 @@ httpListener = None  # True if an integral http listener should be started
 ip = None  # ip address of this machine - published for the DWC page
 
 ###########################
-# Directories and logging - set in init(), setuplogfile(), createworkingDir(), onePhoto()
+# Directories and logging - set in init(), setupLogFile(), createWorkingDir(), onePhoto()
 ###########################
 
 topDir = None
@@ -116,7 +116,7 @@ settingsVersion = None  # Changes when the settings are saved - the page's setti
 restarting = None
 
 ###########################
-# Print and capture state - set in setstartvalues(), captureLoop(), nextAction()
+# Print and capture state - set in setStartValues(), captureLoop(), nextAction()
 ###########################
 
 action = None
