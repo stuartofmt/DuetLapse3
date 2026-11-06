@@ -432,7 +432,6 @@ def runsubprocess(cmd, lowPriority=False):
         logger.debug('Return Code = ' + str(result.returncode))
         logger.debug('stdout = ' + str(result.stdout))
         logger.debug('stderr = ' + str(result.stderr))
-        # if str(result.stderr) == '0' or str(result.stderr) == '':   # some apps dont provide stderr
         if result.returncode == 0:
             logger.debug('Command Success : ' + str(cmd))
             if result.stdout != '':
@@ -657,7 +656,7 @@ def init():
     state.port = args['UI_port']
     applySettings(args)
 
-    ##### Configure the custom logger #####
+    # Configure the custom logger #####
     setdebug(state.verbose)
 
     # Create handler for console output - file output handler is created later if needed
@@ -742,7 +741,7 @@ def issue_warnings():
         logger.info('Specify "capture_on timed" with "capture_seconds > 0" to trigger on seconds alone.')
         logger.info('************************************************************************************\n')
 
-    if state.capture_seconds > 0 and (not 'timed' in state.capture_on):
+    if state.capture_seconds > 0 and ('timed' not in state.capture_on):
         logger.info('************************************************************************************')
         logger.info('Warning: capture_seconds ' + str(state.capture_seconds) + ' and capture_on ' + state.capture_on + ' will trigger on both.')
         logger.info('Specify "capture_on timed" with "capture_seconds > 0" to trigger on seconds alone.')
@@ -1406,9 +1405,6 @@ def checkForPause(layer):
 def unPause():  # Only gets called if duetStatus = paused
     if state.connectionState is False:  # This traps the call being made unnecessarily
         return
-    #  duetStatus, _ = getDuet(Status)
-    # if connectionState is False: # Need to check after each getDuet
-    #     return
     if state.duetStatus == 'paused':
         loopmax = 10  # sec
         loopinterval = 0.5  # sec  short so as to not miss start of next layer
@@ -1584,14 +1580,12 @@ def makeVideo(directory, xtratime=False, cameras=None):  # Adds and extra frame
             if cameraUrl(1) != '':  # Camera 1
                 logger.debug('For Camera1')
                 oneInterval('Camera1', cameraUrl(1), True)
-                # if end_hold != 0 and frame1/fps > min_video_seconds:
                 if state.frame1 > 0:
                     state.frame1 = copyLastFrame(state.camfile1, state.frame1)
 
             if cameraUrl(2) != '':  # Camera 2
                 logger.debug('For Camera2')
                 oneInterval('Camera2', cameraUrl(2), True)
-                # if end_hold != 0 and frame2/fps > min_video_seconds:
                 if state.frame2 > 0:
                     state.frame2 = copyLastFrame(state.camfile2, state.frame2)
 

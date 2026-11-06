@@ -58,7 +58,6 @@ def getDuet(function):  # Helper function to call other specific getDuet(x) call
             logger.debug('Number of disconnects ' + str(disconnected))
             time.sleep(1)
             if disconnected > 2:  # Persistent error state
-                #  connectionState = False
                 if onDisconnected is not None:
                     onDisconnected()
                 response = []  # start with a list
@@ -140,7 +139,7 @@ def loginPrinter(model=''):
             err = j['err']
             standalone = j.get('apiLevel') != 1  # apiLevel 1 = SBC emulation
             if err == 0:
-                if j['apiLevel'] != None:  # Check to see if in SBC emulation mode
+                if j['apiLevel'] is not None:  # Check to see if in SBC emulation mode
                     if j['apiLevel'] == 1:
                         logger.debug('Emulation mode detected - Disconnect and try SBC')
                         URL = ('http://' + printerAddress() + '/rr_disconnect')  # Close any open session
@@ -199,7 +198,7 @@ def getDuetVersion(model):
             j = {}
             try:
                 j = json.loads(r.text)
-            except:
+            except ValueError:
                 logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                 logger.info("json.loads(r.text) could not be parsed")
                 logger.info(j)
@@ -212,7 +211,7 @@ def getDuetVersion(model):
                 logger.info("j['result'][0]['firmwareVersion'] does not exist")
                 logger.info(j)
                 logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-            except:
+            except (IndexError, TypeError):
                 logger.info('!!!!! Could not get standalone firmware version !!!!!')
         else:
             logger.info('!!!!! Error getting rr_model?key=boards code = ' + str(r.status_code) + '!!!!!')
@@ -224,7 +223,7 @@ def getDuetVersion(model):
             j = {}
             try:
                 j = json.loads(r.text)
-            except:
+            except ValueError:
                 logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                 logger.info("json.loads(r.text) could not be parsed")
                 logger.info(j)
@@ -237,7 +236,7 @@ def getDuetVersion(model):
                 logger.info("j['boards'][0]['firmwareVersion'] does not exist")
                 logger.info(j)
                 logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-            except:
+            except (IndexError, TypeError):
                 logger.info('!!!!! Could not get SBC firmware version !!!!!')
         else:
             logger.info('!!!!! Error getting /machine/status code = ' + str(r.status_code) + '!!!!!')
@@ -549,8 +548,8 @@ def isPlugin(model):
         if r.ok:
             try:
                 j = json.loads(r.text)
-                if j['plugins'] != None:
-                    if j['plugins']['duetLapse3'] != None:  # duetLapse3 is registered plugin
+                if j['plugins'] is not None:
+                    if j['plugins']['duetLapse3'] is not None:  # duetLapse3 is registered plugin
                         if str(j['plugins']['duetLapse3']['pid']) == state.pid:  # Running as a plugin
                             logger.info('Running as a plugin')
                             return True
