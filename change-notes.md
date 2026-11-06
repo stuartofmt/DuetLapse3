@@ -48,7 +48,7 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
   - The page always listens on every address of the computer. The `host` setting is gone.
   - The computer's IP is shown in the log, saved to the json (`UI_ip`, was `ip`), and published for the DWC page.
 - **`instances: one_per_folder`** now means one duetLapse3 per settings folder (that is, per printer). The instance check also now spots copies started with a full path, which is how DSF starts plugins.
-- **Removed settings:** `camera1`, `camera2`, `camparam1`, `camparam2`, `vidparam1`, `vidparam2` (never used), `logtype`, `host`, `poll` (images are taken at each status or layer change, and timed images are checked every 5 seconds), `maxffmpeg`, `hidebuttons` (the controls always show every button, greyed out when it can't be used), and the Special Functions section: `execkey` and `M3291`.
+- **Removed settings:** `camera1`, `camera2`, `camparam1`, `camparam2`, `vidparam1`, `vidparam2` (never used), `logtype`, `host`, `simulate`, `poll` (images are taken at each status or layer change, and timed images are checked every 5 seconds), `maxffmpeg`, `hidebuttons` (the controls always show every button, greyed out when it can't be used), and the Special Functions section: `execkey` and `M3291`.
 - **Special functions removed.** Gcode messages can no longer run commands on the SBC (`execkey`). The message macro is always `M3291`; it can no longer be renamed.
 - **New Files section.** `no_log`, `verbose`, `no_video`, `delete_images` and `keep_files` moved from Environment to a new Files section. Sections are only for readability, so older files still work.
 - **Settings renamed for clarity:**

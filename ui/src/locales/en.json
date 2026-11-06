@@ -1,6 +1,5 @@
 {
 	"sections": {
-		"Simulate": "Simulate",
 		"Environment": "Environment",
 		"Files": "Files",
 		"Execution": "Execution",
@@ -10,10 +9,6 @@
 		"UI": "UI"
 	},
 	"settings": {
-		"simulate": {
-			"label": "simulate",
-			"description": "For testing: all, printer or camera are simulated"
-		},
 		"duet_ip": {
 			"label": "Printer IP address",
 			"description": "Printer address (SBC or standalone).  Blank = this computer"
@@ -305,12 +300,6 @@
 			"layer": "On layer change",
 			"pause": "When paused in print job",
 			"timed": "Timed Only"
-		},
-		"simulate": {
-			"off": "Off",
-			"all": "All",
-			"printer": "Printer",
-			"camera": "Camera"
 		},
 		"instances": {
 			"single": "Single",

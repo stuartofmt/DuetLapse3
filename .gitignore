@@ -14,8 +14,10 @@ __pycache__/
 # Standalone ZIP: commit the launchers, not the ZIPs built locally (added by Prep_and_Package)
 standalone/*.zip
 
-# Settings folder: nothing in it is kept or shipped - duetLapse3 creates the folder and duetLapse3.json (with the
-# defaults) on first start.  Also the image / video folders a test run puts there (basedir blank = the settings folder)
-Code/sd/sys/duetLapse3/duetLapse3.json
-Code/sd/sys/duetLapse3/duetLapse3.json.tmp
+# The settings file, wherever it is (it holds the printer password): never kept or shipped - duetLapse3 creates it
+# with the defaults on first start
+duetLapse3.json
+duetLapse3.json.tmp
+
+# Settings folder: the image / video folders a test run puts there (basedir blank = the settings folder)
 Code/sd/sys/duetLapse3/*/

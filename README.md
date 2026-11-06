@@ -133,7 +133,6 @@ The other settings. Changes take effect when you press **Restart** on the Status
 
 | Setting | Name in `duetLapse3.json` | Default | What it does |
 | --- | --- | --- | --- |
-| simulate | `simulate` | Off | For testing: **All**, **Printer** or **Camera** are simulated |
 | Printer IP address | `duet_ip` | blank | The printer's address (SBC or standalone). Blank = the computer duetLapse3 runs on, which is right for the plugin. The address in use is shown below the field |
 | Printer port | `duet_port` | `80` | The printer's port. Blank or 0 = 80 |
 | Printer password | `duet_password` | `reprap` | The printer's password |
@@ -171,5 +170,4 @@ python duetLapse3.py [folder]
 - `folder` is where `duetLapse3.json` and `duetLapse3.log` are. If you leave it out, they go in the same folder as `duetLapse3.py`.
 - On the first run it can't find the printer yet: enter the printer's address (and port, if it isn't 80) in the [banner](#if-the-printer-cant-be-found) on the page and press **Save and connect**.
 - The page is at `http://<this computer>:<port>`. It answers on every address of the computer (its IP, `localhost`, a hostname). The address is shown in the log (`duetLapse3 page: http://…`).
-- For testing, **simulate** set to **All** runs without a printer or camera.
 - **ffmpeg** makes the videos. On Linux install it with `sudo apt install ffmpeg` (macOS: `brew install ffmpeg`). On Windows nothing extra is needed: `run.bat` installs `imageio-ffmpeg` (from `Code\dsf\requirements-windows.txt`), which includes ffmpeg. An ffmpeg on the PATH is used first, if there is one. The included ffmpeg is a GPL build (it contains the x264 H.264 encoder).

@@ -122,9 +122,6 @@ def urlCall(url, post):
     return r
 
 def loginPrinter(model = ''):
-    if state.simulate in ['all','printer']:
-        logger.info('Simulated success - loginPrinter')
-        return 'simulated_API', 200
     state.urlHeaders = {}
     logger.info('Logging in to Printer')
     standalone = False  # The board answered as standalone - so it is not an SBC
@@ -189,9 +186,6 @@ def loginPrinter(model = ''):
     return model, code    
 
 def getDuetVersion(model):
-    if state.simulate in ['all','printer']:
-        logger.info('Simulated success - getDuetVersion')
-        return 'simulated'
     # Get the firmware version
     logger.info('!!!!! Getting the firmware version !!!!!')
     if model == 'rr_model':
@@ -446,8 +440,6 @@ def _wsReader():
 
 def Jobname():
     # Used to get the print jobname from Duet
-    if state.simulate in ['all','printer']:
-        return 'simulated_job'
     model = getModel()
     try:
         jobname = model['job']['file']['fileName']
@@ -463,10 +455,6 @@ def Status():
     state.lastStatusCall = time.time()
     # Used to get the status information from Duet
     # Note return "disconnected" in different place than ususal due to post processing of messages
-    if state.simulate in ['all','printer']:
-        logger.info('Simulated status is Idle')
-        return 'idle', ''
-
     j = getModel()
     messages = None
     try:
@@ -492,8 +480,6 @@ def Status():
 
 def Layer():
     # Used to get the the current layer
-    if state.simulate in ['all','printer']:
-        return -1
     model = getModel()
     try:
         layer = model['job']['layer']
@@ -508,8 +494,6 @@ def Layer():
 
 def Position():
     # Used to get the current head position from Duet - always read fresh, as it is used to wait for the head to move
-    if state.simulate in ['all', 'printer']:
-        return 0,0,0
     model = getModel(maxAge = 0)
     try:
         if model is not None and 'move' not in model and state.apiModel == 'rr_model':
@@ -524,8 +508,6 @@ def Position():
 
 def sendDuetGcode(model, command):
     # Used to send a command to Duet
-    if state.simulate in ['all','printer']:
-        return
     if model == 'rr_model':
         URL = 'http://' + printerAddress() + '/rr_gcode?gcode=' + urllib.parse.quote(command, safe = '')  # e.g. # or & in the gcode
         r = urlCall(URL,  False)

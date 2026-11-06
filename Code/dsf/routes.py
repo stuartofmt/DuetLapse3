@@ -374,8 +374,6 @@ def save_cameras(settings):
         errors = update_config_file(urls)
     if not errors:
         for key, url in urls.items():
-            if state.simulate in ['all', 'camera']:
-                continue  # Keep the simulated camera
             if getattr(state, key) != url:
                 logger.info(key + ' changed to ' + url)
                 setattr(state, key, url)
@@ -395,8 +393,6 @@ def enable_camera(key, enabled):
     return save_result(errors, Message('cameraOff', camera + ' is off - no images will be taken from it', camera = camera))
 
 def preview_image(url):
-    if state.simulate in ['all', 'camera']:
-        return Response(state.simulatedImage, media_type = 'image/jpeg', headers = {'Cache-Control': 'no-store'})
     if not camera.is_http_url(url):
         return PlainTextResponse('Not an http url', status_code = 400)
     data = camera.fetch_image(url)  # The same capture as the time lapse

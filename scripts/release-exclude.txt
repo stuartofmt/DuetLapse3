@@ -15,5 +15,6 @@
 # Always left out, whether listed or not: __pycache__/, venv/, .git/, *.pyc and *.log
 # (the same as plugin_tools).
 
-# The settings file - duetLapse3 creates it with the defaults on first start
-sd/sys/duetLapse3/duetLapse3.json
+# The settings file, wherever it is (it holds the printer password) - duetLapse3 creates it with the defaults on first start
+duetLapse3.json
+duetLapse3.json.tmp

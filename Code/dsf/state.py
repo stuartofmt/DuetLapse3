@@ -16,8 +16,6 @@ the functions noted against each group.
 configdir = None  # Folder for duetLapse3.json and the logfile - argument 1, or the program's folder
 configfile = None  # duetLapse3.json in configdir
 
-# Simulate
-simulate = None
 
 # Environment
 duet = None  # Printer address - blank in the settings = this computer
@@ -136,7 +134,6 @@ zo2 = None  # Camera2 layer
 camfile1 = None
 camfile2 = None
 lastImage = None
-simulatedImage = None
 
 ###########################
 # M3291 commands - set in main(), handleMessages()
