@@ -2,6 +2,7 @@
 export {
 	mdiAlertCircle,
 	mdiCameraOff,
+	mdiCameraTimer,
 	mdiCctv,
 	mdiCheckCircle,
 	mdiChevronLeft,

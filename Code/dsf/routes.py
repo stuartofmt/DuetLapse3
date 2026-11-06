@@ -202,7 +202,7 @@ def make_video(path, xtratime, cameras = None):
 # Sections of DEFAULTS shown on their own tab instead of the Config tab
 cameraSection = 'Camera'  # Cameras tab
 videoSections = ['Video']  # Video tab
-tabSections = {'video': videoSections, 'execution': ['Execution'], 'files': ['Files']}  # Every other section is on the Config tab
+tabSections = {'video': videoSections, 'capture': ['Capture', 'Pause'], 'execution': ['Execution'], 'files': ['Files']}  # Every other section is on the Config tab
 cameraUrls = ['camera1_url', 'camera2_url']  # Camera1, Camera2
 cameraEnables = ['camera1_on', 'camera2_on']
 
@@ -312,8 +312,8 @@ def video_length_errors(settings):
     except ValueError:
         return {}  # Reported when the values are checked
     if maxvideo > 0 and minvideo > maxvideo:
-        return {'min_video_seconds': Message('minvideoTooBig', 'min_video_seconds (' + str(minvideo) + ') can not be more than video_length (' + str(maxvideo) + ')', min = minvideo, max = maxvideo),
-                'video_length': Message('maxvideoTooSmall', 'video_length must be 0 (off) or at least min_video_seconds (' + str(minvideo) + ')', min = minvideo)}
+        return {'min_video_seconds': Message('minvideoTooBig', 'Minimum video length (' + str(minvideo) + ') can not be more than Maximum video length (' + str(maxvideo) + ')', min = minvideo, max = maxvideo),
+                'video_length': Message('maxvideoTooSmall', 'Maximum video length must be 0 (off) or at least Minimum video length (' + str(minvideo) + ')', min = minvideo)}
     return {}
 
 def save_video(settings):
@@ -510,7 +510,7 @@ def api_files(path: str = ''):  # '' = the top folder
     return data
 
 @router.get('/api/settings')
-def api_settings(tab: str = 'config'):  # config, execution, files or video
+def api_settings(tab: str = 'config'):  # config, capture, execution, files or video
     return settings_data(tab_sections(tab))
 
 @router.get('/api/cameras')

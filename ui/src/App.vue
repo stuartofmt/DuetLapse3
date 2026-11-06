@@ -10,29 +10,31 @@ import { startVideoAlerts } from "./videos.js";
 import VideoAlert from "./components/VideoAlert.vue";
 import PrinterConnect from "./components/PrinterConnect.vue";
 import {
-	mdiCctv, mdiClose, mdiCog, mdiFileCog, mdiImageMultiple, mdiTextBoxOutline, mdiTune, mdiVideo, mdiViewDashboard,
+	mdiCctv, mdiClose, mdiCog, mdiFolder, mdiVideo, mdiViewDashboard,
 } from "./icons.js";
 import StatusTab from "./tabs/StatusTab.vue";
 import VideoTab from "./tabs/VideoTab.vue";
-import ImagesTab from "./tabs/ImagesTab.vue";
 import CamerasTab from "./tabs/CamerasTab.vue";
-import ConfigTab from "./tabs/ConfigTab.vue";
-import LogTab from "./tabs/LogTab.vue";
+import ConfigTab, { configTabs } from "./tabs/ConfigTab.vue";
+import FilesTab, { fileTabs } from "./tabs/FilesTab.vue";
 
 const tabs = [
 	{ value: "status", title: t("tabs.status"), icon: mdiViewDashboard, component: StatusTab },
 	{ value: "video", title: t("tabs.video"), icon: mdiVideo, component: VideoTab },
-	{ value: "images", title: t("tabs.images"), icon: mdiImageMultiple, component: ImagesTab },
 	{ value: "cameras", title: t("tabs.cameras"), icon: mdiCctv, component: CamerasTab },
-	{ value: "execution", title: t("tabs.execution"), icon: mdiTune, component: ConfigTab, props: { tab: "execution" } },
-	{ value: "files", title: t("tabs.files"), icon: mdiFileCog, component: ConfigTab, props: { tab: "files" } },
-	{ value: "config", title: t("tabs.config"), icon: mdiCog, component: ConfigTab, props: { tab: "config" } },
-	{ value: "log", title: t("tabs.log"), icon: mdiTextBoxOutline, component: LogTab },
+	{ value: "config", title: t("tabs.config"), icon: mdiCog, component: ConfigTab },
+	{ value: "files", title: t("tabs.filesTop"), icon: mdiFolder, component: FilesTab },
 ];
 
 // ?tab=<name> opens that tab.  Otherwise the tab is remembered when the page is reloaded (e.g. when DWC shows it again)
 function savedTab() {
 	try {
+		if (configTabs.includes(query.get("tab"))) {
+			return "config";
+		}
+		if (fileTabs.includes(query.get("tab"))) {
+			return "files";
+		}
 		const tab = query.get("tab") || sessionStorage.getItem("duetLapse3.tab");
 		return tabs.some((t) => t.value === tab) ? tab : "status";
 	} catch {

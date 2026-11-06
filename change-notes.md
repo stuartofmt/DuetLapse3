@@ -49,7 +49,7 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
   - `UI_port` (was `port`) 0, the default, picks a free port from 17800 upwards. A port that's already in use also falls back to a free one.
   - The page always listens on every address of the computer. The `host` setting is gone.
   - The computer's IP is shown in the log, saved to the json (`UI_ip`, was `ip`), and published for the DWC page.
-- **`instances: one_per_folder`** now means one duetLapse3 per settings folder (that is, per printer). The instance check also now spots copies started with a full path, which is how DSF starts plugins.
+- **`allow_multiple_instances`** replaces `instances` (`single`, `one_per_folder`, `many`). It defaults to off: only one duetLapse3 can run on the computer. When it's on, each duetLapse3 must use a different settings folder (this isn't checked). An `instances` value in a settings file is ignored. The instance check also now spots copies started with a full path, which is how DSF starts the plugin.
 - **Removed settings:** `camera1`, `camera2`, `camparam1`, `camparam2`, `vidparam1`, `vidparam2` (never used), `logtype`, `host`, `simulate`, `poll` (images are taken at each status or layer change, and timed images are checked every 5 seconds), `maxffmpeg`, `hidebuttons` (the controls always show every button, greyed out when it can't be used), and the Special Functions section: `execkey` and `M3291`.
 - **Special functions removed.** Gcode messages can no longer run commands on the SBC (`execkey`). The message macro is always `M3291`; it can no longer be renamed.
 - **New Files section.** `no_log`, `verbose`, `no_video`, `delete_images` and `keep_files` moved from Environment to a new Files section. Sections are only for readability, so older files still work.
@@ -65,7 +65,6 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
   | `weburl1`, `enable1`, `weburl2`, `enable2` | `camera1_url`, `camera1_on`, `camera2_url`, `camera2_on` |
   | `maxvideo`, `minvideo`, `extratime`, `ffmpegthreads` | `video_length`, `min_video_seconds`, `end_hold`, `ffmpeg_threads` |
   | `nolog`, `novideo`, `deletepics`, `keepfiles` | `no_log`, `no_video`, `delete_images`, `keep_files` |
-  | `instances: oneip` | `instances: one_per_folder` |
 
   The gcode `/change?<setting>=` commands use the new names (e.g. `/change?capture_seconds=30`). `keeplogs` is removed: per-print logs left by earlier versions are always cleaned up.
 - **`restart` replaced by `norestart`** (the opposite). duetLapse3 now gets ready for the next print by default; set `norestart` to stop it when a print finishes. The Graceful terminate button is now **Finish capture**, and Forced terminate is **Terminate the program**. An old `restart` setting is still read.
@@ -79,13 +78,13 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
 - **Data as JSON.** The page reads `/api/status`, `/api/info`, `/api/files`, `/api/settings` and `/api/cameras`. Saving replies with any errors per setting, which are shown in red under the field.
 - **Updates as they happen.** Instead of asking for the status every 3 seconds, the page keeps one connection open (`/api/events`, Server-Sent Events) and duetLapse3 sends each change within about a second. Nothing is sent while nothing changes. The Images tab refreshes itself when images are captured, a video is made or files are deleted or zipped, and the settings tabs reload when the settings are saved elsewhere (unless they're being edited). If the connection can't be used, the page falls back to reading the status every 3 seconds.
 - **Removed:** the old HTML templates (`dsf/www/`), the `/tab/...` routes and the old `?displayStatus` style calls.
-- **Tabs:** Status (with the controls), Video, **Images**, **Cameras**, **Execution**, **Files**, **Config**, **Log**. The controls moved onto the Status tab, so there's no separate Controls tab.
+- **Tabs:** Status (with the controls), Video, **Cameras**, **Config**, **Files**. Config has its own tabs: **General**, **Image Capture**, **Execution** and **File Settings**. The main Files tab has **Images** and **Log**. The controls moved onto the Status tab, so there's no separate Controls tab.
   - **Images** is the file browser (it was the Files tab).
-  - **Execution** and **Files** hold the settings in those sections, moved off the Config tab.
+  - **Image Capture** holds Timed capture, Event capture and Layers between capture, and a new **Pause** section (`park`, `park_xy`, `park_wait`). **Execution** and **Files** hold the settings in those sections, moved off the Config tab.
   - **Ready for other languages.** All the page's text is in `ui/src/locales/en.json`, including duetLapse3's own messages (save results, setting errors, the video message and results, the wrong-password banner), which it now sends with a code and values. The language is `?lang=<code>`, otherwise the browser's language, otherwise English; a partial translation falls back to English for the rest. Only English exists so far.
   - **Log** shows the current logfile, updated as it grows, with follow, a filter and download.
   - **Info tab removed.** The page address is in the log, and the settings in use are written to the log at the start of each print.
-  - **Config** has a new **Pause** section (`park`, `park_xy`, `park_wait`), and a blank `image_dir` shows the folder in use.
+  - **Config:** a blank `image_dir` shows the folder in use.
   - **Cameras:** each camera's URL with a preview, and an on/off switch (`camera1_on`, `camera2_on`) that keeps the URL. Saving checks the URLs, writes them to the json and starts using them straight away.
   - **Video:** the images captured by each camera, with how many are needed for a video. Then Snapshot (a button for each camera when there are two), plus the Video settings. Saving writes them to the json and starts using them straight away.
   - **Images:** a file browser with a breadcrumb path, list or grid view with thumbnails, search and sorting. Images and videos open in a viewer, and each item has an action menu.

@@ -1,5 +1,3 @@
-## UNDER CONSTRUCTION
-
 # duetLapse3
 
 Time-lapse videos of prints on Duet3D printers. duetLapse3 takes an image from one or two cameras each layer (or at a set interval, or on pause) and turns them into a video when the print finishes.
@@ -11,7 +9,7 @@ More documents:
 - [Controlling duetLapse3 from gcode](docs/gcode.md) - the `M3291` commands for slicer start / end gcode
 - [Web API](docs/web-api.md) - the URLs the page uses, for scripts
 
-## Installing
+# Installing as a plugin
 
 1. In DWC, go to **Settings → Plugins → External plugins → Install plugin** and choose the duetLapse3 zip.
 2. The plugin installs the `M3291.g` macro in `/sys`. duetLapse3 uses it to receive [commands from gcode](docs/gcode.md). It needs RepRapFirmware 3.5 or later.
@@ -65,19 +63,6 @@ While duetLapse3 isn't connected to the printer, every tab shows a banner. duetL
 | Maximum video length | `video_length` | `0` | 0 = off. Otherwise the images are fitted into a video this many seconds long |
 | Video Creation Load | `ffmpeg_threads` | `0` | CPU cores ffmpeg may use for each video. 0 = automatic: the cores that are free, leaving one spare, shared with any other ffmpeg running. ffmpeg also runs at low priority, so making a video doesn't slow the printer |
 
-### Images
-
-![The Images tab](docs/images/images-grid.jpg)
-
-Browse the images, videos and zip files. Each print has its own folder, named after the print job, with a folder for each camera holding its `images` and `videos`.
-
-- View the folder as a list or a grid with thumbnails, search it, and sort by date, name or size.
-- Click an image or a video to view it. In the viewer, the arrows (or the arrow keys) step through the images.
-- Each item's **⋮** menu has download, make a video, zip and delete. The folder of the print being captured can't be deleted.
-- The tab refreshes by itself as images are captured and videos are made.
-
-![The image viewer](docs/images/images-viewer.jpg)
-
 ### Cameras
 
 ![The Cameras tab](docs/images/cameras.jpg)
@@ -93,43 +78,13 @@ A snapshot URL is quicker and uses less of the SBC and the camera server. Other 
 - **Save** saves both URLs (`camera1_url`, `camera2_url`) and starts using them straight away.
 - The switch beside each camera turns it on or off (`camera1_on`, `camera2_on`). Off keeps the URL but takes no images.
 
-### Execution
-
-![The Execution tab](docs/images/execution.png)
-
-When images are taken. Changes take effect when you press **Restart** on the Status tab.
-
-| Setting | Name in `duetLapse3.json` | Default | What it does |
-| --- | --- | --- | --- |
-| Start straight away | `start_now` | off | Start taking images as soon as duetLapse3 starts, without waiting for a print |
-| Timed capture | `capture_seconds` | `0` | Also take an image every n seconds (0 = off). The least is 20 |
-| Event capture | `capture_on` | On layer change | **On layer change** (`layer`): an image at each layer change. **When paused in print job** (`pause`): each time the print's own gcode pauses it (e.g. an `M226` added by the slicer), the head moves to Park Location if set, then duetLapse3 takes an image and resumes the print. Any other pause is resumed too, including one made by hand in DWC. **Timed Only** (`timed`): images only by Timed capture, starting straight away |
-| Layers between capture | `layer_interval` | `1` | With On layer change, take an image every n layers |
-| Standby | `standby` | off | Wait for a Start command before doing anything |
-| No restart | `norestart` | off | Stop duetLapse3 when the print finishes, instead of getting ready for the next print. As a plugin, it then has to be started again in DWC |
-
-
-### Files
-
-![The Files tab](docs/images/files.png)
-
-Logging, and what happens to the images and videos. Changes take effect when you press **Restart** on the Status tab.
-
-| Setting | Name in `duetLapse3.json` | Default | What it does |
-| --- | --- | --- | --- |
-| Disable Logging | `no_log` | off | No log file. Only useful on a read-only file system |
-| Verbose Logging | `verbose` | off | Very detailed logging, for finding problems |
-| No Video | `no_video` | off | Don't make a video |
-| Delete Images | `delete_images` | off | Delete the images when duetLapse3 stops (videos are kept) |
-| Keep Files | `keep_files` | off | Don't delete anything when duetLapse3 starts or stops |
-
-The log is `duetLapse3.log`, next to `duetLapse3.json`. A new log starts each time duetLapse3 starts and for each print: at the end of a print, or when you press **Restart**. The one before it is kept as `duetLapse3.previous.log`. See both on the [Log](#log) tab.
-
 ### Config
 
-![The Config tab](docs/images/config.png)
+The settings, on four tabs of their own. Changes take effect when you press **Restart** on the Status tab. **Save** checks every value first and saves nothing if any are wrong, or if settings conflict, such as a Park Location with Park before image off.
 
-The other settings. Changes take effect when you press **Restart** on the Status tab. **Save** checks every value first and saves nothing if any are wrong, or if settings conflict, such as a Park Location with Park before image off.
+#### General
+
+![The General tab](docs/images/config.png)
 
 | Setting | Name in `duetLapse3.json` | Default | What it does |
 | --- | --- | --- | --- |
@@ -137,14 +92,72 @@ The other settings. Changes take effect when you press **Restart** on the Status
 | Printer port | `duet_port` | `80` | The printer's port. Blank or 0 = 80 |
 | Printer password | `duet_password` | `reprap` | The printer's password |
 | Image folder | `image_dir` | blank | Where images and videos go. Blank = the settings folder (`sys/duetLapse3` for the plugin); the folder in use is shown in the field. Inside it they go in `<computer name>/<printer address>/` folders |
-| instances | `instances` | Single | **Single**: only one duetLapse3 can run. **One per IP** (`one_per_folder`): one for each settings folder. **Many**: no limit |
-| Park before image | `park` | off | Pause the print and park the head before each image (from layer 1), then resume |
-| Park Location | `park_xy` | `0, 0` | Where to park the head (X, Y). 0, 0 = don't move it |
-| Rest Time | `park_wait` | `1` | Seconds to wait after parking, before the image |
+| Allow multiple instances | `allow_multiple_instances` | off | Let more than one duetLapse3 run on this computer. When off, a second one stops at once (exit code 6). When on, each one must use a different settings folder (see [Running without DWC](#running-without-dwc)) |
 | UI port | `UI_port` | `0` | Port for the duetLapse3 page. 0 picks a free port from 17800 upwards; the port in use is shown below the field |
 | UI ip | `UI_ip` | | Set by duetLapse3 to this computer's IP address (the page's address) |
 
-### Log
+#### Image Capture
+
+![The Image Capture tab](docs/images/capture.png)
+
+When images are taken.
+
+| Setting | Name in `duetLapse3.json` | Default | What it does |
+| --- | --- | --- | --- |
+| Timed capture | `capture_seconds` | `0` | Also take an image every n seconds (0 = off). The least is 20 |
+| Event capture | `capture_on` | On layer change | **On layer change** (`layer`): an image at each layer change. **When paused in print job** (`pause`): each time the print's own gcode pauses it (e.g. an `M226` added by the slicer), the head moves to Park Location if set, then duetLapse3 takes an image and resumes the print. Any other pause is resumed too, including one made by hand in DWC. **Timed Only** (`timed`): images only by Timed capture, starting straight away |
+| Layers between capture | `layer_interval` | `1` | With On layer change, take an image every n layers |
+| Park before image | `park` | off | Pause the print and park the head before each image (from layer 1), then resume |
+| Park Location | `park_xy` | `0, 0` | Where to park the head (X, Y). 0, 0 = don't move it |
+| Rest Time | `park_wait` | `1` | Seconds to wait after parking, before the image |
+
+#### Execution
+
+![The Execution tab](docs/images/execution.png)
+
+When duetLapse3 starts and stops.
+
+| Setting | Name in `duetLapse3.json` | Default | What it does |
+| --- | --- | --- | --- |
+| Start straight away | `start_now` | off | Start taking images as soon as duetLapse3 starts, without waiting for a print |
+| Standby | `standby` | off | Wait for a Start command before doing anything |
+| No restart | `norestart` | off | Stop duetLapse3 when the print finishes, instead of getting ready for the next print. As a plugin, it then has to be started again in DWC |
+
+
+#### File Settings
+
+![The File Settings tab](docs/images/files.png)
+
+Logging, and what happens to the images and videos.
+
+| Setting | Name in `duetLapse3.json` | Default | What it does |
+| --- | --- | --- | --- |
+| Disable Logging | `no_log` | off | No log file. Only useful on a read-only file system |
+| Verbose Logging | `verbose` | off | Very detailed logging, for finding problems |
+| No Video | `no_video` | off | Don't make a video |
+| Delete Images | `delete_images` | off | Delete the images when a print finishes, after its video is made (videos are kept) |
+| Keep Files | `keep_files` | off | Don't delete images when duetLapse3 starts or a print finishes. Standby still deletes them, and videos are always kept |
+
+The log is `duetLapse3.log`, next to `duetLapse3.json`. A new log starts each time duetLapse3 starts and for each print: at the end of a print, or when you press **Restart**. The one before it is kept as `duetLapse3.previous.log`. See both on the [Log](#log) tab.
+
+### Files
+
+The images, videos and log, on two tabs of their own.
+
+#### Images
+
+![The Images tab](docs/images/images-grid.jpg)
+
+Browse the images, videos and zip files. Each print has its own folder, named after the print job, with a folder for each camera holding its `images` and `videos`.
+
+- View the folder as a list or a grid with thumbnails, search it, and sort by date, name or size.
+- Click an image or a video to view it. In the viewer, the arrows (or the arrow keys) step through the images.
+- Each item's **⋮** menu has download, make a video, zip and delete. The folder of the print being captured can't be deleted.
+- The tab refreshes by itself as images are captured and videos are made.
+
+![The image viewer](docs/images/images-viewer.jpg)
+
+#### Log
 
 ![The Log tab](docs/images/log.png)
 
@@ -155,7 +168,7 @@ The current log file, `duetLapse3.log`. It opens at the newest line and new line
 - The buttons reload the log and download the whole file. A long log opens at its last 256 KB, and the page keeps up to 10,000 lines; the download has everything.
 - Passwords are not written to the log: the printer's password and any login in a camera URL appear as `***`.
 
-If **Disable Logging** is on (Files tab), there is no log to show. For much more detail, turn on **Verbose Logging** on the Files tab and press **Restart**.
+If **Disable Logging** is on (Config, File Settings tab), there is no log to show. For much more detail, turn on **Verbose Logging** on the same tab and press **Restart**.
 
 ## Running without DWC
 
@@ -168,6 +181,7 @@ python duetLapse3.py [folder]
 ```
 
 - `folder` is where `duetLapse3.json` and `duetLapse3.log` are. If you leave it out, they go in the same folder as `duetLapse3.py`.
+- **More than one duetLapse3:** with **Allow multiple instances** on, each one must be started with a different `folder`. duetLapse3 doesn't check this. Two sharing a folder would use the same settings and mix up each other's logs.
 - On the first run it can't find the printer yet: enter the printer's address (and port, if it isn't 80) in the [banner](#if-the-printer-cant-be-found) on the page and press **Save and connect**.
 - The page is at `http://<this computer>:<port>`. It answers on every address of the computer (its IP, `localhost`, a hostname). The address is shown in the log (`duetLapse3 page: http://…`).
 - **ffmpeg** makes the videos. On Linux install it with `sudo apt install ffmpeg` (macOS: `brew install ffmpeg`). On Windows nothing extra is needed: `run.bat` installs `imageio-ffmpeg` (from `Code\dsf\requirements-windows.txt`), which includes ffmpeg. An ffmpeg on the PATH is used first, if there is one. The included ffmpeg is a GPL build (it contains the x264 H.264 encoder).

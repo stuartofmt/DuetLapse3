@@ -126,6 +126,10 @@ Settings that conflict are refused when saved.  If a restart command or a gcode 
 Gcode (M3291) commands are http api requests: /command/start, /snapshot, /terminate/terminateg, /terminate/terminatef, and the new /change?<setting>=<value>.  duetLapse3.start etc are no longer recognised
 /command only carries out what is allowed in the current state
 Removed simulate
+New Image Capture tab with capture_seconds, capture_on and layer_interval, moved from the Execution tab, and park, park_xy and park_wait, moved from the Config tab
+Image Capture, Execution and File Settings are now tabs under the Config tab, with General for the rest
+New Files tab with the Images and Log tabs under it
+instances (single, one_per_folder, many) replaced by allow_multiple_instances, default False
 Fixed images taken with no print job running going in a folder named after the previous job, and a one minute wait after every print
 Fixed the gcode change of layer_interval not being accepted
 A new logfile for each print (each restart, by the button or at the end of a print).  The last one is kept as duetLapse3.previous.log
@@ -262,16 +266,16 @@ jobStatuses = ['processing', 'paused', 'pausing', 'resuming', 'cancelling', 'cha
 # Every setting and its default.  The type of the default is the type of the setting.
 # The sections match duetLapse3.json - they are only for readability
 DEFAULTS = {
-    'Environment': {'duet_ip': '', 'duet_port': 80, 'duet_password': 'reprap', 'image_dir': '', 'instances': 'single'},
+    'Environment': {'duet_ip': '', 'duet_port': 80, 'duet_password': 'reprap', 'image_dir': '', 'allow_multiple_instances': False},
     'Files': {'no_log': False, 'verbose': False, 'no_video': False, 'delete_images': False, 'keep_files': False},
-    'Execution': {'start_now': False, 'capture_seconds': 0, 'capture_on': 'layer', 'layer_interval': 1, 'standby': False, 'norestart': False},
+    'Capture': {'capture_seconds': 0, 'capture_on': 'layer', 'layer_interval': 1},
+    'Execution': {'start_now': False, 'standby': False, 'norestart': False},
     'Pause': {'park': False, 'park_xy': [0, 0], 'park_wait': 1},
     'Camera': {'camera1_url': '', 'camera1_on': True, 'camera2_url': '', 'camera2_on': True},
     'Video': {'end_hold': 0, 'fps': 10, 'min_video_seconds': 5, 'video_length': 0, 'ffmpeg_threads': 0},
     'UI': {'UI_port': 0, 'UI_ip': ''},
 }
-CHOICES = {'instances': ['single', 'one_per_folder', 'many'],
-           'capture_on': ['layer', 'pause', 'timed']}
+CHOICES = {'capture_on': ['layer', 'pause', 'timed']}
 configExtras = ['UI_ip']  # Written by duetLapse3, not read as a setting
 
 def flatDefaults():
@@ -448,7 +452,7 @@ def applySettings(args):
     state.image_dir = args['image_dir']
     
     
-    state.instances = args['instances']
+    state.allow_multiple_instances = args['allow_multiple_instances']
     
     state.no_log = args['no_log']
     
@@ -666,7 +670,7 @@ def init():
     else:
         state.win = False
 
-    checkInstances(state.instances)
+    checkInstances()
 
     ####################################################
     # Setup for logging and filenames
@@ -1296,40 +1300,19 @@ def startNow():
 ##  Processing Functions
 #####################################################
 
-def instanceConfigDir(proc):
-    # The settings folder of a running duetLapse3 (from its command line), or None if it is not duetLapse3
-    cmdline = proc.info['cmdline'] or []
-    for i, part in enumerate(cmdline):
-        if os.path.basename(part) == os.path.basename(__file__):
-            if len(cmdline) > i + 1:
-                folder = cmdline[i + 1]
-            else:
-                folder = os.path.dirname(part)  # Default is the program's folder
-            try:
-                return os.path.realpath(os.path.join(proc.cwd(), folder))
-            except (psutil.Error, OSError):
-                return ''  # Can't tell which folder
-    return None
-
-
-def checkInstances(instances):
-    # single - only one duetLapse3 can run.  one_per_folder - one per settings folder (i.e. per printer).  many - no limit
+def checkInstances():
+    # Only one duetLapse3 can run on this computer, unless allow_multiple_instances is set
     # This process and its parents are left out: on Windows a venv's python.exe is a launcher that runs the real
     # python as a child with the same command line, so one duetLapse3 is two python processes
-    if instances == 'many':
+    if state.allow_multiple_instances:
         return
     me = psutil.Process()
     mine = {me.pid} | {parent.pid for parent in me.parents()}
+    program = os.path.basename(__file__)
     for p in psutil.process_iter(['name', 'cmdline']):  # Processes that end during the scan are skipped
-        if p.pid in mine:
+        if p.pid in mine or 'python' not in (p.info['name'] or ''):
             continue
-        name = p.info['name'] or ''
-        if not ('python' in name or 'pythonw' in name):
-            continue
-        folder = instanceConfigDir(p)
-        if folder is None:
-            continue
-        if instances == 'single' or folder == state.configdir:  # one_per_folder: only one for this settings folder
+        if any(os.path.basename(part) == program for part in p.info['cmdline'] or []):
             logger.info('#############################')
             logger.info('Process is already running (pid ' + str(p.pid) + ')... shutting down.')
             logger.info('#############################\n')

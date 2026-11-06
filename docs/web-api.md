@@ -30,7 +30,7 @@ The page reads its data as JSON:
 | `/api/events` | The same status as Server-Sent Events, sent whenever it changes, plus `files` and `settings` events when files are deleted or zipped and when the settings are saved, and `log` events when the log file grows or a new one starts |
 | `/api/files?path=<folder>` | The files in a folder (blank = the top folder) |
 | `/api/log?offset=<n>&number=<n>` | The log file from byte `offset`, in whole lines, with the `offset` and log `number` to ask for next. With no offset, or if a new log has started since `number`: the last 256 KB. `previous` is the path of the previous log |
-| `/api/settings?tab=<tab>` | The settings shown on a tab (`config`, `execution`, `files` or `video`), with their values |
+| `/api/settings?tab=<tab>` | The settings shown on a tab (`config` is General on the Config tab, and `capture`, `execution` and `files` are its other tabs, or `video`), with their values |
 | `/api/cameras` | Each camera's URL and whether it is on |
 
 ## Saving settings
@@ -39,7 +39,7 @@ These take a POST with the settings as JSON, e.g. `{"capture_seconds": 30}`. Eve
 
 | URL | Settings |
 | --- | --- |
-| `/config/save` | Any of the settings on the Config, Execution and Files tabs. They take effect on `/command/restart`, which reads the settings again |
+| `/config/save` | Any of the settings on the Config tabs (General, Image Capture, Execution and File Settings). They take effect on `/command/restart`, which reads the settings again |
 | `/video/save` | The video settings, used straight away |
 | `/cameras/save` | `camera1_url` and `camera2_url`, used straight away |
 | `/cameras/enable` | `{"key": "camera1_on", "enabled": false}` - switch a camera on or off |

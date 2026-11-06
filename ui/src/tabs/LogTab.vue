@@ -113,7 +113,7 @@ onMounted(load);
 
 <style scoped>
 .dl3-log {
-	height: calc(100vh - 210px);
+	height: calc(100vh - 258px);
 	min-height: 300px;
 	overflow: auto;
 	margin: 0;

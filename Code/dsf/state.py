@@ -22,7 +22,7 @@ duet = None  # Printer address - blank in the settings = this computer
 duet_port = None  # Printer port
 duet_password = None
 image_dir = None
-instances = None
+allow_multiple_instances = None
 no_log = None
 verbose = None
 port = None
