@@ -46,7 +46,8 @@ and open <http://localhost:5173/static/app/index.html>. Changes show as soon as 
 | Route | What it returns or does |
 | --- | --- |
 | `GET /api/status` | duetLapse3 and printer state, frames, layer, last image, which commands are allowed |
-| `GET /api/events` | Server-Sent Events: `status` (as `/api/status`) whenever it changes, `files` when files are deleted or zipped, `settings` when the settings are saved |
+| `GET /api/events` | Server-Sent Events: `status` (as `/api/status`) whenever it changes, `files` when files are deleted or zipped, `settings` when the settings are saved, `log` when the logfile grows |
+| `GET /api/log?offset=<n>` | The logfile from byte `n` (none = its end), in whole lines |
 | `GET /api/info` | The page address, files and folders, and the settings in use |
 | `GET /api/files?path=` | A folder's files and what can be done with each (blank = the top folder) |
 | `GET /api/settings?tab=config\|video` | The settings for that tab, with type, choices and help |

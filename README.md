@@ -41,7 +41,7 @@ While duetLapse3 isn't connected to the printer, every tab shows a banner. duetL
   - **Start** - start taking images.
   - **Standby** - stop and delete the images, without making a video.
   - **Pause** / **Continue** - stop taking images for now, and carry on.
-  - **Restart** - make the video, then get ready for the next print.
+  - **Restart** - make the video, read the settings again, then get ready for the next print. Any changes you've saved are picked up, as if duetLapse3 had been started again, including a different printer, image folder or page port (the page moves to the new port). If the saved settings can't be used, an alert shows at the top of the page and the current ones are kept. Restart can also be used in standby. The automatic restart at the end of a print doesn't read the settings.
   - Buttons that can't be used now are greyed out.
 - **Finish capture** and **Terminate the program** appear here when duetLapse3 runs on its own. As a plugin they're hidden, because DWC starts and stops it.
   - **Finish capture** makes the video, then gets ready for the next print, or stops if **No restart** is set.
@@ -97,7 +97,7 @@ A snapshot URL is quicker and uses less of the SBC and the camera server. Other 
 
 ![The Execution tab](docs/images/execution.png)
 
-When images are taken. Changes take effect when duetLapse3 is restarted.
+When images are taken. Changes take effect when you press **Restart** on the Status tab.
 
 | Setting | Name in `duetLapse3.json` | Default | What it does |
 | --- | --- | --- | --- |
@@ -113,7 +113,7 @@ When images are taken. Changes take effect when duetLapse3 is restarted.
 
 ![The Files tab](docs/images/files.png)
 
-Logging, and what happens to the images and videos. Changes take effect when duetLapse3 is restarted.
+Logging, and what happens to the images and videos. Changes take effect when you press **Restart** on the Status tab.
 
 | Setting | Name in `duetLapse3.json` | Default | What it does |
 | --- | --- | --- | --- |
@@ -123,13 +123,13 @@ Logging, and what happens to the images and videos. Changes take effect when due
 | Delete Images | `delete_images` | off | Delete the images when duetLapse3 stops (videos are kept) |
 | Keep Files | `keep_files` | off | Don't delete anything when duetLapse3 starts or stops |
 
-The log is `duetLapse3.log`, next to `duetLapse3.json`. It starts fresh each time duetLapse3 starts.
+The log is `duetLapse3.log`, next to `duetLapse3.json`. A new log starts each time duetLapse3 starts and for each print: at the end of a print, or when you press **Restart**. The one before it is kept as `duetLapse3.previous.log`. See both on the [Log](#log) tab.
 
 ### Config
 
 ![The Config tab](docs/images/config.png)
 
-The other settings. Changes take effect when duetLapse3 is restarted. **Save** checks every value first and saves nothing if any are wrong.
+The other settings. Changes take effect when you press **Restart** on the Status tab. **Save** checks every value first and saves nothing if any are wrong, or if settings conflict, such as a Park Location with Park before image off.
 
 | Setting | Name in `duetLapse3.json` | Default | What it does |
 | --- | --- | --- | --- |
@@ -144,6 +144,19 @@ The other settings. Changes take effect when duetLapse3 is restarted. **Save** c
 | Rest Time | `park_wait` | `1` | Seconds to wait after parking, before the image |
 | UI port | `UI_port` | `0` | Port for the duetLapse3 page. 0 picks a free port from 17800 upwards; the port in use is shown below the field |
 | UI ip | `UI_ip` | | Set by duetLapse3 to this computer's IP address (the page's address) |
+
+### Log
+
+![The Log tab](docs/images/log.png)
+
+The current log file, `duetLapse3.log`. It opens at the newest line and new lines appear as they are written. **Previous log** downloads the log from before the current one.
+
+- **Follow** keeps the newest line in view. Scrolling up to read turns it off, and scrolling back to the end turns it on again.
+- The box at the top shows only the lines containing what you type.
+- The buttons reload the log and download the whole file. A long log opens at its last 256 KB, and the page keeps up to 10,000 lines; the download has everything.
+- Passwords are not written to the log: the printer's password and any login in a camera URL appear as `***`.
+
+If **Disable Logging** is on (Files tab), there is no log to show. For much more detail, turn on **Verbose Logging** on the Files tab and press **Restart**.
 
 ## Running without DWC
 

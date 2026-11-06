@@ -3,7 +3,7 @@
 You can control duetLapse3 from gcode, for example from your slicer's start or end gcode, or from a macro. Use the `M3291` macro, which the plugin installs in `/sys`:
 
 ```text
-M3291 B"duetLapse3.start"
+M3291 B"/command/start"
 ```
 
 One command per `M3291` call. `M3291` needs RepRapFirmware 3.5 or later.
@@ -12,27 +12,40 @@ One command per `M3291` call. `M3291` needs RepRapFirmware 3.5 or later.
 
 | Command | What it does |
 | --- | --- |
-| `duetLapse3.start` | Start taking images |
-| `duetLapse3.standby` | Stop and delete the images, without making a video |
-| `duetLapse3.pause` | Stop taking images for now |
-| `duetLapse3.continue` | Carry on after a pause |
-| `duetLapse3.restart` | Make the video, then get ready for the next print |
-| `duetLapse3.snapshot` | Make a video of the images so far |
-| `duetLapse3.graceful` | Finish capture: make the video, then get ready for the next print (or stop, if `norestart` is set) |
-| `duetLapse3.forced` | Terminate straight away, without a video |
-| `duetLapse3.change.<setting>=<value>` | Change a setting while running (see below) |
+| `/command/start` | Start taking images |
+| `/command/standby` | Stop and delete the images, without making a video |
+| `/command/pause` | Stop taking images for now |
+| `/command/continue` | Carry on after a pause |
+| `/command/restart` | Make the video, start a new log, read the saved settings again, then get ready for the next print |
+| `/snapshot` | Make a video of the images so far |
+| `/terminate/terminateg` | Finish capture: make the video, then get ready for the next print (or stop, if `norestart` is set) |
+| `/terminate/terminatef` | Terminate straight away, without a video |
+| `/change?<setting>=<value>` | Change a setting while running (see below) |
 
-The older spelling `DuetLapse3.` also works, so existing slicer gcode doesn't need to change.
+Each command is a request to the [web API](web-api.md), so it does the same as calling that URL. `/snapshot?camera=1` or `?camera=2` makes a video for one camera. Only the commands above can be sent from gcode: the other URLs, such as `/delete`, can't.
+
+The spellings from earlier versions, such as `duetLapse3.start`, no longer work. They are logged as not recognised, so slicer gcode that uses them needs changing.
 
 ## Changing a setting
 
-`duetLapse3.change.<setting>=<value>` changes a setting until duetLapse3 restarts. It isn't saved: to keep a change, make it on the duetLapse3 page.
+`/change?<setting>=<value>` changes a setting in memory and takes effect immediately. It doesn't change the saved settings, so it lasts until the `/command/restart` command or the Restart button reads them again, or duetLapse3 is started again. To keep a change, make it on the duetLapse3 page.
 
 ```text
-M3291 B"duetLapse3.change.capture_seconds=30"
-M3291 B"duetLapse3.change.park=True"
-M3291 B"duetLapse3.change.park_xy=10,200"
+M3291 B"/change?capture_seconds=30"
+M3291 B"/change?park=True&park_xy=10,200"
 ```
+
+You can change several settings at once, joined with `&`. They are checked together, and either all of them are used or none.
+
+A change with a bad value, or that conflicts with the settings in use, isn't applied: an alert shows at the top of the duetLapse3 page, and in the log. Separate commands are checked one at a time as they arrive, so settings that depend on each other, such as `park` and `park_xy`, are best changed in one command.
+
+For example, this turns parking off and clears the park location. Sent as two separate commands, the first would be refused, because a Park Location can't be set with Park before image off:
+
+```text
+M3291 B"/change?park=False&park_xy=0,0"
+```
+
+
 
 These settings can be changed:
 
@@ -50,7 +63,7 @@ See the [README](../README.md) for what each setting does.
 
 ## How it works
 
-`M3291.g` keeps the last 10 commands on the printer: `global.DL3seq` counts them, and `global.DL3msg` holds them. duetLapse3 remembers the last command it acted on and carries out any newer ones, in order.
+`M3291.g` keeps the last 10 commands on the printer: `global.DL3seq` counts them, and `global.DL3msg` holds them. duetLapse3 remembers the last command it acted on and sends any newer ones, in order, to its own web API.
 
 - duetLapse3 only reads these globals, so it works the same with an SBC or a standalone board, and on the same computer as the printer or another one.
 - Commands sent while duetLapse3 isn't running are not carried out when it starts.

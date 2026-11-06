@@ -35,6 +35,7 @@ export {
 	mdiRestart,
 	mdiSort,
 	mdiStop,
+	mdiTextBoxOutline,
 	mdiTune,
 	mdiVideo,
 	mdiViewDashboard,

@@ -34,6 +34,8 @@ appDir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'static', 'ap
 # Data for the page
 ###########################
 
+LOG_TAIL = 256 * 1024  # The most of the logfile sent to the page at once (bytes)
+
 def status_data():
     videoMessage = dl3.getVideoMsg()
     return {
@@ -43,6 +45,8 @@ def status_data():
         'connected': bool(state.connectionState),
         'connectError': state.connectError,  # Why the printer can not be connected (e.g. wrong password) - '' if not known
         'connectErrorCode': coded(state.connectError),  # Codes (here and below) let the page show the message in its language
+        'settingsAlert': state.settingsAlert,  # Why settings were not applied - '' if there is nothing to say
+        'settingsAlertCode': coded(state.settingsAlert),
         'duet': state.duet,  # The printer settings - changed on the page when the printer can not be connected
         'duetport': state.duet_port,  # (status field names are unchanged)
         'pid': state.pid,
@@ -112,6 +116,36 @@ def files_data(path):
 
     isTop = os.path.realpath(path) == os.path.realpath(state.topDir)
     return {'path': path, 'top': state.topDir, 'parent': None if isTop else os.path.dirname(path), 'entries': entries}
+
+def log_size():
+    try:
+        return 0 if state.no_log else os.path.getsize(state.logfilename)
+    except OSError:
+        return 0
+
+def log_data(offset, number = 0):
+    # The logfile from offset (bytes) - whole lines only.  offset < 0, or one that can't be carried on from
+    # (another logfile than number, if given, or too much is new), gives the end of the logfile instead: reset is then true
+    if state.no_log:
+        return {'enabled': False}
+    try:
+        size = os.path.getsize(state.logfilename)
+        reset = offset < 0 or offset > size or size - offset > LOG_TAIL or number not in [0, state.logNumber]
+        start = max(0, size - LOG_TAIL) if reset else offset
+        with open(state.logfilename, 'rb') as f:
+            f.seek(start)
+            data = f.read(size - start)
+    except OSError as e:
+        return {'enabled': True, 'file': state.logfilename, 'error': str(e)}
+    truncated = reset and start > 0
+    if truncated:  # Starts part way through a line
+        skip = data.find(b'\n') + 1
+        start, data = start + skip, data[skip:]
+    data = data[:data.rfind(b'\n') + 1]  # A line still being written comes next time
+    previous = os.path.join(state.configdir, dl3.previousLogFileName)
+    return {'enabled': True, 'file': state.logfilename, 'number': state.logNumber, 'previous': previous if os.path.isfile(previous) else '',
+            'offset': start + len(data), 'reset': reset, 'truncated': truncated,
+            'text': data.decode('utf-8', errors='replace').replace('\r\n', '\n')}
 
 def filesIn(folder, extensions):
     try:
@@ -241,6 +275,13 @@ def update_config_file(settings):
 
     if errors:
         return errors
+    if {'park', 'park_xy', 'capture_on'} & set(settings):  # Settings that can't be used together - some may be on another tab
+        merged = dl3.flatDefaults()
+        for section in config.values():
+            merged.update(section)
+        conflict = dl3.settingsConflict(merged)
+        if conflict:
+            return {'': conflict}
     try:
         dl3.writeConfig(state.configfile, config)
     except OSError as e:
@@ -259,7 +300,7 @@ def save_result(errors, success):
 
 def save_config(settings):
     errors = update_config_file(settings)
-    return save_result(errors, Message('savedRestart', 'Saved. Restart duetLapse3 for the changes to take effect.'))
+    return save_result(errors, Message('savedRestart', 'Saved. The changes take effect when you press Restart on the Status tab.'))
 
 def video_length_errors(settings):
     # min_video_seconds can't be more than video_length (unless video_length is 0 - off)
@@ -371,13 +412,20 @@ def preview_image(url):
 def update_command(command):
     # start / standby / pause / continue / restart - carried out by the control loop, one at a time.
     # Wait (up to 10 seconds) until it is done, so the page shows the new state
-    if command in ['start', 'standby', 'pause', 'continue', 'restart']:
+    if command == state.action:  # Nothing to do
+        logger.info('Already in ' + state.action + ' state')
+
+    elif command in dl3.allowedNextAction(state.action):
         done = threading.Event()
         dl3.queueAction(command, done)
         done.wait(10)
 
     elif command == 'terminate':  #command=terminate - backward compatible
         terminate_process('terminatehttp')
+
+    else:
+        logger.info('The requested action: ' + command + ' is not available at this time')
+        logger.info('The current state is: ' + state.action)
     return
 
 def terminate_process(ttype):
@@ -419,12 +467,14 @@ def api_status():
 #   status   - /api/status, whenever any of it changes
 #   files    - {version} - files were deleted or zipped (captured images and videos come with the status)
 #   settings - {version} - the settings were saved
+#   log      - {number, size} - the logfile has grown, or a new one started
 # Checked once a second; nothing is sent while nothing changes, apart from a comment every 15 seconds to keep the connection open
 EVENT_CHECK = 1     # seconds
 EVENT_KEEPALIVE = 15
 
 def event_data():
-    return {'status': status_data(), 'files': {'version': state.filesVersion}, 'settings': {'version': state.settingsVersion}}
+    return {'status': status_data(), 'files': {'version': state.filesVersion}, 'settings': {'version': state.settingsVersion},
+            'log': {'number': state.logNumber, 'size': log_size()}}
 
 async def event_stream():
     sent = {}
@@ -452,6 +502,10 @@ async def api_events():
     return StreamingResponse(event_stream(), media_type='text/event-stream',
                              headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})  # No buffering by a proxy
 
+@router.get('/api/log')
+def api_log(offset: int = -1, number: int = 0):  # offset -1 = the end of the logfile.  number - the logfile offset is in, 0 = whichever is current
+    return log_data(offset, number)
+
 @router.get('/api/files')
 def api_files(path: str = ''):  # '' = the top folder
     data = files_data(path)
@@ -470,6 +524,11 @@ def api_cameras():
 @router.post('/config/save')
 def config_save(settings: dict = Body(...)):  # {setting: value}
     return save_config(settings)
+
+@router.post('/settings/alert/clear')
+def settings_alert_clear():
+    state.settingsAlert = ''
+    return {}
 
 @router.post('/video/save')
 def video_save(settings: dict = Body(...)):  # {setting: value}
@@ -505,6 +564,13 @@ def command(command: str):  # start, standby, pause, continue, restart, terminat
 def terminate(ttype: str):  # terminateg (graceful), terminatef (forced) or terminatehttp
     terminate_process(ttype)
     return Response(status_code=204)
+
+@router.get('/change')
+def change(request: Request):  # ?capture_seconds=30&park=True - used straight away, not saved
+    errors = dl3.changeSettings(dict(request.query_params))
+    if errors:
+        return JSONResponse({'changed': False, 'errors': errors, 'errorCodes': {key: coded(text) for key, text in errors.items() if coded(text)}}, status_code=400)
+    return {'changed': True, 'errors': {}, 'errorCodes': {}}
 
 @router.get('/snapshot', response_class=PlainTextResponse)
 def snapshot(camera: int = 0):  # camera 1 or 2 makes a video for that camera only - default both

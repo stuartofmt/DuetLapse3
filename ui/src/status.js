@@ -10,8 +10,8 @@ const INTERVAL = 3000; // ms - only when falling back to reading the status
 const FAILURES = 3;    // Errors in a row, without ever receiving anything, before falling back
 
 export const status = reactive({ data: null, error: "" });
-// Counters that change when files are deleted or zipped, and when the settings are saved
-export const changes = reactive({ files: 0, settings: 0 });
+// Values that change when files are deleted or zipped, when the settings are saved, and when the logfile grows
+export const changes = reactive({ files: 0, settings: 0, log: "" });
 
 let source = null;
 let timer = null;
@@ -39,6 +39,7 @@ function listen() {
 	on("status", (data) => (status.data = data));
 	on("files", (data) => (changes.files = data.version));
 	on("settings", (data) => (changes.settings = data.version));
+	on("log", (data) => (changes.log = `${data.number}:${data.size}`));
 	source.onerror = () => {
 		// EventSource reconnects by itself (e.g. after duetLapse3 restarts)
 		status.error = t("common.notAnswering");

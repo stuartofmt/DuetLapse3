@@ -8,10 +8,26 @@ Derived from the duetPrintGuard logger_module but adapted for duetLapse3:
   - Formats include the thread name, as duetLapse3 is multi-threaded
 """
 import logging
+import os
+import re
 import sys
+
+# Passwords are never logged: password=xxx in the printer's urls, and a login in a camera url (http://user:xxx@host)
+SECRETS = re.compile(r'(password=)[^&\s\'"]*|(://[^/\s:@]+:)[^/\s@]+(?=@)')
+
+
+class MaskSecrets(logging.Filter):
+    def filter(self, record):
+        message = record.getMessage()
+        masked = SECRETS.sub(lambda m: (m.group(1) or m.group(2)) + '***', message)
+        if masked != message:
+            record.msg, record.args = masked, ()
+        return True
+
 
 logger = logging.getLogger('duetLapse3')
 logger.propagate = False
+logger.addFilter(MaskSecrets())
 
 logfilename = ''  # Current logfile
 
@@ -54,9 +70,13 @@ def _add_file_handler(filename, mode):
     logfilename = filename
 
 
-def create_log_file(filename):
-    # Start a new (empty) logfile, replacing any existing one
+def create_log_file(filename, previous):
+    # Start a new (empty) logfile.  The one before it becomes previous, replacing the one before that
     close_log_file()
+    try:
+        os.replace(filename, previous)
+    except OSError:  # The first logfile
+        pass
     _add_file_handler(filename, 'w')
     return logfilename
 

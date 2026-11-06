@@ -43,6 +43,7 @@ park_wait = None
 standby = None
 norestart = None  # The setting - don't get ready for the next print
 restart = None  # not norestart
+printerSettings = None  # The printer settings in use - to tell if they changed on a restart command
 
 # Cameras
 camera1_url = None
@@ -81,6 +82,7 @@ workingDir = None
 workingDirStatus = None
 pidIncrement = None
 logfilename = None
+logNumber = 0  # Counts the logfiles - so the page can tell when a new one starts
 
 ###########################
 # Timers and limits - set in main()
@@ -98,6 +100,7 @@ lastStatusCall = None
 apiModel = None
 connectionState = None
 firstConnect = None  # None until the first successful login
+settingsAlert = ''  # Why settings were not applied (they conflict, or a saved value is bad) - shown on the page.  '' = no alert
 connectError = None  # Why the printer can not be connected (e.g. wrong password) - shown on the page.  '' = no error
 connectRetry = None  # threading.Event - set when the printer settings are changed on the page, to try again at once
 printerVersion = None
@@ -147,3 +150,4 @@ lastMessageSeq = None  # The last M3291 command number handled (global.DL3seq) -
 
 listener = None  # uvicorn.Server
 listenerThread = None
+newPort = None  # UI_port read by a restart command - see moveListener()

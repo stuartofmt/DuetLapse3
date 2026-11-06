@@ -365,6 +365,19 @@ def startWebSocket():
         _wsThread = threading.Thread(name='webSocket', target=_wsReader, daemon=True)
         _wsThread.start()
 
+def forgetPrinter():
+    # The printer settings changed: drop what was read from the old printer.  The WebSocket reader reconnects to the new one
+    global _model, _modelTime, _seqs, _wsModel
+    with _modelLock:
+        _model, _modelTime, _seqs = None, 0, None
+    _wsModel = None
+    ws = _ws
+    if ws is not None:
+        try:
+            ws.close()
+        except Exception:
+            pass
+
 def _watched(model):
     # The parts of the object model the control loop reacts to straight away
     def get(*path):

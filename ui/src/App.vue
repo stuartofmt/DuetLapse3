@@ -2,20 +2,22 @@
 <script setup>
 import { computed, ref, watch } from "vue";
 import { query } from "./env.js";
-import { t } from "./i18n.js";
+import { api } from "./api.js";
+import { serverText, t } from "./i18n.js";
 import { closeConfirm, confirmState, snackbar } from "./notify.js";
 import { startStatus, status } from "./status.js";
 import { startVideoAlerts } from "./videos.js";
 import VideoAlert from "./components/VideoAlert.vue";
 import PrinterConnect from "./components/PrinterConnect.vue";
 import {
-	mdiCctv, mdiClose, mdiCog, mdiFileCog, mdiImageMultiple, mdiTune, mdiVideo, mdiViewDashboard,
+	mdiCctv, mdiClose, mdiCog, mdiFileCog, mdiImageMultiple, mdiTextBoxOutline, mdiTune, mdiVideo, mdiViewDashboard,
 } from "./icons.js";
 import StatusTab from "./tabs/StatusTab.vue";
 import VideoTab from "./tabs/VideoTab.vue";
 import ImagesTab from "./tabs/ImagesTab.vue";
 import CamerasTab from "./tabs/CamerasTab.vue";
 import ConfigTab from "./tabs/ConfigTab.vue";
+import LogTab from "./tabs/LogTab.vue";
 
 const tabs = [
 	{ value: "status", title: t("tabs.status"), icon: mdiViewDashboard, component: StatusTab },
@@ -25,6 +27,7 @@ const tabs = [
 	{ value: "execution", title: t("tabs.execution"), icon: mdiTune, component: ConfigTab, props: { tab: "execution" } },
 	{ value: "files", title: t("tabs.files"), icon: mdiFileCog, component: ConfigTab, props: { tab: "files" } },
 	{ value: "config", title: t("tabs.config"), icon: mdiCog, component: ConfigTab, props: { tab: "config" } },
+	{ value: "log", title: t("tabs.log"), icon: mdiTextBoxOutline, component: LogTab },
 ];
 
 // ?tab=<name> opens that tab.  Otherwise the tab is remembered when the page is reloaded (e.g. when DWC shows it again)
@@ -59,6 +62,10 @@ startVideoAlerts();
 			<v-divider></v-divider>
 			<v-container fluid class="pa-2 pa-sm-4">
 				<v-alert v-if="status.error" type="error" variant="tonal" class="mb-4">{{ status.error }}</v-alert>
+				<v-alert v-if="status.data?.settingsAlert" type="error" variant="tonal" closable class="mb-4" @click:close="api.postJson('/settings/alert/clear', {})">
+					<div><strong>{{ t("settingsAlert.notApplied") }}</strong></div>
+					{{ serverText(status.data.settingsAlert, status.data.settingsAlertCode) }}
+				</v-alert>
 				<PrinterConnect></PrinterConnect>
 				<component :is="current.component" v-bind="current.props" :key="current.value"></component>
 			</v-container>

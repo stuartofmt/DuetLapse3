@@ -26,6 +26,12 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
 - **Where the file is.** The program takes one optional argument: the folder for `duetLapse3.json` and `duetLapse3.log`. With no argument, that's the program's own folder. If the folder doesn't exist, it's created. If the file is missing, damaged or edited, it's created again with the defaults.
 - **Simpler M3291.** The macro is now a short ring of the last 10 commands (`global.DL3seq`, `global.DL3msg`) that duetLapse3 only reads. It no longer sends `set global.DL3del` / `M3291 B"Del"` back after each command or `M3291 B"Clear"` at startup, so it needs no write access to the printer. `M3291 B"duetLapse3.…"` in slicer gcode is unchanged. Needs RepRapFirmware 3.5 or later.
 - **ffmpeg on Windows.** The standalone `run.bat` installs `imageio-ffmpeg` (`Code/dsf/requirements-windows.txt`), which includes ffmpeg, so it doesn't have to be installed separately. ffmpeg on the PATH is still used first, and the plugin uses the system ffmpeg as before.
+- **Restart picks up the settings.** The Restart button (and `/command/restart`, from gcode or http) now reads `duetLapse3.json` again and uses it, as if duetLapse3 had been started again: all the settings, including another printer, image folder, page port and logging. If the saved settings can't be used, the page shows an alert and the current ones are kept, rather than stopping duetLapse3. The automatic restart at the end of a print doesn't read them.
+- **Conflicting settings.** Save refuses settings that conflict, such as a Park Location with Park before image off. A gcode `change.` that would conflict isn't applied, and the page shows an alert.
+- **Gcode commands go through the web API.** Each gcode command is now a request to the web API: `M3291 B"/command/start"`, `/snapshot`, `/terminate/terminateg`, `/terminate/terminatef` and the new `/change?<setting>=<value>` replace `duetLapse3.start` and the rest. Slicer gcode using the old spellings needs changing: they are logged as not recognised.
+- **Gcode fix.** `/change?layer_interval=` is now accepted, as documented.
+- **Gcode security fix.** `change` values were run as Python code, so a crafted value in gcode could run code on the computer running duetLapse3. They are now checked like saved settings, and a bad value isn't applied and shows the alert.
+- **Restart fixes.** Restart did nothing with No Video on, and couldn't be used in standby.
 - **Terminate buttons when running on its own.** Finish capture and Terminate the program now show whenever duetLapse3 isn't running as the plugin. They were hidden for any printer with an SBC, so a standalone duetLapse3 (e.g. on Windows) talking to an SBC printer could only be stopped with Ctrl-C.
 - **`capture_on: pause` (When paused in print job) resumes the print.** It never did (in earlier versions too): the print stayed paused and an image was taken every few seconds. Now each pause gets one image, then the print is resumed.
 - **Already running on Windows.** Fixed duetLapse3 refusing to start on Windows ("Process is already running"): the venv's python.exe launcher was counted as a second copy.
@@ -59,7 +65,7 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
   | `nolog`, `novideo`, `deletepics`, `keepfiles` | `no_log`, `no_video`, `delete_images`, `keep_files` |
   | `instances: oneip` | `instances: one_per_folder` |
 
-  The gcode `duetLapse3.change.<setting>=` commands use the new names (e.g. `change.capture_seconds=30`). `keeplogs` is removed: per-print logs left by earlier versions are always cleaned up.
+  The gcode `/change?<setting>=` commands use the new names (e.g. `/change?capture_seconds=30`). `keeplogs` is removed: per-print logs left by earlier versions are always cleaned up.
 - **`restart` replaced by `norestart`** (the opposite). duetLapse3 now gets ready for the next print by default; set `norestart` to stop it when a print finishes. The Graceful terminate button is now **Finish capture**, and Forced terminate is **Terminate the program**. An old `restart` setting is still read.
 - **`capture_on none` renamed `capture_on timed`.** `none` is still accepted and read as `timed`.
 - **New settings:** `duet_port`, `ffmpeg_threads`, `camera1_on`, `camera2_on`.
@@ -71,10 +77,11 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
 - **Data as JSON.** The page reads `/api/status`, `/api/info`, `/api/files`, `/api/settings` and `/api/cameras`. Saving replies with any errors per setting, which are shown in red under the field.
 - **Updates as they happen.** Instead of asking for the status every 3 seconds, the page keeps one connection open (`/api/events`, Server-Sent Events) and duetLapse3 sends each change within about a second. Nothing is sent while nothing changes. The Images tab refreshes itself when images are captured, a video is made or files are deleted or zipped, and the settings tabs reload when the settings are saved elsewhere (unless they're being edited). If the connection can't be used, the page falls back to reading the status every 3 seconds.
 - **Removed:** the old HTML templates (`dsf/www/`), the `/tab/...` routes and the old `?displayStatus` style calls.
-- **Tabs:** Status (with the controls), Video, **Images**, **Cameras**, **Execution**, **Files**, **Config**. The controls moved onto the Status tab, so there's no separate Controls tab.
+- **Tabs:** Status (with the controls), Video, **Images**, **Cameras**, **Execution**, **Files**, **Config**, **Log**. The controls moved onto the Status tab, so there's no separate Controls tab.
   - **Images** is the file browser (it was the Files tab).
   - **Execution** and **Files** hold the settings in those sections, moved off the Config tab.
   - **Ready for other languages.** All the page's text is in `ui/src/locales/en.json`, including duetLapse3's own messages (save results, setting errors, the video message and results, the wrong-password banner), which it now sends with a code and values. The language is `?lang=<code>`, otherwise the browser's language, otherwise English; a partial translation falls back to English for the rest. Only English exists so far.
+  - **Log** shows the current logfile, updated as it grows, with follow, a filter and download.
   - **Info tab removed.** The page address is in the log, and the settings in use are written to the log at the start of each print.
   - **Config** has a new **Pause** section (`park`, `park_xy`, `park_wait`), and a blank `image_dir` shows the folder in use.
   - **Cameras:** each camera's URL with a preview, and an on/off switch (`camera1_on`, `camera2_on`) that keeps the URL. Saving checks the URLs, writes them to the json and starts using them straight away.
@@ -127,7 +134,7 @@ What changed on 16 and 17 October 2026, described by what it does rather than ho
 
 ## Logging
 
-- **One log.** There's one `duetLapse3.log`, next to `duetLapse3.json`, started fresh each time duetLapse3 starts. It's no longer moved into each print's folder.
+- **One log.** There's one `duetLapse3.log`, next to `duetLapse3.json`, started fresh each time duetLapse3 starts and for each print. The one before it is kept as `duetLapse3.previous.log`. It's no longer moved into each print's folder.
 - **Messages.** Log messages use setting names (`capture_on pause`) instead of command-line options (`-detect pause`). The log shows the page address and the printer's full address.
 
 ## Bug fixes
@@ -147,6 +154,7 @@ Bugs that existed before this work:
 - **Camera2 URL check:** Camera2's URL was checked against Camera1's setting.
 - **DWC page:** the page inside DWC would not have loaded (`?theme=` was treated as an unknown API call).
 - **Password:** the printer password was shown on the Info tab and written to the log at startup.
+- **Passwords in the verbose log:** with Verbose Logging on, the printer password was written to the log in its login URLs, and a login in a camera URL could be too. They now appear as `***`.
 - **Timed capture status:** timed capture (`start_now`, or `capture_on timed` with `capture_seconds`) showed Waiting instead of Capturing when the printer was idle.
 - **Crash on reconnect:** duetLapse3 could stop (UNRECOVERABLE ERROR) when the printer came back quickly after being lost.
 - **Busy while disconnected:** while waiting for the printer to reconnect, the control loop woke every 50 ms.

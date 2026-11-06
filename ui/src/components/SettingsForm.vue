@@ -89,7 +89,7 @@ async function save() {
 		if (err.status === 400 && err.data?.errors) {
 			setErrors(Object.fromEntries(Object.entries(err.data.errors).map(([key, text]) => [key, serverText(text, err.data.errorCodes?.[key])])));
 			Object.assign(alert, { text: errors[""] || t("settingsForm.invalid"), type: "error" });
-			notify(t("settingsForm.invalidShort"), "error", 6000);
+			notify(errors[""] || t("settingsForm.invalidShort"), "error", 6000);
 		} else {
 			Object.assign(alert, { text: t("common.couldNotSave", { error: err.message }), type: "error" });
 			notify(t("common.couldNotSave", { error: err.message }), "error", 6000);

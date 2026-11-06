@@ -142,7 +142,8 @@
 		"cameras": "Cameras",
 		"execution": "Execution",
 		"files": "Files",
-		"config": "Config"
+		"config": "Config",
+		"log": "Log"
 	},
 	"common": {
 		"save": "Save",
@@ -178,7 +179,7 @@
 		"continue": "Continue",
 		"restart": "Restart",
 		"standbyConfirm": "Standby does NOT create a video.\nAll captured images will be deleted.",
-		"restartConfirm": "Restart will try to create a video, then get ready for the next print.\n\nAll captured images will be deleted, unless keep_files is set.",
+		"restartConfirm": "Restart will try to create a video, read the settings again, then get ready for the next print.\n\nAll captured images will be deleted, unless keep_files is set.",
 		"graceful": "Finish capture",
 		"forced": "Terminate the program",
 		"gracefulText": "Make the video.\n{video}",
@@ -242,7 +243,7 @@
 		"axis": "{label} {axis}"
 	},
 	"config": {
-		"restartNeeded": "Changes here take effect when duetLapse3 is restarted."
+		"restartNeeded": "Changes here take effect when you press Restart on the Status tab."
 	},
 	"cameras": {
 		"couldNotSwitch": "Could not switch {camera}: {error}",
@@ -288,6 +289,16 @@
 		"delete": "Delete",
 		"inUse": "The current print - in use",
 		"more": "Show {n} more of {total}"
+	},
+	"log": {
+		"filter": "Show only lines containing",
+		"follow": "Follow",
+		"previous": "Previous log",
+		"disabled": "There is no logfile: Disable Logging is on (Files tab).",
+		"couldNotRead": "Could not read the logfile: {error}",
+		"truncated": "Showing the end of the logfile - download it to see all of it.",
+		"noMatch": "No lines contain \"{filter}\"",
+		"empty": "The logfile is empty"
 	},
 	"choices": {
 		"capture_on": {
@@ -339,13 +350,19 @@
 			"disconnected": "disconnected"
 		}
 	},
+	"settingsAlert": {
+		"notApplied": "These settings were not applied - the current ones are still in use"
+	},
 	"server": {
-		"savedRestart": "Saved. Restart duetLapse3 for the changes to take effect.",
+		"savedRestart": "Saved. The changes take effect when you press Restart on the Status tab.",
 		"savedVideo": "Saved. The video settings are in use now.",
 		"savedCameras": "Saved. The cameras are in use now.",
 		"savedConnecting": "Saved - connecting to the printer at {printer}",
 		"alreadyConnected": "Already connected to the printer",
 		"notSavedInvalid": "Not saved - some settings are invalid",
+		"conflictParkLocation": "Park Location is only used with Park before image on, or Event capture set to When paused in print job",
+		"conflictParkPause": "Park before image can not be used with Event capture set to When paused in print job - the print job makes its own pauses",
+		"settingBad": "A saved setting has a value that can not be used - see the log",
 		"cameraOn": "{camera} is on",
 		"cameraOff": "{camera} is off - no images will be taken from it",
 		"settingsUnreadableDefaults": "Could not read the settings file - showing the defaults. {error}",
@@ -353,6 +370,7 @@
 		"notWhole": "{key} must be a whole number, not {value}",
 		"notList": "{key} must be a list of {count} numbers e.g. {example}",
 		"notText": "{key} must be text (in quotes), not {value}",
+		"notChangeable": "{key} can not be changed while running",
 		"notChoice": "{key} must be one of {choices}, not \"{value}\"",
 		"minvideoTooBig": "min_video_seconds ({min}) can not be more than video_length ({max})",
 		"maxvideoTooSmall": "video_length must be 0 (off) or at least min_video_seconds ({min})",
