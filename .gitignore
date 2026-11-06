@@ -19,5 +19,8 @@ standalone/*.zip
 duetLapse3.json
 duetLapse3.json.tmp
 
+# The image / video folder a test run makes, wherever it is
+srsender/
+
 # Settings folder: the image / video folders a test run puts there (basedir blank = the settings folder)
 Code/sd/sys/duetLapse3/*/

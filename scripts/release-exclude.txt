@@ -18,3 +18,9 @@
 # The settings file, wherever it is (it holds the printer password) - duetLapse3 creates it with the defaults on first start
 duetLapse3.json
 duetLapse3.json.tmp
+
+# The image / video folder a test run makes, wherever it is
+srsender/
+
+# Log files in the program's folder
+dsf/*.log
