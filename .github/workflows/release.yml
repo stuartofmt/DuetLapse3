@@ -5,7 +5,7 @@ name: Release
 # repository's plugin.json, its settings in scripts/ (release-channel.txt, release-exclude.txt, release-titles.txt)
 # and its standalone/ folder. How to release, test builds and settings:
 #   https://github.com/stuartofmt/DWC-Tools/blob/Prep_and_Package/.github/workflows/plugin-release.yml.md
-# To tag a release, run this from inside the repository:  ~/DWC/Tools/Prep_and_Package/scripts/release.sh
+# To tag a release, run scripts/release.sh (it runs the shared ~/DWC/Tools/Prep_and_Package/scripts/release.sh)
 
 on:
   push:
