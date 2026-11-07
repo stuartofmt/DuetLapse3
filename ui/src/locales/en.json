@@ -102,6 +102,10 @@
 			"label": "Rest Time",
 			"description": "Seconds to wait after parking, before the image is captured"
 		},
+		"park_min_layers": {
+			"label": "Minimum Layers",
+			"description": "Minimum layers before park. No images are taken, and the print isn't paused, until the layer is above this"
+		},
 		"start_mode": {
 			"label": "When to start",
 			"description": "When to start taking images. Event capture set to Timed Only, with Timed capture above 0, always starts straight away or at the Start command"

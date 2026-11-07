@@ -41,6 +41,7 @@ What changed since the 3.6 version (DuetLapse3 5.3.7, for DWC / DSF 3.6), descri
 - **Print job names.** Images taken with no print job running went in a folder named after the previous job, because the printer keeps that name after a job ends. A folder now only gets a job's name while that job is running. If a print then starts, the folder takes its name.
 - **No wait after a print.** duetLapse3 waited up to a minute after every print for the printer to clear the job name, which it doesn't do, so images could be missed if another print started straight away.
 - **When to start.** `start_mode` (When to start) replaces `start_now` and `standby`: `on_print`, the default, `now` or `standby`. Having both on is no longer possible. `start_now` and `standby` in a settings file are ignored, so duetLapse3 goes back to starting when a print starts until this is set. Slicer gcode that changes them needs `/change?start_mode=`.
+- **Park only when an image is due.** With Park before image and On layer change, the print was paused and parked at every check, about every 12 seconds, even when no image was due, starting during the first layer. It now parks once per image. No images are taken until the layer is above **Minimum Layers** (`park_min_layers`, default 3).
 - **Gcode fix.** `/change?layer_interval=` is now accepted, as documented.
 - **Gcode security fix.** `change` values were run as Python code, so a crafted value in gcode could run code on the computer running duetLapse3. They are now checked like saved settings, and a bad value isn't applied and shows the alert.
 - **Restart fixes.** Restart did nothing with No Video on, and couldn't be used in standby.
@@ -79,7 +80,7 @@ What changed since the 3.6 version (DuetLapse3 5.3.7, for DWC / DSF 3.6), descri
   The gcode `/change?<setting>=` commands use the new names (e.g. `/change?capture_seconds=30`). `keeplogs` is removed: per-print logs left by earlier versions are always cleaned up.
 - **`restart` replaced by `norestart`** (the opposite). duetLapse3 now gets ready for the next print by default; set `norestart` to stop it when a print finishes. The Graceful terminate button is now **Finish capture**, and Forced terminate is **Terminate the program**. An old `restart` setting is still read.
 - **`capture_on none` renamed `capture_on timed`.** `none` is still accepted and read as `timed`.
-- **New settings:** `duet_port`, `ffmpeg_threads`, `camera1_on`, `camera2_on`, `allow_multiple_instances`, `start_mode`.
+- **New settings:** `duet_port`, `ffmpeg_threads`, `camera1_on`, `camera2_on`, `allow_multiple_instances`, `start_mode`, `park_min_layers`.
 
 ## The web page
 
@@ -90,7 +91,7 @@ What changed since the 3.6 version (DuetLapse3 5.3.7, for DWC / DSF 3.6), descri
 - **Removed:** the old HTML templates (`dsf/www/`), the `/tab/...` routes and the old `?displayStatus` style calls.
 - **Tabs:** Status (with the controls), Video, **Cameras**, **Config**, **Files**. Config has its own tabs: **General**, **Image Capture**, **Execution** and **File Settings**. The main Files tab has **Images** and **Log**. The controls moved onto the Status tab, so there's no separate Controls tab.
   - **Images** is the file browser (it was the Files tab).
-  - **Image Capture** holds Timed capture, Event capture and Layers between capture, and a new **Pause** section (`park`, `park_xy`, `park_wait`). **Execution** has When to start and No restart. **File Settings** has the logging and image clean-up settings.
+  - **Image Capture** holds Timed capture, Event capture and Layers between capture, and a new **Pause** section (`park`, `park_xy`, `park_wait`, `park_min_layers`). **Execution** has When to start and No restart. **File Settings** has the logging and image clean-up settings.
   - **Ready for other languages.** All the page's text is in `ui/src/locales/en.json`, including duetLapse3's own messages (save results, setting errors, the video message and results, the wrong-password banner), which it now sends with a code and values. The language is `?lang=<code>`, otherwise the browser's language, otherwise English; a partial translation falls back to English for the rest. Only English exists so far.
   - **Log** shows the current logfile, updated as it grows, with follow, a filter, download and the previous log.
   - **Info tab removed.** The page address is in the log, and the settings in use are written to the log at the start of each print.

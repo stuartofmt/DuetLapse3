@@ -58,6 +58,7 @@ These settings can be changed:
 | `park`, `norestart`, `no_video`, `keep_files`, `verbose` | `True` or `False` |
 | `park_xy` | two numbers: `X,Y` |
 | `park_wait`, `end_hold`, `min_video_seconds`, `video_length` | seconds |
+| `park_min_layers` | number of layers |
 | `fps` | frames per second |
 
 See the [README](../README.md) for what each setting does.

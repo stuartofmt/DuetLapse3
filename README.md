@@ -111,6 +111,7 @@ When images are taken.
 | Park before image | `park` | off | Pause the print and park the head before each image (from layer 1), then resume |
 | Park Location | `park_xy` | `0, 0` | Where to park the head (X, Y). 0, 0 = don't move it |
 | Rest Time | `park_wait` | `1` | Seconds to wait after parking, before the image |
+| Minimum Layers | `park_min_layers` | `3` | With Park before image on, no images are taken, and the print isn't paused, until the layer is above this. The default 3 means the first image is at layer 4 |
 
 #### Execution
 
