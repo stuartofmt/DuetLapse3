@@ -88,7 +88,7 @@
 		},
 		"layer_interval": {
 			"label": "Layers between capture",
-			"description": "Take an image every n layers when Event capture = On layer change"
+			"description": "Take an image every n layers when Event capture = On layer change (with Park before image on, Layers between Park is used instead)"
 		},
 		"park": {
 			"label": "Park before image",
@@ -105,6 +105,10 @@
 		"park_min_layers": {
 			"label": "Minimum Layers",
 			"description": "Minimum layers before park. No images are taken, and the print isn't paused, until the layer is above this"
+		},
+		"park_layer_interval": {
+			"label": "Layers between Park",
+			"description": "With Park before image on, park and take an image every n layers, starting at the first layer above Minimum Layers. Layers between capture isn't used"
 		},
 		"start_mode": {
 			"label": "When to start",

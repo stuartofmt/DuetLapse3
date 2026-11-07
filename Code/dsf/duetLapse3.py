@@ -128,7 +128,7 @@ Settings that conflict are refused when saved.  If a restart command or a gcode 
 Gcode (M3291) commands are http api requests: /command/start, /snapshot, /terminate/terminateg, /terminate/terminatef, and the new /change?<setting>=<value>.  duetLapse3.start etc are no longer recognised
 /command only carries out what is allowed in the current state
 Removed simulate
-Fixed park with capture_on layer pausing the print at every capture pass, not only when an image was due.  With park, images start after park_min_layers (new, default 3)
+Fixed park with capture_on layer pausing the print at every capture pass, not only when an image was due.  With park, images start after park_min_layers (new, default 3), then every park_layer_interval layers (new, default 3)
 start_now and standby replaced by start_mode: on_print (the default), now or standby
 New Image Capture tab with capture_seconds, capture_on and layer_interval, moved from the Execution tab, and park, park_xy and park_wait, moved from the Config tab
 Image Capture, Execution and File Settings are now tabs under the Config tab, with General for the rest
@@ -275,7 +275,7 @@ DEFAULTS = {
     'Files': {'no_log': False, 'verbose': False, 'no_video': False, 'delete_images': False, 'keep_files': False},
     'Capture': {'capture_seconds': 0, 'capture_on': 'layer', 'layer_interval': 1},
     'Execution': {'start_mode': 'on_print', 'norestart': False},
-    'Pause': {'park': False, 'park_xy': [0, 0], 'park_wait': 1, 'park_min_layers': 3},
+    'Pause': {'park': False, 'park_xy': [0, 0], 'park_wait': 1, 'park_min_layers': 3, 'park_layer_interval': 3},
     'Camera': {'camera1_url': '', 'camera1_on': True, 'camera2_url': '', 'camera2_on': True},
     'Video': {'end_hold': 0, 'fps': 10, 'min_video_seconds': 5, 'video_length': 0, 'ffmpeg_threads': 0},
     'UI': {'UI_port': 0, 'UI_ip': '', 'open_browser': True},
@@ -500,6 +500,7 @@ def applySettings(args):
         state.park_wait = 0
 
     state.park_min_layers = max(0, args['park_min_layers'])
+    state.park_layer_interval = max(1, args['park_layer_interval'])
 
     state.norestart = args['norestart']
     state.restart = not state.norestart  # Get ready for the next print when one finishes
@@ -1517,7 +1518,11 @@ def oneInterval(cameraname, weburl, finalframe=False):
         logger.debug('Bypassing onePhoto from oneInterval because park is set and layer = ' + str(zn))
     else:
         if 'layer' in state.capture_on:
-            if zn % state.layer_interval == 0:  # Every layer_interval layers
+            if state.park:  # Only parked images: the first layer above park_min_layers, then every park_layer_interval layers
+                due = (zn - state.park_min_layers - 1) % state.park_layer_interval == 0
+            else:  # Every layer_interval layers
+                due = zn % state.layer_interval == 0
+            if due:
                 if (not zn == state.zo1 and cameraname == 'Camera1') or (not zn == state.zo2 and cameraname == 'Camera2'):
                     # Layer changed, take a picture - parking first, only now that an image is due
                     checkForPause(zn)
@@ -2193,8 +2198,8 @@ def changeSettings(settings):
     # /change: {setting: value as text}, checked as saved settings are, then used straight away.  They are not saved
     # All of them are used, or none (with an alert).  Returns {setting: error} ({} if used) - '' is used for a conflict
     changeable = ['verbose', 'capture_seconds', 'capture_on', 'layer_interval', 'park_xy', 'start_mode', 'park', 'norestart', 'no_video', 'keep_files',
-                  'min_video_seconds', 'video_length', 'end_hold', 'fps', 'park_wait', 'park_min_layers']
-    smallest = {'layer_interval': 1, 'fps': 1, 'park_wait': 0, 'park_min_layers': 0, 'min_video_seconds': 0, 'video_length': 0, 'end_hold': 0}
+                  'min_video_seconds', 'video_length', 'end_hold', 'fps', 'park_wait', 'park_min_layers', 'park_layer_interval']
+    smallest = {'layer_interval': 1, 'fps': 1, 'park_wait': 0, 'park_min_layers': 0, 'park_layer_interval': 1, 'min_video_seconds': 0, 'video_length': 0, 'end_hold': 0}
     defaults = flatDefaults()
     values, errors = {}, {}
     for key, value in settings.items():

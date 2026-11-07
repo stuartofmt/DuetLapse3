@@ -41,6 +41,7 @@ layer_interval = None
 park_xy = None
 park_wait = None
 park_min_layers = None
+park_layer_interval = None
 standby = None
 norestart = None  # The setting - don't get ready for the next print
 restart = None  # not norestart
