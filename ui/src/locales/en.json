@@ -198,7 +198,8 @@
 		"version": "duetLapse3 version",
 		"lastImage": "Last image",
 		"noCamera": "No camera in use - set using the Cameras tab",
-		"waiting": "Waiting for the first image to be captured"
+		"waiting": "Waiting for the first image to be captured",
+		"snapshot": "The camera now - waiting for the first image to be captured"
 	},
 	"controls": {
 		"title": "Controls",

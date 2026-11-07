@@ -19,6 +19,7 @@ All of these use GET.
 | `/terminate/terminateg` | Finish capture: make the video, then get ready for the next print (or stop, if `norestart` is set) |
 | `/terminate/terminatef` | Terminate the program straight away, without a video |
 | `/camera/preview?url=<camera url>` | One image from a camera URL |
+| `/camera/snapshot?camera=<1 or 2>` | One image now from that camera, if it's in use (404 if not). The Status tab shows it until the first image is captured |
 
 ## Data
 

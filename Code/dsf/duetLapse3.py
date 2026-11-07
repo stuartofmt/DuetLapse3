@@ -128,6 +128,7 @@ Settings that conflict are refused when saved.  If a restart command or a gcode 
 Gcode (M3291) commands are http api requests: /command/start, /snapshot, /terminate/terminateg, /terminate/terminatef, and the new /change?<setting>=<value>.  duetLapse3.start etc are no longer recognised
 /command only carries out what is allowed in the current state
 Removed simulate
+The Status tab shows an image from the camera until the first image is captured (/camera/snapshot)
 Fixed park with capture_on layer pausing the print at every capture pass, not only when an image was due.  With park, images start after park_min_layers (new, default 3), then every park_layer_interval layers (new, default 3)
 start_now and standby replaced by start_mode: on_print (the default), now or standby
 New Image Capture tab with capture_seconds, capture_on and layer_interval, moved from the Execution tab, and park, park_xy and park_wait, moved from the Config tab

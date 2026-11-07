@@ -588,6 +588,13 @@ def cameras_enable(settings: dict = Body(...)):  # {key: camera1_on | camera2_on
 def camera_preview(url: str):  # One image from the camera url, fetched by duetLapse3
     return preview_image(url)
 
+@router.get('/camera/snapshot')
+def camera_snapshot(camera: int = 1):  # One image now from camera 1 or 2, if it is in use - its url stays on this computer
+    url = dl3.cameraUrl(camera) if camera in [1, 2] else ''
+    if url == '':
+        return PlainTextResponse('Camera' + str(camera) + ' is not in use', status_code=404)
+    return preview_image(url)
+
 
 ###########################
 # Actions

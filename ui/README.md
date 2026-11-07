@@ -53,4 +53,4 @@ and open <http://localhost:5173/static/app/index.html>. Changes show as soon as 
 | `GET /api/settings?tab=config\|video` | The settings for that tab, with type, choices and help |
 | `GET /api/cameras` | The camera urls |
 | `POST /config/save`, `/video/save`, `/cameras/save` | Check and save settings. 400 with `{errors: {setting: message}}` if any are invalid |
-| `GET /command/<name>`, `/terminate/<type>`, `/snapshot`, `/makevideo`, `/zip`, `/delete`, `/getfile`, `/camera/preview` | Actions |
+| `GET /command/<name>`, `/terminate/<type>`, `/snapshot`, `/makevideo`, `/zip`, `/delete`, `/getfile`, `/camera/preview`, `/camera/snapshot` | Actions |
