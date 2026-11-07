@@ -94,6 +94,7 @@ The settings, on four tabs of their own. Changes take effect when you press **Re
 | Image folder | `image_dir` | blank | Where images and videos go. Blank = the settings folder (`sys/duetLapse3` for the plugin); the folder in use is shown in the field. Inside it they go in `<computer name>/<printer address>/` folders |
 | Allow multiple instances | `allow_multiple_instances` | off | Let more than one duetLapse3 run on this computer. When off, a second one stops at once (exit code 6). When on, each one must use a different settings folder (see [Running without DWC](#running-without-dwc)) |
 | UI port | `UI_port` | `0` | Port for the duetLapse3 page. 0 picks a free port from 17800 upwards; the port in use is shown below the field |
+| Open browser at startup | `open_browser` | on | Open the page in this computer's default browser when duetLapse3 starts. Not used when running as a DWC plugin, or on Linux without a desktop (e.g. over ssh) |
 | UI ip | `UI_ip` | | Set by duetLapse3 to this computer's IP address (the page's address) |
 
 #### Image Capture

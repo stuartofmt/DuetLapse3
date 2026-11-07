@@ -23,6 +23,7 @@ duet_port = None  # Printer port
 duet_password = None
 image_dir = None
 allow_multiple_instances = None
+open_browser = None  # Open the page in this computer's browser at startup - not as the plugin
 no_log = None
 verbose = None
 port = None

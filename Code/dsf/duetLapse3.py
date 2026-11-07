@@ -202,6 +202,7 @@ import zlib
 import re
 import math
 import urllib.parse
+import webbrowser
 import requests
 
 import state  # Shared state - always use state.<name>
@@ -276,7 +277,7 @@ DEFAULTS = {
     'Pause': {'park': False, 'park_xy': [0, 0], 'park_wait': 1},
     'Camera': {'camera1_url': '', 'camera1_on': True, 'camera2_url': '', 'camera2_on': True},
     'Video': {'end_hold': 0, 'fps': 10, 'min_video_seconds': 5, 'video_length': 0, 'ffmpeg_threads': 0},
-    'UI': {'UI_port': 0, 'UI_ip': ''},
+    'UI': {'UI_port': 0, 'UI_ip': '', 'open_browser': True},
 }
 CHOICES = {'capture_on': ['layer', 'pause', 'timed'], 'start_mode': ['on_print', 'now', 'standby']}
 configExtras = ['UI_ip']  # Written by duetLapse3, not read as a setting
@@ -462,6 +463,8 @@ def applySettings(args):
     state.image_dir = args['image_dir']
 
     state.allow_multiple_instances = args['allow_multiple_instances']
+
+    state.open_browser = args['open_browser']
 
     state.no_log = args['no_log']
 
@@ -1827,6 +1830,23 @@ def startHttpListener():
     logger.info('##########################################################\n')
 
 
+def openBrowser():
+    # Open the page in this computer's default browser - not when DSF started duetLapse3 as its plugin (DWC shows the page)
+    if not state.open_browser or os.path.realpath(__file__).startswith('/opt/dsf/plugins/'):
+        return
+    url = 'http://localhost:' + str(state.port)
+    # Without a desktop (e.g. over ssh), Linux would use a text browser in the terminal
+    if not (state.win or sys.platform == 'darwin' or os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY')):
+        logger.info('No desktop to open a browser on - open ' + url + ' (or this computer\'s address) in a browser')
+        return
+    try:
+        opened = webbrowser.open(url)
+    except Exception as e:  # e.g. no browser installed
+        logger.debug('Could not open a browser: ' + str(e))
+        opened = False
+    logger.info(('Opened ' + url + ' in the default browser') if opened else ('Could not open a browser - open ' + url + ' in a browser'))
+
+
 def moveListener():
     # UI_port was changed by the restart command: the page moves there.  0 keeps the port in use
     port, state.newPort = state.newPort, None
@@ -2301,6 +2321,7 @@ def startup():
 
     if state.httpListener and state.restarting is False:
         startHttpListener()
+        openBrowser()  # Run by hand (remote SBC or standalone, or the SBC itself) - not as the plugin
 
     checkforPrinter()  # Needs to be connected before following are executed
 

@@ -70,6 +70,10 @@
 			"label": "UI port",
 			"description": "Port for this UI (0 = pick a free port)"
 		},
+		"open_browser": {
+			"label": "Open browser at startup",
+			"description": "Open this page in this computer's browser when duetLapse3 starts. Not used when running as a DWC plugin, or without a desktop"
+		},
 		"UI_ip": {
 			"label": "UI ip",
 			"description": "The ip address of this computer (read only)"
