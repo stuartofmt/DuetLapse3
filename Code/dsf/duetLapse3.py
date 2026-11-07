@@ -650,8 +650,55 @@ def reloadSettings():
     state.newPort = args['UI_port']  # The control loop moves the page - after answering this request
 
 
+_folderNotes = []  # What defaultFolder found out, logged once the logger is set up
+
+
+def packagedPython():
+    # True on Windows if this Python runs as a packaged app (e.g. from the Microsoft Store, started through
+    # ...\WindowsApps\python.exe).  Windows then quietly redirects files it writes under AppData to a private folder of
+    # the package, which Explorer and other programs do not see
+    if os.name != 'nt':
+        return False
+    try:
+        import ctypes
+        length = ctypes.c_uint32(0)
+        # 15700 (APPMODEL_ERROR_NO_PACKAGE) = not packaged; 122 (ERROR_INSUFFICIENT_BUFFER) = packaged
+        return ctypes.windll.kernel32.GetCurrentPackageFullName(ctypes.byref(length), None) != 15700
+    except (AttributeError, OSError):
+        return False
+
+
+def folderWritable(folder):
+    try:
+        test = os.path.join(folder, '.duetLapse3-write-test')
+        with open(test, 'w') as f:
+            f.write('')
+        os.remove(test)
+        return True
+    except OSError:
+        return False
+
+
+def defaultFolder():
+    # The folder for duetLapse3.json and the logfile when none is given: this program's folder.  If it can not be
+    # written to (e.g. in Program Files) on Windows: the user's application data - or Documents\duetLapse3 with a
+    # packaged Python (Microsoft Store), which would hide files in application data
+    folder = os.path.dirname(os.path.realpath(__file__))
+    if os.name != 'nt' or folderWritable(folder):
+        return folder
+    if packagedPython() or not os.environ.get('APPDATA'):
+        folder = os.path.join(os.path.expanduser('~'), 'Documents', 'duetLapse3')
+        _folderNotes.append('The program folder can not be written to, and this Python is a packaged app (e.g. from the '
+                            'Microsoft Store), which hides files in AppData from other programs - so ' + folder + ' is used')
+    else:
+        folder = os.path.join(os.environ['APPDATA'], 'duetLapse3')
+        _folderNotes.append('The program folder can not be written to - so ' + folder + ' is used')
+    os.makedirs(folder, exist_ok=True)
+    return folder
+
+
 def init():
-    # Argument 1 is the folder for duetLapse3.json and the logfile - default is this program's folder
+    # Argument 1 is the folder for duetLapse3.json and the logfile - default is this program's folder (see defaultFolder)
     if len(sys.argv) > 1:
         state.configdir = os.path.realpath(sys.argv[1])
         if not os.path.isdir(state.configdir):  # Create it - duetLapse3.json is then created with the defaults
@@ -662,7 +709,7 @@ def init():
                 print('Folder ' + sys.argv[1] + ' could not be created - Exiting. ' + str(e))
                 sys.exit(1)
     else:
-        state.configdir = os.path.dirname(os.path.realpath(__file__))
+        state.configdir = defaultFolder()
     state.configfile = os.path.join(state.configdir, configFileName)
 
     args = loadSettings(state.configfile)
@@ -675,6 +722,9 @@ def init():
 
     # Create handler for console output - file output handler is created later if needed
     logger_module.setup_logger(state.duet, console=state.no_log is False)
+    logger.info('Settings and log folder: ' + state.configdir)
+    for note in _folderNotes:
+        logger.info(note)
 
     ########################################################################
     # Check to see if this instance is allowed to run
