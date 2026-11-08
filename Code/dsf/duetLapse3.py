@@ -128,6 +128,7 @@ Settings that conflict are refused when saved.  If a restart command or a gcode 
 Gcode (M3291) commands are http api requests: /command/start, /snapshot, /terminate/terminateg, /terminate/terminatef, and the new /change?<setting>=<value>.  duetLapse3.start etc are no longer recognised
 /command only carries out what is allowed in the current state
 Removed simulate
+Parking sends G90 before the move, and the move has F9000
 The Status tab shows an image from the camera until the first image is captured (/camera/snapshot)
 Fixed park with capture_on layer pausing the print at every capture pass, not only when an image was due.  With park, images start after park_min_layers (new, default 3), then every park_layer_interval layers (new, default 3)
 start_now and standby replaced by start_mode: on_print (the default), now or standby
@@ -1444,7 +1445,8 @@ def checkForPause(layer):
     if state.duetStatus == 'paused':
         if not state.park_xy == [0.0, 0.0]:  # optional repositioning of head
             logger.debug('Moving print head to X{0:4.2f} Y{1:4.2f}'.format(state.park_xy[0], state.park_xy[1]))
-            sendDuetGcode(state.apiModel, 'G0 X{0:4.2f} Y{1:4.2f}'.format(state.park_xy[0], state.park_xy[1]))
+            sendDuetGcode(state.apiModel, 'G90')  # Absolute moves and a set speed - not whatever pause.g left
+            sendDuetGcode(state.apiModel, 'G0 X{0:4.2f} Y{1:4.2f} F9000'.format(state.park_xy[0], state.park_xy[1]))
             loop = 0
             while True:
                 time.sleep(loopinterval)  # wait and try again
