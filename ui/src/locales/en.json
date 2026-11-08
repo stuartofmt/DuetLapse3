@@ -3,7 +3,7 @@
 		"Video": "Video",
 		"Camera": "Camera",
 		"Environment": "Environment",
-		"UI": "UI",
+		"UI": "Web Interface",
 		"Capture": "Capture",
 		"Pause": "Pause",
 		"Execution": "Execution",
@@ -66,17 +66,17 @@
 			"label": "Allow multiple instances",
 			"description": "Let more than one duetLapse3 run on this computer. Each one must use a different settings folder"
 		},
+		"UI_ip": {
+			"label": "IP address",
+			"description": "This computer's IP address (read only)"
+		},
 		"UI_port": {
-			"label": "UI port",
-			"description": "Port for this UI (0 = pick a free port)"
+			"label": "Port",
+			"description": "Port for this page (0 = pick a free port)"
 		},
 		"open_browser": {
 			"label": "Open browser at startup",
 			"description": "Open this page in this computer's browser when duetLapse3 starts. Not used when running as a DWC plugin, or without a desktop"
-		},
-		"UI_ip": {
-			"label": "UI ip",
-			"description": "The ip address of this computer (read only)"
 		},
 		"capture_seconds": {
 			"label": "Timed capture",

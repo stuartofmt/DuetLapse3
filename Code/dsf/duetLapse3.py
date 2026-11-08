@@ -280,7 +280,7 @@ DEFAULTS = {
     'Pause': {'park': False, 'park_xy': [0, 0], 'park_wait': 1, 'park_min_layers': 3, 'park_layer_interval': 3},
     'Camera': {'camera1_url': '', 'camera1_on': True, 'camera2_url': '', 'camera2_on': True},
     'Video': {'end_hold': 0, 'fps': 10, 'min_video_seconds': 5, 'video_length': 0, 'ffmpeg_threads': 0},
-    'UI': {'UI_port': 0, 'UI_ip': '', 'open_browser': True},
+    'UI': {'UI_ip': '', 'UI_port': 0, 'open_browser': True},
 }
 CHOICES = {'capture_on': ['layer', 'pause', 'timed'], 'start_mode': ['on_print', 'now', 'standby']}
 configExtras = ['UI_ip']  # Written by duetLapse3, not read as a setting
