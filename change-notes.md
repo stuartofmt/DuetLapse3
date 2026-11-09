@@ -25,7 +25,7 @@ What changed since the 3.6 version (DuetLapse3 5.3.7, for DWC / DSF 3.6), descri
 - **New plugin id.** It installs to `plugins/duetLapse3`, and DWC shows it under **Plugins → duetLapse3**. Uninstall the old `DuetLapse3` plugin first.
 - **Settings file.** Settings are in `sys/duetLapse3/duetLapse3.json`, replacing `sys/DuetLapse3/DuetLapse3.config`. Old settings have to be copied across by hand.
 - **Python packages.** DSF installs them from `requirements.txt`: requests, psutil, dsf-python, fastapi, uvicorn and websocket-client, each pinned to a version.
-- **Python 3.12 or later.** duetLapse3 checks this when it starts, and stops with a message if the Python is older (as duetPrintGuard does).
+- **Python 3.11 or later.** duetLapse3 checks this when it starts, and stops with a message if the Python is older. 3.11 is what Raspberry Pi OS Bookworm has.
 - **Version.** It's 6.0.0, read from `plugin.json`, so the version only lives in one place.
 - **DWC page.** It finds duetLapse3's address from the plugin data that duetLapse3 publishes at startup, instead of reading `-duet`/`-port` from the old `.config`. It shows "The duetLapse3 plugin has stopped" if the program stops, and shows the page again when it restarts. The page itself is a copy of duetPrintGuard's, which uses the current DWC API.
 - **Gcode commands changed.** Commands are now the web API's paths, such as `M3291 B"/command/start"`. The old `DuetLapse3.` and `duetLapse3.` spellings are logged as not recognised, and aren't carried out.
@@ -146,6 +146,7 @@ What changed since the 3.6 version (DuetLapse3 5.3.7, for DWC / DSF 3.6), descri
 
 ## Logging
 
+- **Startup log.** Until the startup checks pass, messages go to the console and a new `duetLapse3.startup.log` in the program's folder. The first `duetLapse3.log` then starts with them, so they're on the Log tab. A start that stops (a bad setting, a conflict, already running, no ffmpeg) leaves the previous log as it was.
 - **One log.** There's one `duetLapse3.log`, next to `duetLapse3.json`, started fresh each time duetLapse3 starts and for each print. The one before it is kept as `duetLapse3.previous.log`. It's no longer moved into each print's folder.
 - **Messages.** Log messages use setting names (`capture_on pause`) instead of command-line options (`-detect pause`). The log shows the page address and the printer's full address.
 

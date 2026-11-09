@@ -165,6 +165,8 @@ Logging, and what happens to the images and videos.
 
 The log is `duetLapse3.log`, next to `duetLapse3.json`. A new log starts each time duetLapse3 starts and for each print: at the end of a print, or when you press **Restart**. The one before it is kept as `duetLapse3.previous.log`. See both on the [Log](#log) tab.
 
+While duetLapse3 is starting, before the settings have been read and checked, its messages go to `duetLapse3.startup.log` in the program's own folder (`dsf/` for the plugin), as well as the console. A new one is made at each start. When the startup checks pass, logging switches to `duetLapse3.log`, which begins with what the startup log holds, so the Log tab shows it too. If duetLapse3 stops during startup, for example because a setting has a bad value or another copy is already running, the reason is only in `duetLapse3.startup.log` and the console, and the previous `duetLapse3.log` is left as it was.
+
 ### Files
 
 The images, videos and log, on two tabs of their own.
@@ -197,7 +199,7 @@ If **Disable Logging** is on (Config, File Settings tab), there is no log to sho
 
 ## Running without DWC
 
-duetLapse3 can also run on its own, on the same computer as the printer or another one. Download the standalone zip from the release, unzip it, and run `run.bat` (Windows) or `run.sh` (Linux, macOS). The first time, it makes a Python environment and installs what duetLapse3 needs. It needs Python 3.12 or later.
+duetLapse3 can also run on its own, on the same computer as the printer or another one. Download the standalone zip from the release, unzip it, and run `run.bat` (Windows) or `run.sh` (Linux, macOS). The first time, it makes a Python environment and installs what duetLapse3 needs. It needs Python 3.11 or later.
 
 Or run it with Python yourself:
 

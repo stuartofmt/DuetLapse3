@@ -30,6 +30,7 @@ logger.propagate = False
 logger.addFilter(MaskSecrets())
 
 logfilename = ''  # Current logfile
+startup_log = ''  # The startup log while it is in use - copied to the top of the first logfile
 
 FILE_FORMAT = '%(asctime)s - %(threadName)s - %(message)s'
 
@@ -78,14 +79,47 @@ def _add_file_handler(filename, mode):
     logfilename = filename
 
 
+def start_startup_log(filename):
+    # A new startup log, used (with the console) until the startup checks are done.  Returns an error, or ''
+    global startup_log
+    try:
+        _add_file_handler(filename, 'w')
+    except OSError as e:
+        return str(e)
+    startup_log = filename
+    return ''
+
+
+def end_startup_log():
+    # Stop using the startup log.  Returns what it holds, or '' if there was none
+    global startup_log
+    text = ''
+    if startup_log:
+        close_log_file()
+        try:
+            with open(startup_log, encoding='utf-8', errors='replace') as f:
+                text = f.read()
+        except OSError:
+            pass
+        startup_log = ''
+    return text
+
+
 def create_log_file(filename, previous):
-    # Start a new (empty) logfile.  The one before it becomes previous, replacing the one before that
+    # Start a new (empty) logfile.  The one before it becomes previous, replacing the one before that.
+    # The first one starts with what the startup log holds
+    startup = end_startup_log()
     close_log_file()
     try:
         os.replace(filename, previous)
     except OSError:  # The first logfile
         pass
     _add_file_handler(filename, 'w')
+    if startup:
+        for handler in logger.handlers:
+            if isinstance(handler, logging.FileHandler):
+                handler.stream.write(startup)
+                handler.flush()
     return logfilename
 
 

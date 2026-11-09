@@ -114,8 +114,9 @@ def returncode(code):  # Defined here - used by calling programs
 
 configFileName = 'duetLapse3.json'
 logFileName = 'duetLapse3.log'
+startupLogFileName = 'duetLapse3.startup.log'  # In the program's folder - new at each start
 pythonMajor = 3
-pythonMinor = 12  # The oldest Python duetLapse3 runs on (as duetPrintGuard)
+pythonMinor = 11  # The oldest Python duetLapse3 runs on - Raspberry Pi OS Bookworm has 3.11
 previousLogFileName = 'duetLapse3.previous.log'
 jobStatuses = ['processing', 'paused', 'pausing', 'resuming', 'cancelling', 'changingTool', 'simulating']  # The printer has a print job running
 
@@ -551,6 +552,13 @@ def init():
     # Console output first - until the settings are read, which can turn it off (no_log) and name the printer
     logger_module.setup_logger('duetLapse3')
     logger_module.set_log_level(False)
+    # and a new startup log in the program's folder, until the startup checks are done and the logfile is known
+    startupLog = os.path.join(os.path.dirname(os.path.realpath(__file__)), startupLogFileName)
+    error = logger_module.start_startup_log(startupLog)
+    if error:
+        logger.info('No startup log - ' + startupLog + ' could not be created: ' + error)
+    else:
+        logger.info('duetLapse3 is starting - logged in ' + startupLog + ' until the startup checks are done')
     if sys.version_info < (pythonMajor, pythonMinor):
         logger.info('duetLapse3 needs Python ' + str(pythonMajor) + '.' + str(pythonMinor) + ' or later - this is ' + sys.version.split()[0] + ' - Exiting')
         sys.exit(1)
@@ -622,7 +630,6 @@ def init():
     #  Clean up older files
     cleanupFiles('startup')
 
-    setupLogFile()
     setNextWorkingDir()
 
     ###############################################
@@ -651,6 +658,8 @@ def init():
         logBox([conflict])
         sys.exit(2)
 
+    # The startup checks are done: from here on, the logfile (which starts with the startup log)
+    setupLogFile()
     return  # init()
 
 
@@ -734,6 +743,7 @@ def setupLogFile():  # Called at start and for each new print - the logfile, in 
         logger.info('Settings from  ---  ' + state.configfile)
         logger.info('-------------------------------------------------------------------------------\n')
     else:
+        logger_module.end_startup_log()
         state.logfilename = 'None (no_log is set)'
 
 
