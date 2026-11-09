@@ -10,12 +10,7 @@
 # Copyright (C) 2020 Stuart Strolin all rights reserved.
 # Released under The MIT License. Full text available via https://opensource.org/licenses/MIT
 #
-#
-# Developed on Raspberry Pi and WSL with Debian Bullseye and on Windows 10/11. SHOULD work on most other linux distributions.
-# Cameras must be network reachable http cameras, with a snapshot url or an MJPEG stream url.
-# The Duet printer must be RepRap firmware V3 and must be network reachable.
-#
-#
+##
 """
 
 import json
@@ -36,155 +31,7 @@ def _plugin_version():
 
 duetLapse3Version = _plugin_version()
 
-"""
-CHANGES
- Fixed snapshot when called from gcode
- Added second variable to video api --> xtratime
- Fixed calculation type error on extratime
- rationalized timers
- added throttle for status calls
- changed M117 messages to M291
- 5.1.1
- Refreshes tab on regaining focus from browser
- Changed G1 to G0 in movehead
- 5.2.0
- Process all M291 messages without delay
- Refactored loop control to prevent thread blocking
- Prevent first layer capture if -pause yes
- Added -password
- 5.2.1
- Changed background tab color - better for dark theme
- 5.2.2
- Fixed bug in -pause layer detection
- Added wait loop before restart to ensure previous job had finished
- fixed a timing thing dependent on when "Complete" sent from finish gcode
- 5.2.3
- Fixed bug caused by calling unpause inappropriately
- 5.2.4
- Added emulation mode check to support V3.5
- Added stopPlugin call to plugin manager
-5.3.0
-Added -numlayers to enable capture every nth layer
-Changed firmware version to use ['boards'][0]['firmwareVersion']
-Displayed password as 'Default' or '*******'
-5.3.1
-removed port number from connection status in UI
-added explicit version check
-5.3.2
-Added -simulate mode for testing
-Fixed possible race condition in graceful_termination
-Fixed problem from 5.3.1 in statemachine
-Removed M291 and M292 message system - too complicated
-Added custom M3291 queueing mechanism
-Added -M3291 option to allow different Mcode name
-5.3.3
-reenabled connection retry (accidentally bypassed)
-added 127.0.0.1 replacement for url calls if plugin
-5.3.4
-Added check for version returning None.
-5.3.5 and 5.3.6 were cosmetic
-5.3.7
-Changed logic in runsubprocess for determining success (stdout inconsistent)
-Added 10s timeout to wget commands.  Accidental connection to stream will not return
-changed ffmpeg image capture to use -frames:v 1 -update true - should be more efficient
-removed terminate button when using SBC
-added argument -# to allow comments in config file
-6.0.0
-Renamed to duetLapse3 (plugin id, files, config folder and route)
-Settings are read from duetLapse3.json - no command line options (argparse removed, including -file)
-Argument 1 is the folder for duetLapse3.json and duetLapse3.log - default is the program's folder
-One logfile (duetLapse3.log) for the whole run, instead of a logfile for each print job
-basedir blank = the settings folder (argument 1, or the program's folder) - the plugin's images are no longer inside the plugin folder
-instances = oneip now means one instance per settings folder
-Added a Config tab to view and change duetLapse3.json
-One control loop (main thread) and a video worker replace the mainLoop, nextAction, checkforConnection, terminate and makeVideo threads
-Images are taken as soon as the layer or printer status changes (SBC: pushed by the WebSocket; standalone: at each status check)
-Fixed pause (from the page or gcode) not stopping images
-Fixed extratime not being added to the video at the end of a print
-Fixed fast repeated login attempts when the printer is off at startup
-Normal terminate exits cleanly instead of kill -9
-Fixed gcode messages being ignored after the printer was reset (its message numbers start again)
-Fixed duetLapse3 stopping (UNRECOVERABLE ERROR) when the printer reconnected
-Wrong printer password: shown on the page, and no more tries until it is changed
-The printer address, port and password can be changed on the page while the printer is not connected
-Standalone boards: the SBC login is skipped
-Fixed the control loop waking every 50ms while the printer was not connected
-All the page's text is in ui/src/locales/en.json - ready for other languages.  Messages for the page carry a code (messages.py)
-The page is told about changes as they happen (/api/events) instead of asking every 3 seconds
-detect none is now detect timed (none is still accepted)
-restart is now norestart (the opposite) - duetLapse3 gets ready for the next print unless norestart is set.  An old restart setting is still read
-port is now UI_port, ip is UI_ip and duet is duet_ip.  The Config tab shows the printer address and page port in use
-M3291 is a simple ring of the last 10 commands (global.DL3seq / DL3msg) that duetLapse3 only reads - no more Del / Clear
-duetLapse3.json is compressed, base64 encoded and checksummed - recreated from the defaults if it is missing or fails the checksum
-Settings renamed for clarity: duet_port, duet_password, image_dir, capture_on, capture_seconds, layer_interval, start_now, park (true/false), park_xy, park_wait,
-  camera1_url, camera1_on, camera2_url, camera2_on, video_length, min_video_seconds, end_hold, ffmpeg_threads, no_log, no_video, delete_images, keep_files.
-  instances oneip is one_per_folder.  keeplogs removed.  gcode change.<setting>= uses the new names
-Removed unused code (getPidDirs, getThisInstance, lastaction, mainLoopIterate, getDuet's calledfrom) and printer_status.py
-Removed poll - a capture pass runs at each status or layer change, otherwise every 5 seconds
-Removed hidebuttons - the controls always show every button, greyed out when it can't be used
-The restart command re-reads the settings and uses them, as if duetLapse3 had been started again.  Restart can be used in standby
-Fixed restart doing nothing with no_video set
-Settings that conflict are refused when saved.  If a restart command or a gcode change meets a conflict, it isn't applied and the page shows an alert
-Gcode (M3291) commands are http api requests: /command/start, /snapshot, /terminate/terminateg, /terminate/terminatef, and the new /change?<setting>=<value>.  duetLapse3.start etc are no longer recognised
-/command only carries out what is allowed in the current state
-Removed simulate
-Parking sends G90 before the move, and the move has F9000
-The Status tab shows an image from the camera until the first image is captured (/camera/snapshot)
-Fixed park with capture_on layer pausing the print at every capture pass, not only when an image was due.  With park, images start after park_min_layers (new, default 3), then every park_layer_interval layers (new, default 3)
-start_now and standby replaced by start_mode: on_print (the default), now or standby
-New Image Capture tab with capture_seconds, capture_on and layer_interval, moved from the Execution tab, and park, park_xy and park_wait, moved from the Config tab
-Image Capture, Execution and File Settings are now tabs under the Config tab, with General for the rest
-New Files tab with the Images and Log tabs under it
-instances (single, one_per_folder, many) replaced by allow_multiple_instances, default False
-Fixed images taken with no print job running going in a folder named after the previous job, and a one minute wait after every print
-Fixed the gcode change of layer_interval not being accepted
-A new logfile for each print (each restart, by the button or at the end of a print).  The last one is kept as duetLapse3.previous.log
-Gcode changes are checked as saved settings are, and a bad value raises the alert.  Values are no longer run as Python code
-Added a Log tab showing the current logfile, updated as it grows.  Passwords are masked in the log
-Finish capture / Terminate buttons show whenever duetLapse3 is not running as a plugin (they were hidden for any SBC printer)
-Fixed capture_on pause (When paused in print job) not resuming the print, and taking an image every 5 seconds while paused
-Fixed 'Process is already running' on Windows - a venv's python.exe launcher was counted as a second duetLapse3
-Windows: ffmpeg runs at below normal priority (elsewhere it already runs with nice)
-Windows: ffmpeg comes with imageio-ffmpeg (requirements-windows.txt, installed by run.bat) - ffmpeg on the PATH is used first
-Removed maxffmpeg - ffmpeg threads are shared with the ffmpeg processes already running, and videos no longer wait for them
-Removed the Info tab.  New Pause section (pause, movehead, rest) on the Config tab.  poll moved to Execution
-Removed the Special Functions (execkey, M3291 settings) - the message macro is always M3291
-nolog, verbose, keeplogs, novideo, deletepics, keepfiles moved to a new Files section
-Fixed the printer password being shown on the Info tab and written to the log
-Fixed timed capture (dontwait, or detect none with seconds) showing Waiting instead of Capturing when the printer is idle
-Cameras can be switched off (enable1, enable2) without losing their url
-Each camera has a folder in the print's folder, with images/ and videos/ folders: <print>/Camera1/images, <print>/Camera1/videos
-Clean up at startup, deletepics and standby delete images but keep videos
-Snapshot can make a video for one camera (/snapshot?camera=1 or 2) - the Video tab has a button for each camera
-The page announces each video made (or not), wherever it was started - e.g. at the end of a print
-New web page in Vue 3 + Vuetify 4 (built from ui/ into static/app) with the DWC 3.7 look - it follows DWC's light / dark theme
-The page reads JSON from /api/... - the html tab routes (/tab/...) and the old ?display... calls are removed
-ffmpeg: computed thread limit (ffmpegthreads, 0 = automatic), low priority (nice), -preset veryfast, -pix_fmt yuv420p, no shell
-Added a Cameras tab - the camera urls, with a preview of each.  Saved urls are used straight away
-The Video tab shows the Video settings - saved to duetLapse3.json and used straight away
-Removed vidparam1 and vidparam2 (never used)
-The controls are on the Status tab (the Controls tab is gone)
-If port = 0 (or the port is in use) a free port is selected
-The ip address in use is saved to duetLapse3.json and published to DWC as plugin data
-The web server always runs
-Removed the firmware version check
-Version is read from the plugin manifest
-Shared state moved to state.py, logging to logger_module.py, printer communication to duet_printer.py
-Printer status, layer, job name and position come from one object model read (shared for up to 1 second)
-Standalone: one rr_model?flags=d99fn read per poll - job and global only re-read when their seqs counter changes
-Fixed M3291 gcode messages not working on standalone printers (global was never read)
-Fixed standalone gcode not being url encoded
-duet (printer address, blank = this computer) and duetport (blank or 0 = 80) - host removed, the page listens on every address
-SBC: the object model is kept up to date by DSF's WebSocket (as DWC does) - http is used when it is not connected
-gcode commands accept duetLapse3. or DuetLapse3. (any case)
-Web server is now FastAPI / uvicorn - the routes are in routes.py
-New URLs for the page and API (/tab/..., /command/..., etc) - the older ?<api>=<value> URLs still work
-Fixed Continue never returning (and using a cpu) when sent from the page
-Fixed terminate hanging if another python process ended at the same time
-Only http cameras are supported: -weburl1 (and optionally -weburl2) is a snapshot or MJPEG stream url
-Images are captured in python - wget, fswebcam and raspistill are no longer used
-Removed USB and Pi camera support, ffmpeg capture of streams (RTSP / H.264) and -camera1, -camera2, -camparam1, -camparam2
-"""
+
 
 import subprocess
 import sys
@@ -267,6 +114,8 @@ def returncode(code):  # Defined here - used by calling programs
 
 configFileName = 'duetLapse3.json'
 logFileName = 'duetLapse3.log'
+pythonMajor = 3
+pythonMinor = 12  # The oldest Python duetLapse3 runs on (as duetPrintGuard)
 previousLogFileName = 'duetLapse3.previous.log'
 jobStatuses = ['processing', 'paused', 'pausing', 'resuming', 'cancelling', 'changingTool', 'simulating']  # The printer has a print job running
 
@@ -699,15 +548,22 @@ def defaultFolder():
 
 
 def init():
+    # Console output first - until the settings are read, which can turn it off (no_log) and name the printer
+    logger_module.setup_logger('duetLapse3')
+    logger_module.set_log_level(False)
+    if sys.version_info < (pythonMajor, pythonMinor):
+        logger.info('duetLapse3 needs Python ' + str(pythonMajor) + '.' + str(pythonMinor) + ' or later - this is ' + sys.version.split()[0] + ' - Exiting')
+        sys.exit(1)
+
     # Argument 1 is the folder for duetLapse3.json and the logfile - default is this program's folder (see defaultFolder)
     if len(sys.argv) > 1:
         state.configdir = os.path.realpath(sys.argv[1])
         if not os.path.isdir(state.configdir):  # Create it - duetLapse3.json is then created with the defaults
             try:
                 os.makedirs(state.configdir)
-                print('Created folder ' + state.configdir)
+                logger.info('Created folder ' + state.configdir)
             except OSError as e:
-                print('Folder ' + sys.argv[1] + ' could not be created - Exiting. ' + str(e))
+                logger.info('Folder ' + sys.argv[1] + ' could not be created - Exiting. ' + str(e))
                 sys.exit(1)
     else:
         state.configdir = defaultFolder()

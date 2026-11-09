@@ -23,7 +23,7 @@ The page updates by itself as things change - there's no need to reload it.
 
 The settings are kept in `duetLapse3.json` (in `sys/duetLapse3` for the plugin) and are changed on the page: the file can't be edited by hand. If it is missing or damaged, duetLapse3 makes a new one with the default values.
 
-The page is in the browser's language when there is a translation for it, otherwise English. Add `?lang=<code>` to the address to choose one, e.g. `?lang=en`. Only English exists so far; see [ui/README.md](ui/README.md) to add a language.
+The page is in the browser's language when there is a translation for it, otherwise English. Add `?lang=<code>` to the address to choose one, e.g. `?lang=de`. The page is in English, German (`de`), French (`fr`) and Spanish (`es`); see [ui/README.md](ui/README.md) to add a language. The log is always in English.
 
 ### If the printer can't be found
 
@@ -197,7 +197,7 @@ If **Disable Logging** is on (Config, File Settings tab), there is no log to sho
 
 ## Running without DWC
 
-duetLapse3 can also run on its own, on the same computer as the printer or another one. Download the standalone zip from the release, unzip it, and run `run.bat` (Windows) or `run.sh` (Linux, macOS). The first time, it makes a Python environment and installs what duetLapse3 needs.
+duetLapse3 can also run on its own, on the same computer as the printer or another one. Download the standalone zip from the release, unzip it, and run `run.bat` (Windows) or `run.sh` (Linux, macOS). The first time, it makes a Python environment and installs what duetLapse3 needs. It needs Python 3.12 or later.
 
 Or run it with Python yourself:
 

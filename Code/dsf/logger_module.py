@@ -45,6 +45,11 @@ def current_func_name(n=0):
 
 def setup_logger(prefix, console=True):
     # Console output only - the file handler is created later by create_log_file
+    # Called first with the program's name, before the settings are read, then again with the printer's address:
+    # each call replaces the console output set up before
+    for handler in list(logger.handlers):
+        if type(handler) is logging.StreamHandler:
+            logger.removeHandler(handler)
     if console:
         c_handler = logging.StreamHandler(sys.stdout)
         c_format = logging.Formatter(prefix + ' %(threadName)s - %(message)s')

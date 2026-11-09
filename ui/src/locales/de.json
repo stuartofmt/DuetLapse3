@@ -1,0 +1,390 @@
+{
+	"sections": {
+		"Video": "Video",
+		"Camera": "Kamera",
+		"Environment": "Umgebung",
+		"UI": "Weboberfläche",
+		"Capture": "Aufnahme",
+		"Pause": "Pause",
+		"Execution": "Ablauf",
+		"Files": "Einstellungen"
+	},
+	"settings": {
+		"end_hold": {
+			"label": "Zusätzliche Zeit",
+			"description": "Das letzte Bild x Sekunden lang am Ende des Videos zeigen (0 = aus)"
+		},
+		"fps": {
+			"label": "Video-FPS",
+			"description": "Bilder pro Sekunde im Video"
+		},
+		"min_video_seconds": {
+			"label": "Minimale Videolänge",
+			"description": "Kürzestes Video, das erstellt wird (Sekunden)"
+		},
+		"video_length": {
+			"label": "Maximale Videolänge",
+			"description": "Längstes Video, das erstellt wird, in Sekunden (0 = unbegrenzt)"
+		},
+		"ffmpeg_threads": {
+			"label": "Last bei der Videoerstellung",
+			"description": "Anzahl der CPU-Kerne für die Videoerstellung (0 = automatisch)"
+		},
+		"camera1_url": {
+			"label": "URL von Kamera 1",
+			"description": "Snapshot-URL von Kamera 1 (empfohlen) oder MJPEG-Stream-URL, falls es keinen Snapshot gibt"
+		},
+		"camera1_on": {
+			"label": "Kamera 1 aktivieren",
+			"description": "Kamera 1 wird verwendet (aus behält die URL, nimmt aber keine Bilder auf)"
+		},
+		"camera2_url": {
+			"label": "URL von Kamera 2",
+			"description": "URL einer optionalen zweiten Kamera"
+		},
+		"camera2_on": {
+			"label": "Kamera 2 aktivieren",
+			"description": "Kamera 2 wird verwendet (aus behält die URL, nimmt aber keine Bilder auf)"
+		},
+		"duet_ip": {
+			"label": "IP-Adresse des Druckers",
+			"description": "Adresse des Druckers (SBC oder Standalone). Leer = dieser Computer"
+		},
+		"duet_port": {
+			"label": "Port des Druckers",
+			"description": "Port des Druckers. Leer oder 0 = 80"
+		},
+		"duet_password": {
+			"label": "Passwort des Druckers",
+			"description": "Passwort des Druckers. Leer = kein Passwort"
+		},
+		"image_dir": {
+			"label": "Bilderordner",
+			"description": "Wo Bilder und Videos gespeichert werden"
+		},
+		"allow_multiple_instances": {
+			"label": "Mehrere Instanzen erlauben",
+			"description": "Erlaubt, dass mehr als ein duetLapse3 auf diesem Computer läuft. Jede Instanz muss einen eigenen Einstellungsordner verwenden"
+		},
+		"UI_ip": {
+			"label": "IP-Adresse",
+			"description": "IP-Adresse dieses Computers (nur lesen)"
+		},
+		"UI_port": {
+			"label": "Port",
+			"description": "Port für diese Seite (0 = freien Port wählen)"
+		},
+		"open_browser": {
+			"label": "Browser beim Start öffnen",
+			"description": "Öffnet diese Seite im Browser dieses Computers, wenn duetLapse3 startet. Wird nicht verwendet, wenn es als DWC-Plugin oder ohne Desktop läuft"
+		},
+		"capture_seconds": {
+			"label": "Zeitgesteuerte Aufnahme",
+			"description": "Alle n Sekunden ein Bild aufnehmen (0 = aus)"
+		},
+		"capture_on": {
+			"label": "Ereignisgesteuerte Aufnahme",
+			"description": "Wann Bilder aufgenommen werden: Bei Schichtwechsel, Bei Pause im Druckauftrag oder Nur zeitgesteuert"
+		},
+		"layer_interval": {
+			"label": "Schichten zwischen Aufnahmen",
+			"description": "Alle n Schichten ein Bild aufnehmen, wenn die ereignisgesteuerte Aufnahme = Bei Schichtwechsel ist (mit „Vor dem Bild parken“ wird stattdessen „Schichten zwischen Parkvorgängen“ verwendet)"
+		},
+		"park": {
+			"label": "Vor dem Bild parken",
+			"description": "Fährt den Kopf vor jedem Bild zur Parkposition"
+		},
+		"park_xy": {
+			"label": "Parkposition",
+			"description": "Wohin der Kopf geparkt wird (X, Y), wenn „Vor dem Bild parken“ an ist oder die ereignisgesteuerte Aufnahme auf Bei Pause im Druckauftrag steht. 0, 0 = nicht bewegen"
+		},
+		"park_wait": {
+			"label": "Wartezeit",
+			"description": "Sekunden, die nach dem Parken bis zur Aufnahme des Bildes gewartet werden"
+		},
+		"park_min_layers": {
+			"label": "Mindestanzahl an Schichten",
+			"description": "Mindestanzahl an Schichten vor dem Parken. Bis die Schicht darüber liegt, werden keine Bilder aufgenommen und der Druck wird nicht pausiert"
+		},
+		"park_layer_interval": {
+			"label": "Schichten zwischen Parkvorgängen",
+			"description": "Mit „Vor dem Bild parken“ alle n Schichten parken und ein Bild aufnehmen, beginnend mit der ersten Schicht über der Mindestanzahl. „Schichten zwischen Aufnahmen“ wird nicht verwendet"
+		},
+		"start_mode": {
+			"label": "Wann starten",
+			"description": "Wann mit der Bildaufnahme begonnen wird. Mit der ereignisgesteuerten Aufnahme auf Nur zeitgesteuert und einer zeitgesteuerten Aufnahme über 0 beginnt sie immer sofort oder beim Start-Befehl"
+		},
+		"norestart": {
+			"label": "Kein Neustart",
+			"description": "duetLapse3 beenden, wenn der Druck fertig ist, statt sich auf den nächsten Druckauftrag vorzubereiten"
+		},
+		"no_log": {
+			"label": "Protokoll deaktivieren",
+			"description": "Nur sinnvoll, wenn duetLapse3 auf einem schreibgeschützten Dateisystem läuft."
+		},
+		"verbose": {
+			"label": "Ausführliches Protokoll",
+			"description": "SEHR ausführliches Protokoll. Nur zur Fehlersuche sinnvoll."
+		},
+		"no_video": {
+			"label": "Kein Video",
+			"description": "Kein Video erstellen"
+		},
+		"delete_images": {
+			"label": "Bilder löschen",
+			"description": "Die Bilddateien löschen, wenn ein Druck fertig und sein Video erstellt ist (außer „Dateien behalten“ ist an)"
+		},
+		"keep_files": {
+			"label": "Dateien behalten",
+			"description": "Keine Bilder löschen, wenn das Programm startet oder ein Druck fertig ist. Videos werden immer behalten"
+		}
+	},
+	"tabs": {
+		"status": "Status",
+		"video": "Video",
+		"cameras": "Kameras",
+		"config": "Konfiguration",
+		"general": "Allgemein",
+		"capture": "Bildaufnahme",
+		"execution": "Ablauf",
+		"files": "Dateieinstellungen",
+		"filesTop": "Dateien",
+		"images": "Bilder",
+		"log": "Protokoll"
+	},
+	"common": {
+		"save": "Speichern",
+		"cancel": "Abbrechen",
+		"ok": "OK",
+		"pleaseConfirm": "Bitte bestätigen",
+		"couldNotSave": "Speichern nicht möglich: {error}",
+		"notAnswering": "Der Drucker antwortet nicht",
+		"on": "An",
+		"off": "Aus",
+		"download": "Herunterladen",
+		"close": "Schließen",
+		"refresh": "Aktualisieren"
+	},
+	"printer": {
+		"cannotConnect": "Keine Verbindung zum Drucker unter {printer}",
+		"noMoreTries": "Das Programm versucht es erst wieder, wenn die Druckereinstellungen geändert werden.",
+		"keepsTrying": "Das Programm versucht es weiter. Prüfen Sie, ob der Drucker eingeschaltet ist, oder ändern Sie seine IP- und Port-Einstellungen.",
+		"saved": "Die Einstellungen sind gespeichert.",
+		"address": "Adresse des Druckers",
+		"addressHint": "Leer = dieser Computer",
+		"port": "Port",
+		"portHint": "Leer = 80",
+		"password": "Passwort",
+		"passwordHint": "Leer = das aktuelle behalten",
+		"connect": "Speichern und verbinden"
+	},
+	"settingsAlert": {
+		"notApplied": "Diese Einstellungen wurden nicht übernommen – die bisherigen sind weiter in Gebrauch"
+	},
+	"status": {
+		"title": "Status",
+		"state": "Programmzustand",
+		"capture": "Aufnahmestatus",
+		"printerStatus": "Druckerstatus",
+		"notConnected": "Nicht verbunden",
+		"images": "Aufgenommene Bilder",
+		"imagesTwo": "Anzahl aufgenommener Bilder: Kamera 1 – ({frames}), Kamera 2 – ({frames2})",
+		"layer": "Aktuelle Schicht",
+		"none": "Keine",
+		"video": "Video",
+		"printer": "Drucker",
+		"printerValue": "{printer} (Firmware {version})",
+		"unknown": "unbekannt",
+		"version": "duetLapse3-Version",
+		"lastImage": "Letztes Bild",
+		"noCamera": "Keine Kamera in Gebrauch – auf dem Tab „Kameras“ einrichten",
+		"waiting": "Warten auf das erste aufgenommene Bild",
+		"snapshot": "Die Kamera jetzt – warten auf das erste aufgenommene Bild"
+	},
+	"controls": {
+		"title": "Steuerung",
+		"start": "Start",
+		"standby": "Standby",
+		"pause": "Pause",
+		"continue": "Fortsetzen",
+		"restart": "Neustart",
+		"standbyConfirm": "Standby erstellt KEIN Video.\nAlle aufgenommenen Bilder werden gelöscht.",
+		"restartConfirm": "Neustart versucht, ein Video zu erstellen, liest die Einstellungen neu und bereitet sich dann auf den nächsten Druck vor.\n\nDie aufgenommenen Bilder werden beim nächsten Programmstart gelöscht, außer „Dateien behalten“ ist an.",
+		"graceful": "Aufnahme beenden",
+		"forced": "Programm beenden",
+		"gracefulText": "Das Video erstellen.\n{video}",
+		"noImages": "Es sind keine Bilder vorhanden.",
+		"restartAfter": "Danach folgt ein Neustart.",
+		"stopAfter": "duetLapse3 wird danach beendet.",
+		"forcedText": "Sofort beenden.\nEs wird KEIN Video erstellt.",
+		"stopping": "Das Programm wird beendet.",
+		"failed": "{command} fehlgeschlagen: {error}"
+	},
+	"video": {
+		"title": "Jetzt ein Video erstellen",
+		"notInUse": "{camera} (nicht in Gebrauch)",
+		"captured": {
+			"one": "{n} Bild aufgenommen",
+			"other": "{n} Bilder aufgenommen"
+		},
+		"needed": "{n} für ein Video nötig",
+		"snapshot": "Snapshot",
+		"noneYet": "Es wurden noch keine Bilder aufgenommen",
+		"notEnough": "Noch nicht genug Bilder – {n} werden benötigt",
+		"notEnoughEach": "Noch nicht genug Bilder – {n} werden für das Video jeder Kamera benötigt",
+		"failed": "Snapshot fehlgeschlagen: {error}",
+		"minTooBig": "Die minimale Videolänge darf nicht größer als die maximale Videolänge ({max}) sein",
+		"maxTooSmall": "Die maximale Videolänge muss 0 (aus) oder mindestens die minimale Videolänge ({min}) sein"
+	},
+	"videoAlert": {
+		"notCreated": "Video nicht erstellt",
+		"created": {
+			"one": "Video erstellt",
+			"other": "{n} Videos erstellt"
+		},
+		"open": "Öffnen"
+	},
+	"cameras": {
+		"couldNotSwitch": "{camera} konnte nicht umgeschaltet werden: {error}",
+		"couldNotRead": "Die Kameras konnten nicht gelesen werden: {error}",
+		"checkUrls": "Nicht gespeichert – prüfen Sie die rot markierten URLs.",
+		"noImageFromUrl": "Kein Bild von dieser URL",
+		"noCamera": "Keine Kamera",
+		"preview": "Vorschau",
+		"previewAlt": "Kameravorschau",
+		"help": "Verwenden Sie eine Snapshot-URL (empfohlen) oder eine MJPEG-Stream-URL. Speichern speichert beide Kameras."
+	},
+	"config": {
+		"restartNeeded": "Änderungen hier wirken, wenn Sie auf dem Tab „Status“ auf Neustart klicken."
+	},
+	"settingsForm": {
+		"dontGoTogether": "Einige Einstellungen passen nicht zusammen (rot markiert) – es wurde nichts gespeichert.",
+		"dontGoTogetherShort": "Einige Einstellungen passen nicht zusammen – es wurde nichts gespeichert.",
+		"invalid": "Einige Einstellungen sind ungültig (rot markiert) – es wurde nichts gespeichert.",
+		"invalidShort": "Einige Einstellungen sind ungültig – es wurde nichts gespeichert.",
+		"couldNotRead": "Die Einstellungen konnten nicht gelesen werden: {error}",
+		"inUse": "{description}. In Gebrauch: {path}",
+		"axis": "{label} {axis}"
+	},
+	"images": {
+		"top": "Bilder",
+		"newest": "Neueste zuerst",
+		"oldest": "Älteste zuerst",
+		"name": "Name",
+		"size": "Größe",
+		"couldNotList": "Die Dateien konnten nicht aufgelistet werden: {error}",
+		"deleteConfirm": "{name} löschen?",
+		"deleteFolder": "Der Ordner und alles darin ({contents}) wird gelöscht.",
+		"deleteTitle": "Löschen",
+		"making": "Video aus {name} wird erstellt …",
+		"zipped": "{name} gezippt",
+		"deleted": "{name} gelöscht",
+		"failed": "{action} fehlgeschlagen: {error}",
+		"imageCount": {
+			"one": "{n} Bild",
+			"other": "{n} Bilder"
+		},
+		"videoCount": {
+			"one": "{n} Video",
+			"other": "{n} Videos"
+		},
+		"folder": "Ordner",
+		"search": "Diesen Ordner durchsuchen",
+		"list": "Liste",
+		"grid": "Raster",
+		"noMatch": "Nichts passt zu „{search}“",
+		"empty": "Noch keine Bilder",
+		"openTab": "In einem neuen Tab öffnen",
+		"makeVideo": "Video erstellen",
+		"zip": "Zippen",
+		"delete": "Löschen",
+		"inUse": "Der aktuelle Druck – in Gebrauch",
+		"more": "{n} weitere von {total} anzeigen"
+	},
+	"log": {
+		"filter": "Nur Zeilen anzeigen mit",
+		"follow": "Mitlaufen",
+		"previous": "Vorheriges Protokoll",
+		"disabled": "Es gibt keine Protokolldatei: „Protokoll deaktivieren“ ist an (Konfiguration, Tab „Dateieinstellungen“).",
+		"couldNotRead": "Die Protokolldatei konnte nicht gelesen werden: {error}",
+		"truncated": "Das Ende der Protokolldatei wird angezeigt – laden Sie sie herunter, um alles zu sehen.",
+		"noMatch": "Keine Zeilen enthalten „{filter}“",
+		"empty": "Die Protokolldatei ist leer"
+	},
+	"choices": {
+		"capture_on": {
+			"layer": "Bei Schichtwechsel",
+			"pause": "Bei Pause im Druckauftrag",
+			"timed": "Nur zeitgesteuert"
+		},
+		"start_mode": {
+			"on_print": "Wenn ein Druck beginnt",
+			"now": "Sofort",
+			"standby": "Auf den Start-Befehl warten"
+		}
+	},
+	"values": {
+		"action": {
+			"start": "Start",
+			"standby": "Standby",
+			"pause": "Pause",
+			"continue": "Fortsetzen",
+			"restart": "Neustart",
+			"terminate": "Beenden",
+			"completed": "Fertig"
+		},
+		"printState": {
+			"Waiting": "Wartet",
+			"Capturing": "Nimmt auf",
+			"Completed": "Fertig"
+		},
+		"duetStatus": {
+			"idle": "Leerlauf",
+			"busy": "beschäftigt",
+			"processing": "druckt",
+			"simulating": "simuliert",
+			"paused": "pausiert",
+			"pausing": "wird pausiert",
+			"resuming": "wird fortgesetzt",
+			"cancelling": "wird abgebrochen",
+			"changingTool": "Werkzeugwechsel",
+			"halted": "angehalten",
+			"off": "aus",
+			"starting": "startet",
+			"updating": "wird aktualisiert",
+			"disconnected": "getrennt"
+		}
+	},
+	"server": {
+		"savedRestart": "Gespeichert. Die Änderungen wirken, wenn Sie auf dem Tab „Status“ auf Neustart klicken.",
+		"savedVideo": "Gespeichert. Die Video-Einstellungen sind jetzt in Gebrauch.",
+		"savedCameras": "Gespeichert. Die Kameras sind jetzt in Gebrauch.",
+		"savedConnecting": "Gespeichert – Verbindung zum Drucker unter {printer} wird hergestellt",
+		"alreadyConnected": "Bereits mit dem Drucker verbunden",
+		"notSavedInvalid": "Nicht gespeichert – einige Einstellungen sind ungültig",
+		"conflictParkLocation": "Die Parkposition wird nur verwendet, wenn „Vor dem Bild parken“ an ist oder die ereignisgesteuerte Aufnahme auf Bei Pause im Druckauftrag steht",
+		"conflictParkPause": "„Vor dem Bild parken“ kann nicht mit der ereignisgesteuerten Aufnahme Bei Pause im Druckauftrag verwendet werden – der Druckauftrag macht seine eigenen Pausen",
+		"settingBad": "Eine gespeicherte Einstellung hat einen Wert, der nicht verwendet werden kann – siehe Protokoll",
+		"cameraOn": "{camera} ist an",
+		"cameraOff": "{camera} ist aus – es werden keine Bilder von ihr aufgenommen",
+		"settingsUnreadableDefaults": "Die Einstellungsdatei konnte nicht gelesen werden – die Standardwerte werden angezeigt. {error}",
+		"notBool": "{key} muss true oder false sein, nicht {value}",
+		"notWhole": "{key} muss eine ganze Zahl sein, nicht {value}",
+		"notList": "{key} muss eine Liste mit {count} Zahlen sein, z. B. {example}",
+		"notText": "{key} muss Text (in Anführungszeichen) sein, nicht {value}",
+		"notChangeable": "{key} kann während des Betriebs nicht geändert werden",
+		"notChoice": "{key} muss eines von {choices} sein, nicht „{value}“",
+		"minvideoTooBig": "Die minimale Videolänge ({min}) darf nicht größer als die maximale Videolänge ({max}) sein",
+		"maxvideoTooSmall": "Die maximale Videolänge muss 0 (aus) oder mindestens die minimale Videolänge ({min}) sein",
+		"camera1Needed": "Kamera 1 braucht eine http-URL (eine Snapshot-URL oder eine MJPEG-Stream-URL) – oder schalten Sie sie aus",
+		"camera1NotHttp": "Die URL von Kamera 1 muss eine http-URL oder leer sein",
+		"camera2NotHttp": "Die URL von Kamera 2 muss eine http-URL sein, oder leer für keine zweite Kamera",
+		"wrongPassword": "Der Drucker unter {printer} hat das Passwort nicht akzeptiert",
+		"videoWillBe": "Das Video wird {seconds} Sekunden lang",
+		"videoNotEnough": "Nicht genug Bilder, um ein Video zu erstellen",
+		"videoNoImages": "Kein Video möglich – in {folder} sind keine Bilder",
+		"videoTooShort": "{camera}: nicht genug Bilder für ein Video ({frames} – {needed} nötig)",
+		"videoProblem": "Beim Erstellen des Videos für {camera} ist ein Problem aufgetreten (siehe Protokoll)",
+		"videoCreated": "Video erstellt"
+	}
+}

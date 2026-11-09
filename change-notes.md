@@ -24,7 +24,8 @@ What changed since the 3.6 version (DuetLapse3 5.3.7, for DWC / DSF 3.6), descri
 
 - **New plugin id.** It installs to `plugins/duetLapse3`, and DWC shows it under **Plugins → duetLapse3**. Uninstall the old `DuetLapse3` plugin first.
 - **Settings file.** Settings are in `sys/duetLapse3/duetLapse3.json`, replacing `sys/DuetLapse3/DuetLapse3.config`. Old settings have to be copied across by hand.
-- **Python packages.** DSF installs them from `requirements.txt`: requests, psutil, dsf-python, fastapi, uvicorn and websocket-client.
+- **Python packages.** DSF installs them from `requirements.txt`: requests, psutil, dsf-python, fastapi, uvicorn and websocket-client, each pinned to a version.
+- **Python 3.12 or later.** duetLapse3 checks this when it starts, and stops with a message if the Python is older (as duetPrintGuard does).
 - **Version.** It's 6.0.0, read from `plugin.json`, so the version only lives in one place.
 - **DWC page.** It finds duetLapse3's address from the plugin data that duetLapse3 publishes at startup, instead of reading `-duet`/`-port` from the old `.config`. It shows "The duetLapse3 plugin has stopped" if the program stops, and shows the page again when it restarts. The page itself is a copy of duetPrintGuard's, which uses the current DWC API.
 - **Gcode commands changed.** Commands are now the web API's paths, such as `M3291 B"/command/start"`. The old `DuetLapse3.` and `duetLapse3.` spellings are logged as not recognised, and aren't carried out.
@@ -92,7 +93,7 @@ What changed since the 3.6 version (DuetLapse3 5.3.7, for DWC / DSF 3.6), descri
 - **Tabs:** Status (with the controls), Video, **Cameras**, **Config**, **Files**. Config has its own tabs: **General**, **Image Capture**, **Execution** and **File Settings**. The main Files tab has **Images** and **Log**. The controls moved onto the Status tab, so there's no separate Controls tab.
   - **Images** is the file browser (it was the Files tab).
   - **Image Capture** holds Timed capture, Event capture and Layers between capture, and a new **Pause** section (`park`, `park_xy`, `park_wait`, `park_min_layers`, `park_layer_interval`). **Execution** has When to start and No restart. **File Settings** has the logging and image clean-up settings.
-  - **Ready for other languages.** All the page's text is in `ui/src/locales/en.json`, including duetLapse3's own messages (save results, setting errors, the video message and results, the wrong-password banner), which it now sends with a code and values. The language is `?lang=<code>`, otherwise the browser's language, otherwise English; a partial translation falls back to English for the rest. Only English exists so far.
+  - **Ready for other languages.** All the page's text is in `ui/src/locales/en.json`, including duetLapse3's own messages (save results, setting errors, the video message and results, the wrong-password banner), which it now sends with a code and values. The language is `?lang=<code>`, otherwise the browser's language, otherwise English; a partial translation falls back to English for the rest. The page is in English, German, French and Spanish.
   - **Log** shows the current logfile, updated as it grows, with follow, a filter, download and the previous log.
   - **Info tab removed.** The page address is in the log, and the settings in use are written to the log at the start of each print.
   - **Cameras:** each camera's URL with a preview, and an on/off switch (`camera1_on`, `camera2_on`) that keeps the URL. Saving checks the URLs, writes them to the json and starts using them straight away.
