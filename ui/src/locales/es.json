@@ -199,7 +199,7 @@
 		"lastImage": "Última imagen",
 		"noCamera": "Ninguna cámara en uso – configúrela en la pestaña Cámaras",
 		"waiting": "Esperando a que se capture la primera imagen",
-		"snapshot": "La cámara ahora – esperando a que se capture la primera imagen"
+		"snapshot": "Esperando a que se capture la primera imagen"
 	},
 	"controls": {
 		"title": "Controles",

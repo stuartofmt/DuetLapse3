@@ -45,7 +45,7 @@ While duetLapse3 isn't connected to the printer, every tab shows a banner. duetL
   - **Finish capture** makes the video, then gets ready for the next print, or stops if **No restart** is set.
   - **Terminate the program** stops straight away, without a video.
 - **Status** - what duetLapse3 and the printer are doing, the images captured by each camera, the current layer, how long the video will be, and the printer's address and firmware.
-- **Last image** - the latest image captured. Until the first one, it shows an image taken from the camera when the Status tab is opened, labelled as such, so you can check the camera's view.
+- **Last image** - the latest image captured. Until the first one, it shows an image taken from the camera when the Status tab is opened, with "Waiting for the first image to be captured" below it, so you can check the camera's view.
 
 ### Video
 
