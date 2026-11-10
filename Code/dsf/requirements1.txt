@@ -1,0 +1,8 @@
+# The same packages as requirements.txt, as version ranges instead of exact versions - for Python 3.11 or later.
+# Lower bounds: the oldest versions tested (with Python 3.11).  Upper bounds: before the next major version.
+requests>=2.32.4,<3
+psutil>=6.0,<8
+dsf-python>=3.7.0,<3.8
+fastapi>=0.115,<1
+uvicorn[standard]>=0.30,<1
+websocket-client>=1.6,<2
