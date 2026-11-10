@@ -2,7 +2,7 @@
     "id": "duetLapse3",
     "name": "duetLapse3",
     "author": "Stuartofmt",
-    "version": "6.1.0",
+    "version": "6.1.1-alpha.1",
     "license": "GPL-2.0-or-later",
     "homepage": "https://github.com/stuartofmt/duetLapse3",
 	"sbcRequired": true,
@@ -12,7 +12,7 @@
 	"sbcExecutableArguments": "/opt/dsf/sd/sys/duetLapse3",
 	"sbcOutputRedirected": false,
 	"sbcPermissions": ["commandExecution", "objectModelReadWrite", "objectModelRead","networkAccess", "webcamAccess", "readSystem", "writeSystem", "fileSystemAccess","launchProcesses", "managePlugins"],
-	"sbcPythonDependencies": ["requirements.txt"],
+	"sbcPythonDependencies": ["requirements1.txt"],
 	"sbcPackageDependencies": ["python3","ffmpeg"],
 	"data": {"ip": "", "port": 0}
  }
