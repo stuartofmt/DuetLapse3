@@ -489,6 +489,8 @@ def _wsReader():
 def getJobname():
     # Used to get the print jobname from Duet
     model = getModel()
+    if isinstance(model, dict) and not isinstance(model.get('job'), dict):  # No job while the board is off
+        return ''
     try:
         jobname = model['job']['file']['fileName']
         if jobname is None:
@@ -513,14 +515,17 @@ def getStatus():
         logger.debug('Could not get Status')
         logger.debug(str(e))
         return 'disconnected', ''
+    if status == 'disconnected':
+        # DSF is answering but has lost the Duet board (e.g. the printer was switched off).  This is not duetLapse3
+        # losing the printer - 'disconnected' from here would make it log in to DSF again and again - so it is 'off'
+        status = 'off'
 
     #  Commands from gcode (M3291): global.DL3seq counts them, global.DL3msg holds the last few
-    try:
-        seq = j['global'].get('DL3seq', 0)  # Not there until M3291 is first used (or after a printer reset) - no commands yet
+    globals_ = j.get('global')
+    if isinstance(globals_, dict):  # None while the board is off, or before any global exists - no commands then
+        seq = globals_.get('DL3seq', 0)  # Not there until M3291 is first used (or after a printer reset) - no commands yet
         if isinstance(seq, int) and seq != state.lastMessageSeq:
-            messages = (seq, j['global'].get('DL3msg') or [])
-    except Exception as e:
-        logger.info('Error reading the M3291 commands: ' + str(e))
+            messages = (seq, globals_.get('DL3msg') or [])
 
     if messages is not None and onMessages is not None:
         onMessages(*messages)  # duetLapse3 acts on them
@@ -531,6 +536,8 @@ def getStatus():
 def getLayer():
     # Used to get the the current layer
     model = getModel()
+    if isinstance(model, dict) and not isinstance(model.get('job'), dict):  # No job while the board is off
+        return -1
     try:
         layer = model['job']['layer']
         if layer is None:
