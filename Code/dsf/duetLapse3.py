@@ -718,13 +718,16 @@ def issueWarnings():
 # Log the settings being used
 ####################################################
 
+stateNames = {'duet_ip': 'duet', 'UI_ip': 'ip', 'UI_port': 'port'}  # Settings kept in state under another name
+
+
 def listOptions():
     logger.info("################### Options at start of this print job  #####################")
     for section, keys in DEFAULTS.items():
         logger.info('# ' + section)
         for key in keys:
             if key != 'duet_password':  # Never logged
-                logger.info(key + '  =  ' + str(getattr(state, key, '')))
+                logger.info(key + '  =  ' + str(getattr(state, stateNames.get(key, key), '')))
     logger.info('-----------------------------------------------------------------------\n\n')
 
 
