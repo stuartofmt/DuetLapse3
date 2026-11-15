@@ -304,6 +304,7 @@
 	"log": {
 		"filter": "Mostrar solo las líneas que contengan",
 		"follow": "Seguir",
+		"current": "Registro actual",
 		"previous": "Registro anterior",
 		"disabled": "No hay archivo de registro: «Desactivar el registro» está activado (Configuración, pestaña Ajustes de archivos).",
 		"couldNotRead": "No se pudo leer el archivo de registro: {error}",

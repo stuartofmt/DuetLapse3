@@ -1,4 +1,5 @@
-<!-- Log tab: the current logfile - its end, then new lines as they are written. Follow keeps the newest line in view -->
+<!-- Log tab: the current logfile - its end, then new lines as they are written. Follow keeps the newest line in view.
+     Previous shows the logfile from the run before this one instead, and download gets the logfile being shown -->
 <script setup>
 import { computed, nextTick, onMounted, reactive, ref, watch } from "vue";
 import { api, fileUrl } from "../api.js";
@@ -14,6 +15,7 @@ const filter = ref("");
 const follow = ref(true);
 const loading = ref(false);
 const box = ref(null);
+const showPrevious = ref(false); // The logfile from the run before this one, instead of the current one
 let offset = -1;
 let number = 0; // Which logfile offset is in - a new print starts a new one
 let again = false;
@@ -24,8 +26,10 @@ async function load() {
 		return;
 	}
 	loading.value = true;
+	const previous = showPrevious.value;
 	try {
-		const data = await api.get(`/api/log?offset=${offset}&number=${number}`);
+		const data = await api.get(`/api/log?offset=${offset}&number=${number}${previous ? "&previous=true" : ""}`);
+		if (previous !== showPrevious.value) return; // Switched while reading - read again (finally)
 		Object.assign(log, { loaded: true, enabled: data.enabled, file: data.file ?? "", previous: data.previous ?? "", error: data.error ?? "" });
 		if (data.enabled && !data.error) {
 			const added = data.text ? data.text.replace(/\n$/, "").split("\n") : [];
@@ -39,7 +43,7 @@ async function load() {
 		Object.assign(log, { loaded: true, error: err.message });
 	} finally {
 		loading.value = false;
-		if (again) {
+		if (again || previous !== showPrevious.value) {
 			again = false;
 			load();
 		}
@@ -76,7 +80,13 @@ watch(text, async () => {
 	}
 });
 watch(follow, (on) => on && toEnd());
-watch(() => changes.log, load);
+watch(showPrevious, () => {
+	lines.value = [];
+	Object.assign(log, { loaded: false, file: "", truncated: false, error: "" });
+	follow.value = true;
+	reload();
+});
+watch(() => changes.log, () => showPrevious.value || load()); // The previous logfile doesn't change
 watch(() => status.data?.run, (run, before) => {
 	if (before !== undefined && run !== before) {
 		reload();
@@ -95,7 +105,12 @@ onMounted(load);
 			<v-spacer></v-spacer>
 			<v-switch v-model="follow" :label="t('log.follow')" color="primary" density="compact" inset hide-details class="flex-grow-0 me-2"></v-switch>
 			<v-btn :icon="mdiRefresh" variant="text" size="small" :loading="loading" :title="t('common.refresh')" @click="reload"></v-btn>
-			<v-btn v-if="log.previous" variant="text" size="small" :href="fileUrl(log.previous)">{{ t("log.previous") }}</v-btn>
+			<!-- Which logfile: the current one, or the one from the run before this one -->
+			<v-btn-toggle v-if="log.previous || showPrevious" v-model="showPrevious" mandatory density="compact"
+						  variant="outlined" color="primary" divided>
+				<v-btn :value="false" size="small">{{ t("log.current") }}</v-btn>
+				<v-btn :value="true" size="small">{{ t("log.previous") }}</v-btn>
+			</v-btn-toggle>
 			<v-btn :icon="mdiDownload" variant="text" size="small" :disabled="!log.file" :href="log.file ? fileUrl(log.file) : undefined"
 				   :title="t('common.download')"></v-btn>
 		</div>

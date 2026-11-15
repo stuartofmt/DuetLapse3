@@ -127,27 +127,32 @@ def log_size():
         return 0
 
 
-def log_data(offset, number=0):
+def log_data(offset, number=0, showPrevious=False):
     # The logfile from offset (bytes) - whole lines only.  offset < 0, or one that can't be carried on from
     # (another logfile than number, if given, or too much is new), gives the end of the logfile instead: reset is then true
+    # showPrevious: the logfile from the run before this one instead of the current one.  previous: that file, if there is one
     if state.no_log:
         return {'enabled': False}
+    previous = os.path.join(state.configdir, dl3.previousLogFileName)
+    previous = previous if os.path.isfile(previous) else ''
+    logfile = previous if showPrevious else state.logfilename
+    if not logfile:
+        return {'enabled': True, 'file': '', 'previous': '', 'error': 'There is no previous logfile'}
     try:
-        size = os.path.getsize(state.logfilename)
+        size = os.path.getsize(logfile)
         reset = offset < 0 or offset > size or size - offset > LOG_TAIL or number not in [0, state.logNumber]
         start = max(0, size - LOG_TAIL) if reset else offset
-        with open(state.logfilename, 'rb') as f:
+        with open(logfile, 'rb') as f:
             f.seek(start)
             data = f.read(size - start)
     except OSError as e:
-        return {'enabled': True, 'file': state.logfilename, 'error': str(e)}
+        return {'enabled': True, 'file': logfile, 'previous': previous, 'error': str(e)}
     truncated = reset and start > 0
     if truncated:  # Starts part way through a line
         skip = data.find(b'\n') + 1
         start, data = start + skip, data[skip:]
     data = data[:data.rfind(b'\n') + 1]  # A line still being written comes next time
-    previous = os.path.join(state.configdir, dl3.previousLogFileName)
-    return {'enabled': True, 'file': state.logfilename, 'number': state.logNumber, 'previous': previous if os.path.isfile(previous) else '',
+    return {'enabled': True, 'file': logfile, 'number': state.logNumber, 'previous': previous,
             'offset': start + len(data), 'reset': reset, 'truncated': truncated,
             'text': data.decode('utf-8', errors='replace').replace('\r\n', '\n')}
 
@@ -566,8 +571,8 @@ async def api_events():
 
 
 @router.get('/api/log')
-def api_log(offset: int = -1, number: int = 0):  # offset -1 = the end of the logfile.  number - the logfile offset is in, 0 = whichever is current
-    return log_data(offset, number)
+def api_log(offset: int = -1, number: int = 0, previous: bool = False):  # offset -1 = the end of the logfile.  number - the logfile offset is in, 0 = whichever is current.  previous - the logfile from the run before this one
+    return log_data(offset, number, previous)
 
 
 @router.get('/api/files')

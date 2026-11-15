@@ -304,6 +304,7 @@
 	"log": {
 		"filter": "Show only lines containing",
 		"follow": "Follow",
+		"current": "Current log",
 		"previous": "Previous log",
 		"disabled": "There is no logfile: Disable Logging is on (Config, File Settings tab).",
 		"couldNotRead": "Could not read the logfile: {error}",

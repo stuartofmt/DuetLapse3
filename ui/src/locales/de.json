@@ -304,6 +304,7 @@
 	"log": {
 		"filter": "Nur Zeilen anzeigen mit",
 		"follow": "Mitlaufen",
+		"current": "Aktuelles Protokoll",
 		"previous": "Vorheriges Protokoll",
 		"disabled": "Es gibt keine Protokolldatei: „Protokoll deaktivieren“ ist an (Konfiguration, Tab „Dateieinstellungen“).",
 		"couldNotRead": "Die Protokolldatei konnte nicht gelesen werden: {error}",
