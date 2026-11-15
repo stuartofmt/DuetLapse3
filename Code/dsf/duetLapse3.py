@@ -32,7 +32,6 @@ def _plugin_version():
 duetLapse3Version = _plugin_version()
 
 
-
 import subprocess
 import sys
 import platform
@@ -314,6 +313,7 @@ def applySettings(args):
     setPrinter(args)
 
     state.image_dir = args['image_dir']
+    state.imageDirSetting = args['image_dir']  # As saved - setTopDir() fills in a blank one
 
     state.allow_multiple_instances = args['allow_multiple_instances']
 
@@ -1882,6 +1882,7 @@ def controlLoop():
                     done.set()
                 moveListener()
                 continue
+            moveListener()  # UI_port saved on the page
 
             if not state.connectionState:
                 if state.connectRetry.is_set():  # The printer settings were changed on the page
@@ -2116,12 +2117,18 @@ def callApi(request):
         logger.info('M3291 command ' + request + ' failed: ' + str(e))
 
 
+# Settings that can be changed while running - by /change, or by saving them on the page
+changeable = ['verbose', 'capture_seconds', 'capture_on', 'layer_interval', 'park_xy', 'start_mode', 'park', 'norestart', 'no_video', 'keep_files',
+              'min_video_seconds', 'video_length', 'end_hold', 'fps', 'park_wait', 'park_min_layers', 'park_layer_interval']
+smallestValues = {'layer_interval': 1, 'fps': 1, 'park_wait': 0, 'park_min_layers': 0, 'park_layer_interval': 1, 'min_video_seconds': 0, 'video_length': 0,
+                  'end_hold': 0, 'ffmpeg_threads': 0}
+startOnly = ['allow_multiple_instances', 'open_browser']  # Only used when duetLapse3 starts
+printerKeys = ['duet_ip', 'duet_port', 'duet_password']
+
+
 def changeSettings(settings):
     # /change: {setting: value as text}, checked as saved settings are, then used straight away.  They are not saved
     # All of them are used, or none (with an alert).  Returns {setting: error} ({} if used) - '' is used for a conflict
-    changeable = ['verbose', 'capture_seconds', 'capture_on', 'layer_interval', 'park_xy', 'start_mode', 'park', 'norestart', 'no_video', 'keep_files',
-                  'min_video_seconds', 'video_length', 'end_hold', 'fps', 'park_wait', 'park_min_layers', 'park_layer_interval']
-    smallest = {'layer_interval': 1, 'fps': 1, 'park_wait': 0, 'park_min_layers': 0, 'park_layer_interval': 1, 'min_video_seconds': 0, 'video_length': 0, 'end_hold': 0}
     defaults = flatDefaults()
     values, errors = {}, {}
     for key, value in settings.items():
@@ -2129,11 +2136,9 @@ def changeSettings(settings):
             errors[key] = Message('notChangeable', key + ' can not be changed while running', key=key)
             continue
         try:
-            value = checkSetting(key, value.replace(' ', '').split(',') if key == 'park_xy' else value.strip(), defaults[key])
+            values[key] = checkSetting(key, value.replace(' ', '').split(',') if key == 'park_xy' else value.strip(), defaults[key])
         except ValueError as e:
             errors[key] = e.args[0]
-            continue
-        values[key] = max(value, smallest[key]) if key in smallest else value
 
     if not errors:  # Would they conflict with the settings in use?
         args = {'park': state.park, 'park_xy': state.park_xy, 'capture_on': state.capture_on}
@@ -2145,15 +2150,93 @@ def changeSettings(settings):
         settingsRejected(next(iter(errors.values())))
         return errors
 
+    useSettings(values, logAll=True)
+    return {}
+
+
+def useSettings(values, logAll=False):
+    # Use settings straight away - checked values ({setting: value}), from /change or saved on the page.
+    # Returns (the settings that wait for the Restart command, those used the next time duetLapse3 starts, those that could not be used)
+    #   The printer settings wait while the printer is connected - Restart connects to the new printer
+    #   The image folder waits while a print's images are being saved - Restart starts a new folder
+    #   UI_port: the control loop moves the page.  startOnly settings are kept, and used the next time duetLapse3 starts
+    #   start_mode: while waiting for a print, the start or standby command puts it in that mode now
+    waiting, atStart, failed, changed = [], [], [], []
+    printer = {}
     for key, value in values.items():
-        setattr(state, key, value)
+        if key in smallestValues:
+            value = max(value, smallestValues[key])
+        if key in printerKeys:
+            printer[key] = value
+        elif key == 'image_dir':
+            if value == state.imageDirSetting:
+                continue
+            if state.workingDirStatus != -1:
+                waiting.append(key)
+                continue
+            oldImageDir = state.image_dir
+            state.image_dir = value
+            if setTopDir():
+                state.imageDirSetting = value
+                setNextWorkingDir()
+                changed.append(key)
+            else:
+                logBox(['The image folder ' + value + ' could not be used - carrying on with ' + oldImageDir])
+                state.image_dir = oldImageDir
+                setTopDir()
+                failed.append(key)
+        elif key == 'UI_port':
+            if value not in [0, state.port]:
+                state.newPort = value  # The control loop moves the page - a second later, so this request is answered first
+                threading.Timer(1, wakeControlLoop).start()
+        elif key == 'no_log':
+            if value != state.no_log:
+                state.no_log = value
+                changed.append(key)
+                if value:
+                    logger.info('Logging is now off')
+                    logger_module.close_log_file()
+                    state.logfilename = 'None (no_log is set)'
+                else:
+                    setupLogFile()
+        elif key in startOnly:
+            if getattr(state, key) != value:
+                atStart.append(key)
+            setattr(state, key, value)
+        elif hasattr(state, key):
+            if logAll or getattr(state, key) != value:
+                changed.append(key)
+            setattr(state, key, value)
+
+    if printer:
+        old = dict(zip(printerKeys, state.printerSettings))
+        new = {**old, **printer}
+        if new != old:
+            if state.connectionState:
+                waiting += [key for key in printerKeys if new[key] != old[key]]
+            else:
+                state.printerSettings = tuple(new[key] for key in printerKeys)
+                printerChanged(new)  # Try the new printer at once
+
     setStartMode(state.start_mode)
+    if 'start_mode' in changed and state.printState == 'Waiting':
+        command = 'standby' if state.standby else 'start'
+        if command != state.action and command in allowedNextAction(state.action):
+            done = threading.Event()
+            queueAction(command, done)
+            done.wait(10)  # So the page shows the new state
     setDebug(state.verbose)
     state.restart = not state.norestart
     checkSeconds()
-    for key in values:
+    if state.video_length > 0 and state.video_length < state.min_video_seconds:  # As at startup
+        state.video_length = state.min_video_seconds
+    for key in changed:
         logger.info(key + ' has been changed to ' + str(getattr(state, key)))
-    return {}
+    for key in waiting:
+        logger.info(key + ' has been saved - it is used after the Restart command')
+    for key in atStart:
+        logger.info(key + ' has been saved - it is used the next time duetLapse3 starts')
+    return waiting, atStart, failed
 
 
 def startMessages():

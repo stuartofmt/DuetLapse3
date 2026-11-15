@@ -4,7 +4,7 @@ What changed since the 3.6 version (DuetLapse3 5.3.7, for DWC / DSF 3.6), descri
 
 ## At a glance
 
-- **Everything is on the page.** The page is rebuilt with the DWC 3.7 look and DWC's light or dark theme, and updates by itself. All settings are saved from it. There are no command-line options or hand-edited config file. **Restart** applies saved settings without restarting the program.
+- **Everything is on the page.** The page is rebuilt with the DWC 3.7 look and DWC's light or dark theme, and updates by itself. All settings are saved from it. There are no command-line options or hand-edited config file. Saved settings are in use straight away, and **Restart** picks up the few that have to wait.
 - **New layout.** The tabs are Status, Video, Cameras, Config (General, Image Capture, Execution, File Settings) and Files (Images, Log).
 - **Easier setup.** If the printer can't be reached, every tab shows a banner to correct its address, port and password. The Cameras tab has a preview and an on/off switch for each camera. On Windows, `run.bat` sets everything up, including ffmpeg.
 - **Better capture.** On an SBC, images are taken at the moment the layer changes. There's no wait after a print, and duetLapse3 gets ready for the next print by default. Pause stops images, and **When paused in print job** takes one image per pause, then resumes the print.
@@ -44,6 +44,8 @@ What changed since the 3.6 version (DuetLapse3 5.3.7, for DWC / DSF 3.6), descri
 - **When to start.** `start_mode` (When to start) replaces `start_now` and `standby`: `on_print`, the default, `now` or `standby`. Having both on is no longer possible. `start_now` and `standby` in a settings file are ignored, so duetLapse3 goes back to starting when a print starts until this is set. Slicer gcode that changes them needs `/change?start_mode=`.
 - **Park only when an image is due.** With Park before image and On layer change, the print was paused and parked at every check, about every 12 seconds, even when no image was due, starting during the first layer. It now parks once per image. No images are taken until the layer is above **Minimum Layers** (`park_min_layers`, default 3). It then parks every **Layers between Park** layers (`park_layer_interval`, default 3), and those are the only images while Park before image is on.
 - **Printer switched off with an SBC.** When the Duet board lost power but the SBC stayed on, duetLapse3 logged `Error reading the M3291 commands` every second and "Reconnected to printer" every few seconds, for as long as the board was off. It now shows the printer as off and waits quietly until it's back.
+- **Settings in use when saved.** Saving on the Config tabs used to only save: the changes waited for **Restart**. They're now in use straight away. Printer settings changed while the printer is connected, and the image folder changed while a print's images are being saved, still wait for Restart. Allow multiple instances and Open browser at startup are used the next time duetLapse3 starts. A new Port moves the page there, and a port that's already in use isn't accepted. The message after saving says which settings are waiting.
+- **Dates in the browser's regional format.** Dates on the Files tab were always in US format (month/day) for English. They now use the browser's region, for example day/month for English (UK). `?lang=en-GB` sets it too.
 - **Settings in the log.** The settings listed in the log at the start of each print showed `duet_ip`, `UI_ip` and `UI_port` as blank. They now show the values in use.
 - **Gcode fix.** `/change?layer_interval=` is now accepted, as documented.
 - **Gcode security fix.** `change` values were run as Python code, so a crafted value in gcode could run code on the computer running duetLapse3. They are now checked like saved settings, and a bad value isn't applied and shows the alert.
@@ -101,7 +103,7 @@ What changed since the 3.6 version (DuetLapse3 5.3.7, for DWC / DSF 3.6), descri
   - **Cameras:** each camera's URL with a preview, and an on/off switch (`camera1_on`, `camera2_on`) that keeps the URL. Saving checks the URLs, writes them to the json and starts using them straight away.
   - **Video:** the images captured by each camera, with how many are needed for a video. Then Snapshot (a button for each camera when there are two), plus the Video settings. Saving writes them to the json and starts using them straight away.
   - **Images:** a file browser with a breadcrumb path, list or grid view with thumbnails, search and sorting. Images and videos open in a viewer, and each item has an action menu.
-  - **General:** the printer, image folder and page settings. All the Config tabs check values before saving, and changes take effect when you press **Restart**.
+  - **General:** the printer, image folder and page settings. All the Config tabs check values before saving, and changes are in use as soon as they're saved (see [Settings](#settings)).
 - **Action URLs:** `/command/...`, `/snapshot`, `/makevideo`, `/getfile`, `/zip`, `/delete`, `/terminate/...` and `/videosettings`. Old action URLs such as `/?command=start` still work.
 - **Relative addresses.** The page uses relative URLs, so it works whatever address it's opened on (IP, hostname, VPN, localhost).
 - **Tab in the address.** `?tab=<name>` opens a tab directly.

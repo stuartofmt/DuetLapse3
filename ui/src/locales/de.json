@@ -255,7 +255,7 @@
 		"help": "Verwenden Sie eine Snapshot-URL (empfohlen) oder eine MJPEG-Stream-URL. Speichern speichert beide Kameras."
 	},
 	"config": {
-		"restartNeeded": "Änderungen hier wirken, wenn Sie auf dem Tab „Status“ auf Neustart klicken."
+		"whenInUse": "Änderungen hier sind nach dem Speichern sofort in Gebrauch. Zwei Arten warten auf Neustart auf dem Tab „Status“: Druckereinstellungen, die bei verbundenem Drucker geändert werden, und der Bilderordner, wenn er geändert wird, während Bilder eines Drucks gespeichert werden. „Mehrere Instanzen erlauben“ und „Browser beim Start öffnen“ wirken beim nächsten Start von duetLapse3."
 	},
 	"settingsForm": {
 		"dontGoTogether": "Einige Einstellungen passen nicht zusammen (rot markiert) – es wurde nichts gespeichert.",
@@ -356,7 +356,12 @@
 		}
 	},
 	"server": {
-		"savedRestart": "Gespeichert. Die Änderungen wirken, wenn Sie auf dem Tab „Status“ auf Neustart klicken.",
+		"savedInUse": "Gespeichert. Die Änderungen sind jetzt in Gebrauch.",
+		"savedSomeWaiting": "Gespeichert. Die Änderungen sind jetzt in Gebrauch, außer {keys}: Diese wirken, wenn Sie auf dem Tab „Status“ auf Neustart klicken.",
+		"savedSomeAtStart": "Gespeichert. Die Änderungen sind jetzt in Gebrauch, außer {keys}: Diese wirken beim nächsten Start von duetLapse3.",
+		"savedMoving": "Gespeichert. Die Änderungen sind jetzt in Gebrauch, und die Seite wechselt zu Port {port}.",
+		"savedFolderFailed": "Gespeichert, aber der Bilderordner konnte nicht verwendet werden – siehe Protokoll. Die anderen Änderungen sind jetzt in Gebrauch.",
+		"portInUse": "Port {port} ist bereits belegt",
 		"savedVideo": "Gespeichert. Die Video-Einstellungen sind jetzt in Gebrauch.",
 		"savedCameras": "Gespeichert. Die Kameras sind jetzt in Gebrauch.",
 		"savedConnecting": "Gespeichert – Verbindung zum Drucker unter {printer} wird hergestellt",

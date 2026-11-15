@@ -255,7 +255,7 @@
 		"help": "Use a snapshot url (preferred) or an MJPEG stream url. Save saves both cameras."
 	},
 	"config": {
-		"restartNeeded": "Changes here take effect when you press Restart on the Status tab."
+		"whenInUse": "Changes here are in use as soon as you save them. Two kinds wait for Restart on the Status tab: printer settings changed while the printer is connected, and Image folder changed while a print's images are being saved. Allow multiple instances and Open browser at startup are used the next time duetLapse3 starts."
 	},
 	"settingsForm": {
 		"dontGoTogether": "Some settings don't go together (marked in red) - nothing was saved.",
@@ -356,7 +356,12 @@
 		}
 	},
 	"server": {
-		"savedRestart": "Saved. The changes take effect when you press Restart on the Status tab.",
+		"savedInUse": "Saved. The changes are in use now.",
+		"savedSomeWaiting": "Saved. The changes are in use now, apart from {keys}: they take effect when you press Restart on the Status tab.",
+		"savedSomeAtStart": "Saved. The changes are in use now, apart from {keys}: they are used the next time duetLapse3 starts.",
+		"savedMoving": "Saved. The changes are in use now, and the page is moving to port {port}.",
+		"savedFolderFailed": "Saved, but the image folder could not be used - see the log. The other changes are in use now.",
+		"portInUse": "Port {port} is already in use",
 		"savedVideo": "Saved. The video settings are in use now.",
 		"savedCameras": "Saved. The cameras are in use now.",
 		"savedConnecting": "Saved - connecting to the printer at {printer}",

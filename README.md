@@ -25,6 +25,8 @@ The settings are kept in `duetLapse3.json` (in `sys/duetLapse3` for the plugin) 
 
 The page is in the browser's language when there is a translation for it, otherwise English. Add `?lang=<code>` to the address to choose one, e.g. `?lang=de`. The page is in English, German (`de`), French (`fr`) and Spanish (`es`); see [ui/README.md](ui/README.md) to add a language. The log is always in English.
 
+Dates on the Files tab are in the browser's regional format, for example day/month/year for English (UK). It comes from the browser's language settings, not the computer's, so put the region you want first there. Adding the region to `?lang=` also sets it, e.g. `?lang=en-GB`.
+
 ### If the printer can't be found
 
 While duetLapse3 isn't connected to the printer, every tab shows a banner. duetLapse3 keeps trying; to change the printer's address, port or password, enter them and press **Save and connect**. If the printer refuses the password, duetLapse3 stops trying until it is changed here.
@@ -80,7 +82,14 @@ A snapshot URL is quicker and uses less of the SBC and the camera server. Other 
 
 ### Config
 
-The settings, on four tabs of their own. Changes take effect when you press **Restart** on the Status tab. **Save** checks every value first and saves nothing if any are wrong, or if settings conflict, such as a Park Location with Park before image off.
+The settings, on four tabs of their own. Changes are in use as soon as you save them, apart from these:
+
+- **Printer settings** changed while the printer is connected, and **Image folder** changed while a print's images are being saved, take effect when you press **Restart** on the Status tab.
+- **Allow multiple instances** and **Open browser at startup** are used the next time duetLapse3 starts.
+
+Changing **Port** moves the page to the new port, and the page follows it. **When to start** changed while waiting for a print puts duetLapse3 in that mode straight away.
+
+ **Save** checks every value first and saves nothing if any are wrong, or if settings conflict, such as a Park Location with Park before image off.
 
 #### General
 
@@ -195,7 +204,7 @@ The current log file, `duetLapse3.log`. It opens at the newest line and new line
 - The buttons reload the log and download the whole file. A long log opens at its last 256 KB, and the page keeps up to 10,000 lines; the download has everything.
 - Passwords are not written to the log: the printer's password and any login in a camera URL appear as `***`.
 
-If **Disable Logging** is on (Config, File Settings tab), there is no log to show. For much more detail, turn on **Verbose Logging** on the same tab and press **Restart**.
+If **Disable Logging** is on (Config, File Settings tab), there is no log to show. For much more detail, turn on **Verbose Logging** on the same tab and save.
 
 ## Running without DWC
 

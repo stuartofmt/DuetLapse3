@@ -49,7 +49,7 @@ watch(tab, (value) => {
 				<v-tab v-for="t in tabs" :key="t.value" :value="t.value" :prepend-icon="t.icon">{{ t.title }}</v-tab>
 			</v-tabs>
 			<v-alert type="info" variant="tonal" density="compact" class="mb-4">
-				{{ t("config.restartNeeded") }}
+				{{ t("config.whenInUse") }}
 			</v-alert>
 			<SettingsForm :tab="tab" :key="tab" save-url="/config/save"></SettingsForm>
 		</v-col>

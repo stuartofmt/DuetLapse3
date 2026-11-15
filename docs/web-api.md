@@ -40,7 +40,7 @@ These take a POST with the settings as JSON, e.g. `{"capture_seconds": 30}`. Eve
 
 | URL | Settings |
 | --- | --- |
-| `/config/save` | Any of the settings on the Config tabs (General, Image Capture, Execution and File Settings). They take effect on `/command/restart`, which reads the settings again |
+| `/config/save` | Any of the settings on the Config tabs (General, Image Capture, Execution and File Settings). Saved, and used straight away - apart from the printer settings while the printer is connected and `image_dir` while a print's images are being saved, which wait for `/command/restart`, and `allow_multiple_instances` and `open_browser`, used the next time duetLapse3 starts. A new `UI_port` moves the page there; the reply's `moveTo` is the new port |
 | `/video/save` | The video settings, used straight away |
 | `/cameras/save` | `camera1_url` and `camera2_url`, used straight away |
 | `/cameras/enable` | `{"key": "camera1_on", "enabled": false}` - switch a camera on or off |

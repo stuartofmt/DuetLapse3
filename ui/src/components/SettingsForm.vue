@@ -83,6 +83,12 @@ async function save() {
 		const message = serverText(result.message, result.messageCode);
 		Object.assign(alert, { text: message, type: "success" });
 		notify(message);
+		if (result.moveTo) {  // The web interface port changed - duetLapse3 is moving there, so follow it
+			const moved = new URL(window.location.href);
+			moved.port = String(result.moveTo);
+			setTimeout(() => window.location.assign(moved.href), 4000);
+			return;
+		}
 		await load();
 		emit("saved");
 	} catch (err) {

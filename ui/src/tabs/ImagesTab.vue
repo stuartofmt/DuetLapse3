@@ -8,7 +8,7 @@ import { api, fileUrl } from "../api.js";
 import { clearNotify, confirm, notify } from "../notify.js";
 import { requestVideo } from "../videos.js";
 import { changes, status } from "../status.js";
-import { language, t } from "../i18n.js";
+import { dateLocale, t } from "../i18n.js";
 import {
 	mdiChevronLeft, mdiChevronRight, mdiClose, mdiDelete, mdiDotsVertical, mdiDownload, mdiFileDocumentOutline, mdiFileVideo,
 	mdiFolder, mdiFolderImage, mdiFolderZip, mdiHome, mdiImage, mdiMagnify, mdiMovieOpen, mdiOpenInNew, mdiRefresh, mdiSort,
@@ -193,7 +193,7 @@ function size(bytes) {
 	return `${bytes.toFixed(i ? 1 : 0)} ${units[i]}`;
 }
 
-const when = (seconds) => new Date(seconds * 1000).toLocaleString(language);
+const when = (seconds) => new Date(seconds * 1000).toLocaleString(dateLocale);
 // What a folder holds, e.g. "40 images, 2 videos"
 const contents = (entry) => [entry.images ? t("images.imageCount", { n: entry.images }) : "", entry.videos ? t("images.videoCount", { n: entry.videos }) : ""]
 	.filter(Boolean).join(", ") || t("images.folder");

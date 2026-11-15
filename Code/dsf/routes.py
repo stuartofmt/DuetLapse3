@@ -317,8 +317,43 @@ def save_result(errors, success):
 
 
 def save_config(settings):
-    errors = update_config_file(settings)
-    return save_result(errors, Message('savedRestart', 'Saved. The changes take effect when you press Restart on the Status tab.'))
+    # Save the settings to duetLapse3.json and use them straight away - apart from those that have to wait (see dl3.useSettings)
+    errors = port_errors(settings) or update_config_file(settings)
+    if errors:
+        return save_result(errors, '')
+    values, _ = config_values()  # As saved - with the settings they must not conflict with, which may be on another tab
+    defaults = dl3.flatDefaults()
+    keys = set(settings) | ({'park', 'park_xy', 'capture_on'} if {'park', 'park_xy', 'capture_on'} & set(settings) else set())
+    keys = [key for key in defaults if key in keys and key not in dl3.configExtras]
+    oldPort = state.port
+    waiting, atStart, failed = dl3.useSettings({key: dl3.checkSetting(key, values.get(key, defaults[key]), defaults[key]) for key in keys})
+    moveTo = values.get('UI_port') if 'UI_port' in keys and values.get('UI_port') not in [0, oldPort] else None
+    if failed:
+        message = Message('savedFolderFailed', 'Saved, but the image folder could not be used - see the log. The other changes are in use now.')
+    elif waiting:
+        message = Message('savedSomeWaiting', 'Saved. The changes are in use now, apart from ' + ', '.join(waiting) + ': they take effect when you press Restart on the Status tab.',
+                          keys=waiting)
+    elif atStart:
+        message = Message('savedSomeAtStart', 'Saved. The changes are in use now, apart from ' + ', '.join(atStart) + ': they are used the next time duetLapse3 starts.',
+                          keys=atStart)
+    elif moveTo:
+        message = Message('savedMoving', 'Saved. The changes are in use now, and the page is moving to port ' + str(moveTo) + '.', port=moveTo)
+    else:
+        message = Message('savedInUse', 'Saved. The changes are in use now.')
+    result = save_result({}, message)
+    result['moveTo'] = moveTo
+    return result
+
+
+def port_errors(settings):
+    # A new UI_port must be free - the page moves there when it is saved
+    try:
+        port = int(settings.get('UI_port') or 0)
+    except (TypeError, ValueError):
+        return {}  # Reported when the values are checked
+    if port in [0, state.port] or not dl3.portInUse(state.ip, port):
+        return {}
+    return {'UI_port': Message('portInUse', 'Port ' + str(port) + ' is already in use', port=port)}
 
 
 def video_length_errors(settings):
@@ -587,6 +622,7 @@ def cameras_enable(settings: dict = Body(...)):  # {key: camera1_on | camera2_on
 @router.get('/camera/preview')
 def camera_preview(url: str):  # One image from the camera url, fetched by duetLapse3
     return preview_image(url)
+
 
 @router.get('/camera/snapshot')
 def camera_snapshot(camera: int = 1):  # One image now from camera 1 or 2, if it is in use - its url stays on this computer

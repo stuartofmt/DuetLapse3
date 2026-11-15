@@ -22,6 +22,7 @@ duet = None  # Printer address - blank in the settings = this computer
 duet_port = None  # Printer port
 duet_password = None
 image_dir = None
+imageDirSetting = None  # image_dir as saved - image_dir is the folder in use
 allow_multiple_instances = None
 open_browser = None  # Open the page in this computer's browser at startup - not as the plugin
 no_log = None

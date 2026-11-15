@@ -255,7 +255,7 @@
 		"help": "Use una URL de instantánea (preferida) o una URL de flujo MJPEG. Guardar guarda las dos cámaras."
 	},
 	"config": {
-		"restartNeeded": "Los cambios aquí se aplican cuando pulsa Reiniciar en la pestaña Estado."
+		"whenInUse": "Los cambios aquí se usan en cuanto los guarda. Dos tipos esperan a Reiniciar en la pestaña Estado: los ajustes de la impresora cambiados mientras la impresora está conectada, y la Carpeta de imágenes cambiada mientras se guardan las imágenes de una impresión. «Permitir varias instancias» y «Abrir el navegador al iniciar» se usan la próxima vez que se inicie duetLapse3."
 	},
 	"settingsForm": {
 		"dontGoTogether": "Algunos ajustes no son compatibles entre sí (marcados en rojo) – no se guardó nada.",
@@ -356,7 +356,12 @@
 		}
 	},
 	"server": {
-		"savedRestart": "Guardado. Los cambios se aplican cuando pulsa Reiniciar en la pestaña Estado.",
+		"savedInUse": "Guardado. Los cambios ya están en uso.",
+		"savedSomeWaiting": "Guardado. Los cambios ya están en uso, excepto {keys}: se aplican cuando pulsa Reiniciar en la pestaña Estado.",
+		"savedSomeAtStart": "Guardado. Los cambios ya están en uso, excepto {keys}: se usarán la próxima vez que se inicie duetLapse3.",
+		"savedMoving": "Guardado. Los cambios ya están en uso y la página se traslada al puerto {port}.",
+		"savedFolderFailed": "Guardado, pero no se pudo usar la carpeta de imágenes; consulte el registro. Los demás cambios ya están en uso.",
+		"portInUse": "El puerto {port} ya está en uso",
 		"savedVideo": "Guardado. Los ajustes de vídeo ya están en uso.",
 		"savedCameras": "Guardado. Las cámaras ya están en uso.",
 		"savedConnecting": "Guardado – conectando con la impresora en {printer}",

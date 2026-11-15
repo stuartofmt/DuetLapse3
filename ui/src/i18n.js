@@ -38,6 +38,24 @@ function merge(base, over) {
 }
 
 export const language = pickLanguage();
+
+// For dates and times: the full code of the first wanted language that is the page's language (e.g. en-GB, not en),
+//   so the region's format is used.  ?lang= is wanted first, so it also sets the format - ?lang=en-GB gives UK dates
+function pickDateLocale() {
+	const wanted = [query.get("lang"), ...(navigator.languages ?? [navigator.language])].filter(Boolean);
+	for (const code of wanted) {
+		try {
+			if (code.split("-")[0].toLowerCase() === language && Intl.DateTimeFormat.supportedLocalesOf(code).length) {
+				return code;
+			}
+		} catch {
+			// Not a valid language code - try the next
+		}
+	}
+	return language;
+}
+
+export const dateLocale = pickDateLocale();
 const messages = language === "en" ? locales.en : merge(locales.en, locales[language]);
 document.documentElement.lang = language;  // For the browser - e.g. spell checking, screen readers
 
@@ -66,6 +84,9 @@ export function serverText(text, coded) {
 	const params = { ...coded.params };
 	if (params.key) {
 		params.key = settingLabel(params.key);  // A setting's name, as the page shows it
+	}
+	if (Array.isArray(params.keys)) {
+		params.keys = params.keys.map(settingLabel).join(", ");  // A list of settings
 	}
 	return fill(known, params);
 }

@@ -255,7 +255,7 @@
 		"help": "Utilisez une URL d'instantané (de préférence) ou une URL de flux MJPEG. Enregistrer enregistre les deux caméras."
 	},
 	"config": {
-		"restartNeeded": "Les modifications faites ici prennent effet quand vous cliquez sur Redémarrer dans l'onglet État."
+		"whenInUse": "Les modifications faites ici sont utilisées dès que vous les enregistrez. Deux cas attendent Redémarrer dans l'onglet État : les réglages de l'imprimante modifiés pendant que l'imprimante est connectée, et le Dossier des images modifié pendant que les images d'une impression sont enregistrées. « Autoriser plusieurs instances » et « Ouvrir le navigateur au démarrage » sont utilisés au prochain démarrage de duetLapse3."
 	},
 	"settingsForm": {
 		"dontGoTogether": "Certains réglages sont incompatibles (marqués en rouge) – rien n'a été enregistré.",
@@ -356,7 +356,12 @@
 		}
 	},
 	"server": {
-		"savedRestart": "Enregistré. Les modifications prennent effet quand vous cliquez sur Redémarrer dans l'onglet État.",
+		"savedInUse": "Enregistré. Les modifications sont maintenant utilisées.",
+		"savedSomeWaiting": "Enregistré. Les modifications sont maintenant utilisées, sauf {keys} : elles prennent effet quand vous cliquez sur Redémarrer dans l'onglet État.",
+		"savedSomeAtStart": "Enregistré. Les modifications sont maintenant utilisées, sauf {keys} : elles seront utilisées au prochain démarrage de duetLapse3.",
+		"savedMoving": "Enregistré. Les modifications sont maintenant utilisées, et la page passe au port {port}.",
+		"savedFolderFailed": "Enregistré, mais le dossier des images n'a pas pu être utilisé - voir le journal. Les autres modifications sont maintenant utilisées.",
+		"portInUse": "Le port {port} est déjà utilisé",
 		"savedVideo": "Enregistré. Les réglages vidéo sont maintenant utilisés.",
 		"savedCameras": "Enregistré. Les caméras sont maintenant utilisées.",
 		"savedConnecting": "Enregistré – connexion à l'imprimante à l'adresse {printer}",
