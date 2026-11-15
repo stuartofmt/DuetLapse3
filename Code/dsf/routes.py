@@ -66,7 +66,7 @@ def status_data():
         'imagesAvailable': state.workingDirStatus != -1,
         'allowed': dl3.allowedNextAction(state.action),  # The commands that can be used now
         'canTerminate': not state.plugin,  # As a plugin, DWC starts and stops it
-        'restart': bool(state.restart),
+        'onPrintComplete': state.on_print_complete,
         'run': str(state.pid),  # Video result numbers start again when duetLapse3 restarts
         'videoEvents': state.videoEvents,  # The last 10 videos made (or not)
     }
@@ -336,7 +336,7 @@ def save_config(settings):
     if failed:
         message = Message('savedFolderFailed', 'Saved, but the image folder could not be used - see the log. The other changes are in use now.')
     elif waiting:
-        message = Message('savedSomeWaiting', 'Saved. The changes are in use now, apart from ' + ', '.join(waiting) + ': they take effect when you press Restart on the Status tab.',
+        message = Message('savedSomeWaiting', 'Saved. The changes are in use now, apart from ' + ', '.join(waiting) + ': they take effect when the print completes.',
                           keys=waiting)
     elif atStart:
         message = Message('savedSomeAtStart', 'Saved. The changes are in use now, apart from ' + ', '.join(atStart) + ': they are used the next time duetLapse3 starts.',
@@ -471,7 +471,7 @@ def preview_image(url):
 ###########################
 
 def update_command(command):
-    # start / standby / pause / continue / restart - carried out by the control loop, one at a time.
+    # start / standby / pause / continue / printcomplete - carried out by the control loop, one at a time.
     # Wait (up to 10 seconds) until it is done, so the page shows the new state
     if command == state.action:  # Nothing to do
         logger.info('Already in ' + state.action + ' state')
@@ -495,8 +495,8 @@ def terminate_process(ttype):
         logger.info(ttype + ' invalid terminate requested')
         return
 
-    if ttype in ['terminatehttp', 'terminateg']:
-        dl3.queueAction('completed')
+    if ttype in ['terminatehttp', 'terminateg']:  # The same as /command/printcomplete
+        dl3.queueAction('printcomplete')
     elif ttype == 'terminatef':
         if state.plugin:
             duet_printer.stopPlugin(state.apiModel, 'duetLapse3')
@@ -642,7 +642,7 @@ def camera_snapshot(camera: int = 1):  # One image now from camera 1 or 2, if it
 ###########################
 
 @router.get('/command/{command}')
-def command(command: str):  # start, standby, pause, continue, restart, terminate
+def command(command: str):  # start, standby, pause, continue, printcomplete (terminate - the older form of /terminate/terminateg)
     update_command(command)
     return Response(status_code=204)
 

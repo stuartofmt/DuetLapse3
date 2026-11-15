@@ -8,7 +8,7 @@ All of these use GET.
 
 | URL | What it does |
 | --- | --- |
-| `/command/<command>` | `start`, `standby`, `pause`, `continue` or `restart`. Ignored and logged if it isn't allowed in the current state |
+| `/command/<command>` | `start`, `standby`, `pause`, `continue` or `printcomplete` (see [gcode](gcode.md)). Ignored and logged if it isn't allowed in the current state |
 | `/change?<setting>=<value>` | Change settings in memory, used straight away and not saved. Give one or more, e.g. `/change?park=True&park_xy=10,200`: all of them are used or none, with a 400 reply listing the errors and an alert on the page. The settings are listed in [gcode](gcode.md#changing-a-setting) |
 | `/snapshot` | Make a video of the images so far (`?camera=1` or `?camera=2` for one camera) |
 | `/makevideo?path=<folder>&xtratime=false` | Make a video from an image folder |
@@ -16,7 +16,7 @@ All of these use GET.
 | `/getfile?path=<file>` | Download a file |
 | `/zip?path=<folder>` | Zip an image folder |
 | `/delete?path=<file or folder>` | Delete a file or folder |
-| `/terminate/terminateg` | Finish capture: make the video, then get ready for the next print (or stop, if `norestart` is set) |
+| `/terminate/terminateg` | The same as `/command/printcomplete` |
 | `/terminate/terminatef` | Terminate the program straight away, without a video |
 | `/camera/preview?url=<camera url>` | One image from a camera URL |
 | `/camera/snapshot?camera=<1 or 2>` | One image now from that camera, if it's in use (404 if not). The Status tab shows it until the first image is captured |
@@ -40,7 +40,7 @@ These take a POST with the settings as JSON, e.g. `{"capture_seconds": 30}`. Eve
 
 | URL | Settings |
 | --- | --- |
-| `/config/save` | Any of the settings on the Config tabs (General, Image Capture, Execution and File Settings). Saved, and used straight away - apart from the printer settings while the printer is connected and `image_dir` while a print's images are being saved, which wait for `/command/restart`, and `allow_multiple_instances` and `open_browser`, used the next time duetLapse3 starts. A new `UI_port` moves the page there; the reply's `moveTo` is the new port |
+| `/config/save` | Any of the settings on the Config tabs (General, Image Capture, Execution and File Settings). Saved, and used straight away - apart from the printer settings while the printer is connected and `image_dir` while a print's images are being saved, which wait until the print completes (or `/command/printcomplete`), and `allow_multiple_instances` and `open_browser`, used the next time duetLapse3 starts. A new `UI_port` moves the page there; the reply's `moveTo` is the new port |
 | `/video/save` | The video settings, used straight away |
 | `/cameras/save` | `camera1_url` and `camera2_url`, used straight away |
 | `/cameras/enable` | `{"key": "camera1_on", "enabled": false}` - switch a camera on or off |

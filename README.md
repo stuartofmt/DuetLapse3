@@ -41,11 +41,9 @@ While duetLapse3 isn't connected to the printer, every tab shows a banner. duetL
   - **Start** - start taking images.
   - **Standby** - stop and delete the images, without making a video.
   - **Pause** / **Continue** - stop taking images for now, and carry on.
-  - **Restart** - make the video, read the settings again, then get ready for the next print. Any changes you've saved are picked up, as if duetLapse3 had been started again, including a different printer, image folder or page port (the page moves to the new port). If the saved settings can't be used, an alert shows at the top of the page and the current ones are kept. Restart can also be used in standby. The automatic restart at the end of a print doesn't read the settings.
+  - **Print complete** - finish this print: make the video, start a new log, go back to the saved settings, then do what **On Print Complete** says. The same happens by itself when a print ends. Gcode can send it too, e.g. from the slicer's end gcode, so the moves at the end aren't captured - see [gcode](docs/gcode.md). A print that's still running then isn't captured; capture starts again with the next print.
   - Buttons that can't be used now are greyed out.
-- **Finish capture** and **Terminate the program** appear here when duetLapse3 runs on its own. As a plugin they're hidden, because DWC starts and stops it.
-  - **Finish capture** makes the video, then gets ready for the next print, or stops if **No restart** is set.
-  - **Terminate the program** stops straight away, without a video.
+- **Terminate the program** appears here when duetLapse3 runs on its own. It stops straight away, without a video. As a plugin it's hidden, because DWC starts and stops it.
 - **Status** - what duetLapse3 and the printer are doing, the images captured by each camera, the current layer, how long the video will be, and the printer's address and firmware.
 - **Last image** - the latest image captured. Until the first one, it shows an image taken from the camera when the Status tab is opened, with "Waiting for the first image to be captured" below it, so you can check the camera's view.
 
@@ -84,7 +82,7 @@ A snapshot URL is quicker and uses less of the SBC and the camera server. Other 
 
 The settings, on four tabs of their own. Changes are in use as soon as you save them, apart from these:
 
-- **Printer settings** changed while the printer is connected, and **Image folder** changed while a print's images are being saved, take effect when you press **Restart** on the Status tab.
+- **Printer settings** changed while the printer is connected, and **Image folder** changed while a print's images are being saved, take effect when the print completes (or **Print complete** on the Status tab).
 - **Allow multiple instances** and **Open browser at startup** are used the next time duetLapse3 starts.
 
 Changing **Port** moves the page to the new port, and the page follows it. **When to start** changed while waiting for a print puts duetLapse3 in that mode straight away.
@@ -134,7 +132,7 @@ When duetLapse3 starts and stops.
 | Setting | Name in `duetLapse3.json` | Default | What it does |
 | --- | --- | --- | --- |
 | When to start | `start_mode` | When a print starts | See below |
-| No restart | `norestart` | off | Stop duetLapse3 when the print finishes, instead of getting ready for the next print. As a plugin, it then has to be started again in DWC |
+| On Print Complete | `on_print_complete` | Get ready for the next print | What to do when a print completes, after its video is made - see below |
 
 **When to start** has three choices:
 
@@ -149,9 +147,17 @@ With **When a print starts**:
 1. **Waiting:** with the printer idle, the Status tab shows Waiting and no images are taken.
 2. **The print begins:** when the printer's status becomes `processing`, duetLapse3 starts capturing. A print that's already running when it starts counts too, and so does one that's paused or pausing, unless Event capture is Timed Only.
 3. **Images:** these follow the settings on the [Image Capture](#image-capture) tab.
-4. **The print ends:** it makes the video, starts a new log and gets ready for the next print, unless **No restart** is on.
+4. **The print ends:** it makes the video, starts a new log, goes back to the saved settings, then does what **On Print Complete** says.
 
 With **Wait for the Start command**, it goes back to waiting for the command after each print.
+
+**On Print Complete** has three choices:
+
+| Choice | Value | What happens |
+| --- | --- | --- |
+| **Get ready for the next print** | `ready` | Starts again as **When to start** says: at the next print, straight away, or at the Start command |
+| **Wait for the Start command** | `standby` | Waits for the Start button or `/command/start`, whatever **When to start** is |
+| **Terminate (no video)** | `terminate` | Stops duetLapse3 straight away, without a video. As a plugin, it then has to be started again in DWC |
 
 There are two exceptions when Event capture is **Timed Only**:
 
@@ -172,7 +178,7 @@ Logging, and what happens to the images and videos.
 | Delete Images | `delete_images` | off | Delete the images when a print finishes, after its video is made (videos are kept) |
 | Keep Files | `keep_files` | off | Don't delete images when duetLapse3 starts or a print finishes. Standby still deletes them, and videos are always kept |
 
-The log is `duetLapse3.log`, next to `duetLapse3.json`. A new log starts each time duetLapse3 starts and for each print: at the end of a print, or when you press **Restart**. The one before it is kept as `duetLapse3.previous.log`. See both on the [Log](#log) tab.
+The log is `duetLapse3.log`, next to `duetLapse3.json`. A new log starts each time duetLapse3 starts and for each print: when a print completes, or when you press **Print complete**. The one before it is kept as `duetLapse3.previous.log`. See both on the [Log](#log) tab.
 
 While duetLapse3 is starting, before the settings have been read and checked, its messages go to `duetLapse3.startup.log` in the program's own folder (`dsf/` for the plugin), as well as the console. A new one is made at each start. When the startup checks pass, logging switches to `duetLapse3.log`, which begins with what the startup log holds, so the Log tab shows it too. If duetLapse3 stops during startup, for example because a setting has a bad value or another copy is already running, the reason is only in `duetLapse3.startup.log` and the console, and the previous `duetLapse3.log` is left as it was.
 

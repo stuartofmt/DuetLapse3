@@ -16,11 +16,18 @@ One command per `M3291` call. `M3291` needs RepRapFirmware 3.5 or later.
 | `/command/standby` | Stop and delete the images, without making a video |
 | `/command/pause` | Stop taking images for now |
 | `/command/continue` | Carry on after a pause |
-| `/command/restart` | Make the video, start a new log, read the saved settings again, then get ready for the next print |
+| `/command/printcomplete` | The print is complete: make the video, start a new log, go back to the saved settings, then do what On Print Complete says. A print that's still running isn't captured - use it in the end gcode, after `M400`, so the moves at the end aren't captured |
 | `/snapshot` | Make a video of the images so far |
-| `/terminate/terminateg` | Finish capture: make the video, then get ready for the next print (or stop, if `norestart` is set) |
+| `/terminate/terminateg` | The same as `/command/printcomplete` |
 | `/terminate/terminatef` | Terminate straight away, without a video |
 | `/change?<setting>=<value>` | Change a setting while running (see below) |
+
+For example, at the start of your slicer's end gcode:
+
+```text
+M400                              ; finish the last moves, so the last image shows the finished print
+M3291 B"/command/printcomplete"   ; make the video now - the end gcode's moves aren't captured
+```
 
 Each command is a request to the [web API](web-api.md), so it does the same as calling that URL. `/snapshot?camera=1` or `?camera=2` makes a video for one camera. Only the commands above can be sent from gcode: the other URLs, such as `/delete`, can't.
 
@@ -28,7 +35,7 @@ The spellings from earlier versions, such as `duetLapse3.start`, no longer work.
 
 ## Changing a setting
 
-`/change?<setting>=<value>` changes a setting in memory and takes effect immediately. It doesn't change the saved settings, so it lasts until the `/command/restart` command or the Restart button reads them again, or duetLapse3 is started again. To keep a change, make it on the duetLapse3 page.
+`/change?<setting>=<value>` changes a setting in memory and takes effect immediately. It doesn't change the saved settings, so it lasts until the print completes, when duetLapse3 goes back to the saved settings. To keep a change, make it on the duetLapse3 page.
 
 ```text
 M3291 B"/change?capture_seconds=30"
@@ -54,8 +61,9 @@ These settings can be changed:
 | `capture_on` | `layer`, `pause` or `timed` |
 | `capture_seconds` | seconds (0 = off) |
 | `layer_interval` | number of layers |
-| `start_mode` | `on_print`, `now` or `standby`. `now` and `on_print` act at once. `standby` applies from the end of the current print |
-| `park`, `norestart`, `no_video`, `keep_files`, `verbose` | `True` or `False` |
+| `start_mode` | `on_print`, `now` or `standby`. Used at once while waiting for a print |
+| `on_print_complete` | `ready`, `standby` or `terminate` |
+| `park`, `no_video`, `keep_files`, `verbose` | `True` or `False` |
 | `park_xy` | two numbers: `X,Y` |
 | `park_wait`, `end_hold`, `min_video_seconds`, `video_length` | seconds |
 | `park_min_layers`, `park_layer_interval` | number of layers |

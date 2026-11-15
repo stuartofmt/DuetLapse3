@@ -1,11 +1,11 @@
-<!-- The controls (on the Status tab): start, standby, pause, continue, restart, and terminate -->
+<!-- The controls (on the Status tab): start, standby, pause, continue, print complete, and terminate -->
 <script setup>
 import { computed, ref } from "vue";
 import { api } from "../api.js";
 import { confirm, notify } from "../notify.js";
-import { serverText, t } from "../i18n.js";
+import { t } from "../i18n.js";
 import { refreshStatus, status } from "../status.js";
-import { mdiPause, mdiPlay, mdiPower, mdiPowerSleep, mdiRestart, mdiStop } from "../icons.js";
+import { mdiFlagCheckered, mdiPause, mdiPlay, mdiPower, mdiPowerSleep } from "../icons.js";
 
 const s = computed(() => status.data);
 const busy = ref("");
@@ -20,44 +20,50 @@ const commands = [
 	{ name: "pause", label: t("controls.pause"), icon: mdiPause, color: "info" },
 	{ name: "continue", label: t("controls.continue"), icon: mdiPlay, color: "info" },
 	{
-		name: "restart", label: t("controls.restart"), icon: mdiRestart, color: "warning",
-		confirm: t("controls.restartConfirm"),
+		name: "printcomplete", label: t("controls.printcomplete"), icon: mdiFlagCheckered, color: "warning",
+		// What happens depends on On Print Complete
+		confirm: () => s.value?.onPrintComplete === "terminate" ? t("controls.printcompleteTerminate")
+			: t("controls.printcompleteConfirm", { next: t(s.value?.onPrintComplete === "standby" ? "controls.thenStandby" : "controls.thenReady") }),
 	},
 ];
 
 const allowed = (name) => s.value?.allowed.includes(name);
 
 async function run(command) {
-	if (command.confirm && !await confirm(command.confirm, { title: command.label, color: command.color })) {
+	const text = typeof command.confirm === "function" ? command.confirm() : command.confirm;
+	if (text && !await confirm(text, { title: command.label, color: command.color })) {
 		return;
 	}
+	const ending = command.name === "printcomplete" && s.value?.onPrintComplete === "terminate";  // duetLapse3 will stop
 	busy.value = command.name;
 	try {
 		await api.getText(`/command/${command.name}`);
+		if (ending) {
+			stopped.value = true;
+			return;
+		}
 		await refreshStatus();
 	} catch (err) {
+		if (ending) {  // It may end before it answers
+			stopped.value = true;
+			return;
+		}
 		notify(t("controls.failed", { command: command.label, error: err.message }), "error", 6000);
 	} finally {
 		busy.value = "";
 	}
 }
 
-async function terminate(type) {
-	const after = `\n${t(s.value?.restart ? "controls.restartAfter" : "controls.stopAfter")}`;  // What happens next - see norestart
-	const video = s.value?.imagesAvailable ? serverText(s.value.videoMessage, s.value.videoMessageCode) : t("controls.noImages");
-	const text = type === "graceful" ? t("controls.gracefulText", { video }) + after : t("controls.forcedText");
-	const ok = await confirm(text, { title: type === "graceful" ? t("controls.graceful") : t("controls.forced"), color: "error" });
-	if (!ok) {
+async function terminate() {
+	if (!await confirm(t("controls.forcedText"), { title: t("controls.forced"), color: "error" })) {
 		return;
 	}
 	try {
-		await api.getText(type === "graceful" ? "/terminate/terminateg" : "/terminate/terminatef");
+		await api.getText("/terminate/terminatef");
 	} catch {
-		// A forced terminate may end duetLapse3 before it answers
+		// duetLapse3 may end before it answers
 	}
-	if (type === "forced" || !s.value?.restart) {
-		stopped.value = true;
-	}
+	stopped.value = true;
 }
 </script>
 
@@ -75,10 +81,7 @@ async function terminate(type) {
 			<template v-if="s.canTerminate">
 				<v-divider class="my-3"></v-divider>
 				<div class="d-flex flex-wrap ga-2">
-					<v-btn :prepend-icon="mdiStop" color="success" variant="tonal" :disabled="stopped" @click="terminate('graceful')">
-						{{ t("controls.graceful") }}
-					</v-btn>
-					<v-btn :prepend-icon="mdiPower" color="error" variant="tonal" :disabled="stopped" @click="terminate('forced')">
+					<v-btn :prepend-icon="mdiPower" color="error" variant="tonal" :disabled="stopped" @click="terminate">
 						{{ t("controls.forced") }}
 					</v-btn>
 				</div>

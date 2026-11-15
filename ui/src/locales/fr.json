@@ -114,9 +114,9 @@
 			"label": "Quand démarrer",
 			"description": "Quand commencer à prendre des images. Avec la capture sur événement réglée sur Périodique uniquement et une capture périodique supérieure à 0, elle démarre toujours immédiatement ou à la commande Démarrer"
 		},
-		"norestart": {
-			"label": "Pas de redémarrage",
-			"description": "Arrêter duetLapse3 à la fin de l'impression, au lieu de se préparer à la prochaine impression"
+		"on_print_complete": {
+			"label": "À la fin de l'impression",
+			"description": "Que faire quand une impression est terminée, une fois sa vidéo faite : se préparer pour la prochaine impression (selon Quand démarrer), ou attendre la commande Démarrer. Terminer arrête duetLapse3, sans vidéo"
 		},
 		"no_log": {
 			"label": "Désactiver le journal",
@@ -207,15 +207,13 @@
 		"standby": "Veille",
 		"pause": "Pause",
 		"continue": "Reprendre",
-		"restart": "Redémarrer",
+		"printcomplete": "Impression terminée",
 		"standbyConfirm": "La veille NE crée PAS de vidéo.\nToutes les images capturées seront supprimées.",
-		"restartConfirm": "Redémarrer essaie de créer une vidéo, relit les réglages, puis se prépare à la prochaine impression.\n\nLes images capturées sont supprimées au prochain démarrage du programme, sauf si « Conserver les fichiers » est activé.",
-		"graceful": "Terminer la capture",
+		"printcompleteConfirm": "Terminer cette impression : faire la vidéo, revenir aux réglages enregistrés, puis {next}.\n\nUne impression encore en cours n'est pas capturée.",
+		"printcompleteTerminate": "« À la fin de l'impression » est réglé sur Terminer : duetLapse3 va s'arrêter, sans vidéo.",
+		"thenReady": "se préparer pour la prochaine impression",
+		"thenStandby": "attendre la commande Démarrer",
 		"forced": "Arrêter le programme",
-		"gracefulText": "Créer la vidéo.\n{video}",
-		"noImages": "Aucune image disponible.",
-		"restartAfter": "Un redémarrage suivra.",
-		"stopAfter": "duetLapse3 s'arrêtera ensuite.",
 		"forcedText": "Arrêter immédiatement.\nAucune vidéo ne sera créée.",
 		"stopping": "Le programme s'arrête.",
 		"failed": "Échec de {command} : {error}"
@@ -255,7 +253,7 @@
 		"help": "Utilisez une URL d'instantané (de préférence) ou une URL de flux MJPEG. Enregistrer enregistre les deux caméras."
 	},
 	"config": {
-		"whenInUse": "Les modifications faites ici sont utilisées dès que vous les enregistrez. Deux cas attendent Redémarrer dans l'onglet État : les réglages de l'imprimante modifiés pendant que l'imprimante est connectée, et le Dossier des images modifié pendant que les images d'une impression sont enregistrées. « Autoriser plusieurs instances » et « Ouvrir le navigateur au démarrage » sont utilisés au prochain démarrage de duetLapse3."
+		"whenInUse": "Les modifications faites ici sont utilisées dès que vous les enregistrez. Deux cas attendent la fin de l'impression : les réglages de l'imprimante modifiés pendant que l'imprimante est connectée, et le Dossier des images modifié pendant que les images d'une impression sont enregistrées. « Autoriser plusieurs instances » et « Ouvrir le navigateur au démarrage » sont utilisés au prochain démarrage de duetLapse3."
 	},
 	"settingsForm": {
 		"dontGoTogether": "Certains réglages sont incompatibles (marqués en rouge) – rien n'a été enregistré.",
@@ -322,6 +320,11 @@
 			"on_print": "Au début d'une impression",
 			"now": "Immédiatement",
 			"standby": "Attendre la commande Démarrer"
+		},
+		"on_print_complete": {
+			"ready": "Se préparer pour la prochaine impression",
+			"standby": "Attendre la commande Démarrer",
+			"terminate": "Terminer (sans vidéo)"
 		}
 	},
 	"values": {
@@ -330,9 +333,8 @@
 			"standby": "Veille",
 			"pause": "Pause",
 			"continue": "Reprise",
-			"restart": "Redémarrage",
-			"terminate": "Arrêt",
-			"completed": "Terminé"
+			"printcomplete": "Impression terminée",
+			"terminate": "Arrêt"
 		},
 		"printState": {
 			"Waiting": "En attente",
@@ -358,7 +360,7 @@
 	},
 	"server": {
 		"savedInUse": "Enregistré. Les modifications sont maintenant utilisées.",
-		"savedSomeWaiting": "Enregistré. Les modifications sont maintenant utilisées, sauf {keys} : elles prennent effet quand vous cliquez sur Redémarrer dans l'onglet État.",
+		"savedSomeWaiting": "Enregistré. Les modifications sont maintenant utilisées, sauf {keys} : elles prennent effet à la fin de l'impression.",
 		"savedSomeAtStart": "Enregistré. Les modifications sont maintenant utilisées, sauf {keys} : elles seront utilisées au prochain démarrage de duetLapse3.",
 		"savedMoving": "Enregistré. Les modifications sont maintenant utilisées, et la page passe au port {port}.",
 		"savedFolderFailed": "Enregistré, mais le dossier des images n'a pas pu être utilisé - voir le journal. Les autres modifications sont maintenant utilisées.",

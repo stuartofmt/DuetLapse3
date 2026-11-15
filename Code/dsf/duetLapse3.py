@@ -125,13 +125,13 @@ DEFAULTS = {
     'Environment': {'duet_ip': '', 'duet_port': 80, 'duet_password': 'reprap', 'image_dir': '', 'allow_multiple_instances': False},
     'Files': {'no_log': False, 'verbose': False, 'no_video': False, 'delete_images': False, 'keep_files': False},
     'Capture': {'capture_seconds': 0, 'capture_on': 'layer', 'layer_interval': 1},
-    'Execution': {'start_mode': 'on_print', 'norestart': False},
+    'Execution': {'start_mode': 'on_print', 'on_print_complete': 'ready'},
     'Pause': {'park': False, 'park_xy': [0, 0], 'park_wait': 1, 'park_min_layers': 3, 'park_layer_interval': 3},
     'Camera': {'camera1_url': '', 'camera1_on': True, 'camera2_url': '', 'camera2_on': True},
     'Video': {'end_hold': 0, 'fps': 10, 'min_video_seconds': 5, 'video_length': 0, 'ffmpeg_threads': 0},
     'UI': {'UI_ip': '', 'UI_port': 0, 'open_browser': True},
 }
-CHOICES = {'capture_on': ['layer', 'pause', 'timed'], 'start_mode': ['on_print', 'now', 'standby']}
+CHOICES = {'capture_on': ['layer', 'pause', 'timed'], 'start_mode': ['on_print', 'now', 'standby'], 'on_print_complete': ['ready', 'standby', 'terminate']}
 configExtras = ['UI_ip']  # Written by duetLapse3, not read as a setting
 
 
@@ -238,8 +238,8 @@ def loadSettings(filename):
         for key, val in section.items():
             if key in configExtras:
                 continue
-            if key == 'restart' and 'norestart' not in keys and isinstance(val, bool):  # The old setting - the opposite of norestart
-                settings['norestart'] = not val
+            if key in ['norestart', 'restart'] and 'on_print_complete' not in keys and isinstance(val, bool):  # The old settings
+                settings['on_print_complete'] = 'standby' if val == (key == 'norestart') else 'ready'  # Not restarting = wait to be told
                 continue
             if key not in settings:
                 logger.warning('Ignoring unknown setting "' + key + '" in ' + filename)
@@ -306,7 +306,7 @@ def runSubprocess(cmd, lowPriority=False):
 
 
 def applySettings(args):
-    # Use the settings from duetLapse3.json - at startup, and again on a restart command.  UI_port is handled separately
+    # Use the settings from duetLapse3.json - at startup, and again when a print completes.  UI_port is handled separately
 
     # Environment
 
@@ -354,8 +354,7 @@ def applySettings(args):
     state.park_min_layers = max(0, args['park_min_layers'])
     state.park_layer_interval = max(1, args['park_layer_interval'])
 
-    state.norestart = args['norestart']
-    state.restart = not state.norestart  # Get ready for the next print when one finishes
+    state.on_print_complete = args['on_print_complete']  # ready (for the next print), standby or terminate
 
     # Camera
 
@@ -382,7 +381,7 @@ def applySettings(args):
 
     state.ffmpeg_threads = max(0, args['ffmpeg_threads'])
 
-    # To tell if the printer changed on a restart command
+    # To tell if the printer changed when a print completes
     state.printerSettings = (args['duet_ip'], args['duet_port'], args['duet_password'])
 
     setDebug(state.verbose)
@@ -405,7 +404,7 @@ def settingsConflict(args):
 
 
 def settingsRejected(reason):
-    # Settings that were not applied: shown on the page until it is closed, or the next good restart command
+    # Settings that were not applied: shown on the page until it is closed, or the settings are next read without a problem
     state.settingsAlert = reason
     logBox([reason, 'These settings were not applied - carrying on with the current ones'])
 
@@ -457,7 +456,7 @@ def checkCameras():
 
 
 def reloadSettings():
-    # The restart command: read duetLapse3.json again and use it, as if duetLapse3 had been started again.
+    # When a print completes: read duetLapse3.json again and use it, as if duetLapse3 had been started again.
     # This program keeps running, so settings that can't be used raise an alert and the current ones are kept - they don't stop it
     logger.info('Reading the settings again from ' + state.configfile)
     try:
@@ -1239,9 +1238,9 @@ def cleanupFiles(phase):
     return  # cleanupFiles
 
 
-def startNow():
-    #  Determine if program should logically start now
-    if state.standby:
+def startNow(standby=False):
+    #  Determine if program should logically start now.  standby: wait for the start command, whatever start_mode is
+    if state.standby or standby:
         state.action = 'standby'
         return False
     elif (state.capture_seconds > 0) and (state.start_now or 'timed' in state.capture_on):
@@ -1553,59 +1552,55 @@ def copyLastFrame(f, frame):  # Makes copies and updates frame counter
     return int(nf)  # Must be an integer for later math
 
 
-def restartAction():
+def restartAction(standby=False):
     state.workingDirStatus = -1  # Force creation of a new workingDir
     setNextWorkingDir()
-    logger.info('################### Restarted - images will go in ' + state.nextWorkingDir + ' ###################')
-    startNow()  # determine start state
+    logger.info('################### Ready - images will go in ' + state.nextWorkingDir + ' ###################')
+    startNow(standby)  # determine start state
     listOptions()  # List the current values
     issueWarnings()  # list any warnings about setting combinations
     startup()  # Warp speed Mr Sulu
 
 
 def terminate():
-    # Runs in the control loop.  The video (if any) is finished first
-    setDebug(True)  # Force verbose messaging
-
+    # On Print Complete set to terminate: stop duetLapse3, without a video.  Runs in the control loop
     state.terminateState = 1
     logger.info('Terminating')
+    waitforMakeVideo()  # One already being made (e.g. from the Video tab) is finished first
+    closeHttpListener()
+    logger.info('Program Terminated')
+    if state.plugin:
+        stopPlugin(state.apiModel, 'duetLapse3')  # DSF stops this program
+        time.sleep(10)
+    exitProgram(0)
 
-    #  Make sure video creation is complete
-    logger.debug('Wait for video to complete')
-    waitforMakeVideo()
 
+def printComplete():
+    # The print is complete - the printer says so, or /command/printcomplete (e.g. from the end gcode).  Runs in the control loop
+    # Make the video, start a new log, go back to the saved settings (so /change values last for one print, and settings
+    # that were waiting are used), then do what on_print_complete says.  A print still running now is not captured
+    onPrintComplete = state.on_print_complete  # The setting in use for this print - the saved one is read again below
+    logger.info('Print complete - On Print Complete is ' + onPrintComplete)
+    state.printState = 'Completed'
+    if onPrintComplete == 'terminate':
+        terminate()
+        return
+    if state.no_video:
+        logger.info('Video creation was skipped')
+    elif state.workingDirStatus != -1:
+        startMakeVideo(state.workingDir, True)  # Add end_hold if appropriate
+    waitforMakeVideo()  # Wait until done before deleting files
     cleanupFiles('terminate')
 
-    if state.restart:
-        # wait for the print job to end - e.g. Finish capture during a print
-        state.duetStatus, _ = getDuet(getStatus)
-        loopcounter = 0
-        if state.duetStatus in jobStatuses:
-            logger.info('Waiting for printjob to complete')
-        while state.duetStatus in jobStatuses and loopcounter < 30:  # Don't wait more than a minute
-            time.sleep(2)
-            loopcounter += 1
-            state.duetStatus, _ = getDuet(getStatus)
-        if loopcounter >= 30:
-            logger.info('printjob did not complete')
-        state.lastDuetStatus = state.duetStatus  # So the end of the job it waited for isn't taken as the end of the next one
-        # ready to restart
-        setDebug(state.verbose)
-        state.restarting = True
-        logger.info('----------')
-        logger.info('RESTARTING')
-        logger.info('----------')
+    status, _ = getDuet(getStatus)
+    state.ignoreJob = status in jobStatuses + ['busy']  # e.g. the end gcode after /command/printcomplete
+    if state.ignoreJob:
+        logger.info('The print job is still running (' + str(status) + ') - it will not be captured')
 
-        state.terminateState = -1
-        setupLogFile()
-        restartAction()
-    else:
-        closeHttpListener()
-        logger.info('Program Terminated')
-        if state.plugin:
-            stopPlugin(state.apiModel, 'duetLapse3')  # DSF stops this program
-            time.sleep(10)
-        exitProgram(0)
+    state.restarting = True
+    setupLogFile()
+    reloadSettings()
+    restartAction(onPrintComplete == 'standby')
 
 
 def quitSigint(*args):
@@ -1619,7 +1614,6 @@ def quitSigterm(*args):
 
 
 def quitForcibly():
-    state.restart = False
     logger.info('!!!!! Forced Termination !!!!!')
     exitProgram(1)
 
@@ -1702,16 +1696,11 @@ def deleteFileFolder(fname):
 
 def allowedNextAction(thisaction):
     if thisaction == 'standby':
-        return ['start', 'restart']
+        return ['start', 'printcomplete']
     elif thisaction == 'pause':
-        return ['standby', 'continue', 'restart']
-    elif thisaction == 'restart':
-        if state.standby:
-            return ['start', 'restart']
-        else:
-            return ['standby', 'pause', 'restart']
+        return ['standby', 'continue', 'printcomplete']
     else:
-        return ['standby', 'pause', 'restart']
+        return ['standby', 'pause', 'printcomplete']
 
 
 def startHttpListener():
@@ -1778,7 +1767,7 @@ def openBrowser():
 
 
 def moveListener():
-    # UI_port was changed by the restart command: the page moves there.  0 keeps the port in use
+    # UI_port was saved on the page, or read again when a print completed: the page moves there.  0 keeps the port in use
     port, state.newPort = state.newPort, None
     if port in [None, 0, state.port]:
         return
@@ -1916,7 +1905,11 @@ def controlLoop():
 
 def stateMachine(currentState):
     newState = currentState
-    if currentState == 'Waiting':
+    if state.ignoreJob and state.duetStatus in ['idle', 'off', 'halted']:  # The job that was running at print complete has ended
+        state.ignoreJob = False
+    if currentState == 'Waiting' and state.ignoreJob and not state.start_now:
+        pass  # Not a new print - the one that was running at print complete
+    elif currentState == 'Waiting':
         if state.duetStatus == 'processing' or state.start_now or (state.duetStatus in ['paused', 'pausing'] and state.capture_on != 'timed'):
             newState = 'Capturing'
         elif state.duetStatus == 'cancelling':
@@ -1987,7 +1980,7 @@ def capturePass():
 
     if state.printState == 'Completed' and state.lastPrintState != 'Completed':  # Once - later passes may run before it is carried out
         logger.info('Print Job Completed')
-        queueAction('completed')
+        queueAction('printcomplete')
 
     state.lastPrintState = state.printState
     state.lastDuetStatus = state.duetStatus
@@ -2004,17 +1997,11 @@ def nextAction(nextaction):
         logger.info('nextaction ignored - the printer is not connected')
         return
 
-    state.action = nextaction  # default
+    if nextaction == 'printcomplete':
+        printComplete()  # This sets the new state
+        return
 
-    # This test is positionally sensitive
-    if nextaction == 'completed':  # end of a print job
-        state.printState = 'Completed'  # Update may have come from message Q
-        if state.no_video:
-            logger.info('Video creation was skipped')
-        else:
-            if state.workingDirStatus != -1:
-                startMakeVideo(state.workingDir, True)  # Add end_hold if appropriate
-        nextaction = 'terminate'
+    state.action = nextaction  # default
 
     logger.debug('++++++ Determining next logical action ++++++')
 
@@ -2031,28 +2018,6 @@ def nextAction(nextaction):
 
     elif nextaction == 'continue':
         state.action = 'start'
-
-    elif nextaction == 'restart':
-        if state.no_video:
-            logger.info('Video creation was skipped')
-        else:
-            if state.workingDirStatus != -1:
-                startMakeVideo(state.workingDir, True)  # Add end_hold if appropriate
-            waitforMakeVideo()  # Wait until done before deleting files
-        setupLogFile()
-        reloadSettings()
-        restartAction()
-
-        if state.standby:
-            state.action = 'standby'
-        else:
-            state.action = 'start'
-
-    elif nextaction == 'terminate':
-        state.action = 'terminate'
-        logger.info('++++++ Entering terminate state ++++++')
-        terminate()  # On restart, this sets the new state
-        return
 
     logger.info('++++++ Entering ' + state.action + ' state ++++++')
     logger.debug('nextAction exiting normally')
@@ -2118,7 +2083,7 @@ def callApi(request):
 
 
 # Settings that can be changed while running - by /change, or by saving them on the page
-changeable = ['verbose', 'capture_seconds', 'capture_on', 'layer_interval', 'park_xy', 'start_mode', 'park', 'norestart', 'no_video', 'keep_files',
+changeable = ['verbose', 'capture_seconds', 'capture_on', 'layer_interval', 'park_xy', 'start_mode', 'park', 'on_print_complete', 'no_video', 'keep_files',
               'min_video_seconds', 'video_length', 'end_hold', 'fps', 'park_wait', 'park_min_layers', 'park_layer_interval']
 smallestValues = {'layer_interval': 1, 'fps': 1, 'park_wait': 0, 'park_min_layers': 0, 'park_layer_interval': 1, 'min_video_seconds': 0, 'video_length': 0,
                   'end_hold': 0, 'ffmpeg_threads': 0}
@@ -2156,9 +2121,9 @@ def changeSettings(settings):
 
 def useSettings(values, logAll=False):
     # Use settings straight away - checked values ({setting: value}), from /change or saved on the page.
-    # Returns (the settings that wait for the Restart command, those used the next time duetLapse3 starts, those that could not be used)
-    #   The printer settings wait while the printer is connected - Restart connects to the new printer
-    #   The image folder waits while a print's images are being saved - Restart starts a new folder
+    # Returns (the settings that wait for the print to complete, those used the next time duetLapse3 starts, those that could not be used)
+    #   The printer settings wait while the printer is connected - print complete connects to the new printer
+    #   The image folder waits while a print's images are being saved - print complete starts a new folder
     #   UI_port: the control loop moves the page.  startOnly settings are kept, and used the next time duetLapse3 starts
     #   start_mode: while waiting for a print, the start or standby command puts it in that mode now
     waiting, atStart, failed, changed = [], [], [], []
@@ -2226,14 +2191,13 @@ def useSettings(values, logAll=False):
             queueAction(command, done)
             done.wait(10)  # So the page shows the new state
     setDebug(state.verbose)
-    state.restart = not state.norestart
     checkSeconds()
     if state.video_length > 0 and state.video_length < state.min_video_seconds:  # As at startup
         state.video_length = state.min_video_seconds
     for key in changed:
         logger.info(key + ' has been changed to ' + str(getattr(state, key)))
     for key in waiting:
-        logger.info(key + ' has been saved - it is used after the Restart command')
+        logger.info(key + ' has been saved - it is used when the print completes')
     for key in atStart:
         logger.info(key + ' has been saved - it is used the next time duetLapse3 starts')
     return waiting, atStart, failed
@@ -2261,7 +2225,7 @@ def startMessages():
 
     logger.info('##########################################################')
     logger.info('Video will be created when printing ends')
-    logger.info('or if requested from the UI or ' + messageMacro + ' B"/terminate/terminateg"')
+    logger.info('or if requested from the UI or ' + messageMacro + ' B"/command/printcomplete"')
     logger.info('##########################################################\n')
 
     logger.info('##########################################################')
@@ -2364,7 +2328,7 @@ def main():
     state.terminateState = -1  # 1 while terminating
     state.videoEvents, state.videoSeq = [], 0  # Videos made (or not) - announced by the page
     state.filesVersion = state.settingsVersion = 0  # Changes the page is told about (/api/events)
-    state.connectionState = state.restarting = False
+    state.connectionState = state.restarting = state.ignoreJob = False
     state.plugin = False  # Until startup() asks the printer
     state.newPort = None
     state.connectError = ''
@@ -2389,7 +2353,7 @@ def main():
     state.lastMessageSeq = None  # Set from the printer's count at the first look - see handleMessages
 
     # Allowed Commands
-    # commands = ['start','standby','pause','continue', 'restart', 'terminate']
+    # commands = ['start', 'standby', 'pause', 'continue', 'printcomplete']
 
     state.httpListener = False  # Indicates if an integral httpListener should be started
     state.win = False  # Windows OS

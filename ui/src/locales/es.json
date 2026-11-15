@@ -114,9 +114,9 @@
 			"label": "Cuándo empezar",
 			"description": "Cuándo empezar a tomar imágenes. Con la captura por evento en Solo por tiempo y una captura por tiempo mayor que 0, siempre empieza de inmediato o con la orden Iniciar"
 		},
-		"norestart": {
-			"label": "Sin reinicio",
-			"description": "Detener duetLapse3 cuando termina la impresión, en lugar de prepararse para el siguiente trabajo"
+		"on_print_complete": {
+			"label": "Al terminar la impresión",
+			"description": "Qué hacer cuando termina una impresión, después de hacer su vídeo: prepararse para la siguiente impresión (según Cuándo empezar) o esperar la orden Iniciar. Terminar cierra duetLapse3, sin vídeo"
 		},
 		"no_log": {
 			"label": "Desactivar el registro",
@@ -207,15 +207,13 @@
 		"standby": "En espera",
 		"pause": "Pausa",
 		"continue": "Continuar",
-		"restart": "Reiniciar",
+		"printcomplete": "Impresión terminada",
 		"standbyConfirm": "En espera NO crea un vídeo.\nSe borrarán todas las imágenes capturadas.",
-		"restartConfirm": "Reiniciar intentará crear un vídeo, volverá a leer los ajustes y se preparará para la siguiente impresión.\n\nLas imágenes capturadas se borran la próxima vez que se inicia el programa, salvo que «Conservar archivos» esté activado.",
-		"graceful": "Terminar la captura",
+		"printcompleteConfirm": "Terminar esta impresión: hacer el vídeo, volver a los ajustes guardados y después {next}.\n\nNo se captura una impresión que todavía está en curso.",
+		"printcompleteTerminate": "«Al terminar la impresión» está en Terminar: duetLapse3 se cerrará, sin vídeo.",
+		"thenReady": "prepararse para la siguiente impresión",
+		"thenStandby": "esperar la orden Iniciar",
 		"forced": "Cerrar el programa",
-		"gracefulText": "Crear el vídeo.\n{video}",
-		"noImages": "No hay imágenes disponibles.",
-		"restartAfter": "Después se reiniciará.",
-		"stopAfter": "Después duetLapse3 se detendrá.",
 		"forcedText": "Cerrar de inmediato.\nNO se creará un vídeo.",
 		"stopping": "El programa se está deteniendo.",
 		"failed": "{command} falló: {error}"
@@ -255,7 +253,7 @@
 		"help": "Use una URL de instantánea (preferida) o una URL de flujo MJPEG. Guardar guarda las dos cámaras."
 	},
 	"config": {
-		"whenInUse": "Los cambios aquí se usan en cuanto los guarda. Dos tipos esperan a Reiniciar en la pestaña Estado: los ajustes de la impresora cambiados mientras la impresora está conectada, y la Carpeta de imágenes cambiada mientras se guardan las imágenes de una impresión. «Permitir varias instancias» y «Abrir el navegador al iniciar» se usan la próxima vez que se inicie duetLapse3."
+		"whenInUse": "Los cambios aquí se usan en cuanto los guarda. Dos tipos esperan a que termine la impresión: los ajustes de la impresora cambiados mientras la impresora está conectada, y la Carpeta de imágenes cambiada mientras se guardan las imágenes de una impresión. «Permitir varias instancias» y «Abrir el navegador al iniciar» se usan la próxima vez que se inicie duetLapse3."
 	},
 	"settingsForm": {
 		"dontGoTogether": "Algunos ajustes no son compatibles entre sí (marcados en rojo) – no se guardó nada.",
@@ -322,6 +320,11 @@
 			"on_print": "Al empezar una impresión",
 			"now": "De inmediato",
 			"standby": "Esperar la orden Iniciar"
+		},
+		"on_print_complete": {
+			"ready": "Prepararse para la siguiente impresión",
+			"standby": "Esperar la orden Iniciar",
+			"terminate": "Terminar (sin vídeo)"
 		}
 	},
 	"values": {
@@ -330,9 +333,8 @@
 			"standby": "En espera",
 			"pause": "En pausa",
 			"continue": "Continuando",
-			"restart": "Reiniciando",
-			"terminate": "Cerrando",
-			"completed": "Terminado"
+			"printcomplete": "Impresión terminada",
+			"terminate": "Cerrando"
 		},
 		"printState": {
 			"Waiting": "Esperando",
@@ -358,7 +360,7 @@
 	},
 	"server": {
 		"savedInUse": "Guardado. Los cambios ya están en uso.",
-		"savedSomeWaiting": "Guardado. Los cambios ya están en uso, excepto {keys}: se aplican cuando pulsa Reiniciar en la pestaña Estado.",
+		"savedSomeWaiting": "Guardado. Los cambios ya están en uso, excepto {keys}: se aplican cuando termina la impresión.",
 		"savedSomeAtStart": "Guardado. Los cambios ya están en uso, excepto {keys}: se usarán la próxima vez que se inicie duetLapse3.",
 		"savedMoving": "Guardado. Los cambios ya están en uso y la página se traslada al puerto {port}.",
 		"savedFolderFailed": "Guardado, pero no se pudo usar la carpeta de imágenes; consulte el registro. Los demás cambios ya están en uso.",

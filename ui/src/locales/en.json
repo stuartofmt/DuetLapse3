@@ -114,9 +114,9 @@
 			"label": "When to start",
 			"description": "When to start taking images. Event capture set to Timed Only, with Timed capture above 0, always starts straight away or at the Start command"
 		},
-		"norestart": {
-			"label": "No restart",
-			"description": "Stop duetLapse3 when the print finishes, instead of getting ready for the next print job"
+		"on_print_complete": {
+			"label": "On Print Complete",
+			"description": "What to do when a print completes, after its video is made: get ready for the next print (as When to start says), or wait for the Start command. Terminate stops duetLapse3, without a video"
 		},
 		"no_log": {
 			"label": "Disable Logging",
@@ -207,15 +207,13 @@
 		"standby": "Standby",
 		"pause": "Pause",
 		"continue": "Continue",
-		"restart": "Restart",
+		"printcomplete": "Print complete",
 		"standbyConfirm": "Standby does NOT create a video.\nAll captured images will be deleted.",
-		"restartConfirm": "Restart will try to create a video, read the settings again, then get ready for the next print.\n\nThe captured images are deleted the next time the program starts, unless Keep Files is on.",
-		"graceful": "Finish capture",
+		"printcompleteConfirm": "Finish this print: make the video, go back to the saved settings, then {next}.\n\nA print that is still running is not captured.",
+		"printcompleteTerminate": "On Print Complete is set to Terminate: duetLapse3 will stop, without a video.",
+		"thenReady": "get ready for the next print",
+		"thenStandby": "wait for the Start command",
 		"forced": "Terminate the program",
-		"gracefulText": "Make the video.\n{video}",
-		"noImages": "There are no images available.",
-		"restartAfter": "A restart will occur.",
-		"stopAfter": "duetLapse3 will then stop.",
 		"forcedText": "Terminate straight away.\nA video will NOT be created.",
 		"stopping": "The program is stopping.",
 		"failed": "{command} failed: {error}"
@@ -255,7 +253,7 @@
 		"help": "Use a snapshot url (preferred) or an MJPEG stream url. Save saves both cameras."
 	},
 	"config": {
-		"whenInUse": "Changes here are in use as soon as you save them. Two kinds wait for Restart on the Status tab: printer settings changed while the printer is connected, and Image folder changed while a print's images are being saved. Allow multiple instances and Open browser at startup are used the next time duetLapse3 starts."
+		"whenInUse": "Changes here are in use as soon as you save them. Two kinds wait until the print completes: printer settings changed while the printer is connected, and Image folder changed while a print's images are being saved. Allow multiple instances and Open browser at startup are used the next time duetLapse3 starts."
 	},
 	"settingsForm": {
 		"dontGoTogether": "Some settings don't go together (marked in red) - nothing was saved.",
@@ -322,6 +320,11 @@
 			"on_print": "When a print starts",
 			"now": "Straight away",
 			"standby": "Wait for the Start command"
+		},
+		"on_print_complete": {
+			"ready": "Get ready for the next print",
+			"standby": "Wait for the Start command",
+			"terminate": "Terminate (no video)"
 		}
 	},
 	"values": {
@@ -330,9 +333,8 @@
 			"standby": "Standby",
 			"pause": "Pause",
 			"continue": "Continue",
-			"restart": "Restart",
-			"terminate": "Terminate",
-			"completed": "Completed"
+			"printcomplete": "Print complete",
+			"terminate": "Terminate"
 		},
 		"printState": {
 			"Waiting": "Waiting",
@@ -358,7 +360,7 @@
 	},
 	"server": {
 		"savedInUse": "Saved. The changes are in use now.",
-		"savedSomeWaiting": "Saved. The changes are in use now, apart from {keys}: they take effect when you press Restart on the Status tab.",
+		"savedSomeWaiting": "Saved. The changes are in use now, apart from {keys}: they take effect when the print completes.",
 		"savedSomeAtStart": "Saved. The changes are in use now, apart from {keys}: they are used the next time duetLapse3 starts.",
 		"savedMoving": "Saved. The changes are in use now, and the page is moving to port {port}.",
 		"savedFolderFailed": "Saved, but the image folder could not be used - see the log. The other changes are in use now.",

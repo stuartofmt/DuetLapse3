@@ -114,9 +114,9 @@
 			"label": "Wann starten",
 			"description": "Wann mit der Bildaufnahme begonnen wird. Mit der ereignisgesteuerten Aufnahme auf Nur zeitgesteuert und einer zeitgesteuerten Aufnahme über 0 beginnt sie immer sofort oder beim Start-Befehl"
 		},
-		"norestart": {
-			"label": "Kein Neustart",
-			"description": "duetLapse3 beenden, wenn der Druck fertig ist, statt sich auf den nächsten Druckauftrag vorzubereiten"
+		"on_print_complete": {
+			"label": "Bei Druckende",
+			"description": "Was nach einem Druck geschieht, nachdem sein Video erstellt ist: für den nächsten Druck bereit machen (wie „Wann starten“ es vorgibt) oder auf den Start-Befehl warten. Beenden beendet duetLapse3, ohne Video"
 		},
 		"no_log": {
 			"label": "Protokoll deaktivieren",
@@ -207,15 +207,13 @@
 		"standby": "Standby",
 		"pause": "Pause",
 		"continue": "Fortsetzen",
-		"restart": "Neustart",
+		"printcomplete": "Druck fertig",
 		"standbyConfirm": "Standby erstellt KEIN Video.\nAlle aufgenommenen Bilder werden gelöscht.",
-		"restartConfirm": "Neustart versucht, ein Video zu erstellen, liest die Einstellungen neu und bereitet sich dann auf den nächsten Druck vor.\n\nDie aufgenommenen Bilder werden beim nächsten Programmstart gelöscht, außer „Dateien behalten“ ist an.",
-		"graceful": "Aufnahme beenden",
+		"printcompleteConfirm": "Diesen Druck abschließen: das Video erstellen, zu den gespeicherten Einstellungen zurückkehren, dann {next}.\n\nEin Druck, der noch läuft, wird nicht aufgenommen.",
+		"printcompleteTerminate": "„Bei Druckende“ steht auf Beenden: duetLapse3 wird beendet, ohne Video.",
+		"thenReady": "für den nächsten Druck bereit machen",
+		"thenStandby": "auf den Start-Befehl warten",
 		"forced": "Programm beenden",
-		"gracefulText": "Das Video erstellen.\n{video}",
-		"noImages": "Es sind keine Bilder vorhanden.",
-		"restartAfter": "Danach folgt ein Neustart.",
-		"stopAfter": "duetLapse3 wird danach beendet.",
 		"forcedText": "Sofort beenden.\nEs wird KEIN Video erstellt.",
 		"stopping": "Das Programm wird beendet.",
 		"failed": "{command} fehlgeschlagen: {error}"
@@ -255,7 +253,7 @@
 		"help": "Verwenden Sie eine Snapshot-URL (empfohlen) oder eine MJPEG-Stream-URL. Speichern speichert beide Kameras."
 	},
 	"config": {
-		"whenInUse": "Änderungen hier sind nach dem Speichern sofort in Gebrauch. Zwei Arten warten auf Neustart auf dem Tab „Status“: Druckereinstellungen, die bei verbundenem Drucker geändert werden, und der Bilderordner, wenn er geändert wird, während Bilder eines Drucks gespeichert werden. „Mehrere Instanzen erlauben“ und „Browser beim Start öffnen“ wirken beim nächsten Start von duetLapse3."
+		"whenInUse": "Änderungen hier sind nach dem Speichern sofort in Gebrauch. Zwei Arten warten bis zum Druckende: Druckereinstellungen, die bei verbundenem Drucker geändert werden, und der Bilderordner, wenn er geändert wird, während Bilder eines Drucks gespeichert werden. „Mehrere Instanzen erlauben“ und „Browser beim Start öffnen“ wirken beim nächsten Start von duetLapse3."
 	},
 	"settingsForm": {
 		"dontGoTogether": "Einige Einstellungen passen nicht zusammen (rot markiert) – es wurde nichts gespeichert.",
@@ -322,6 +320,11 @@
 			"on_print": "Wenn ein Druck beginnt",
 			"now": "Sofort",
 			"standby": "Auf den Start-Befehl warten"
+		},
+		"on_print_complete": {
+			"ready": "Für den nächsten Druck bereit machen",
+			"standby": "Auf den Start-Befehl warten",
+			"terminate": "Beenden (kein Video)"
 		}
 	},
 	"values": {
@@ -330,9 +333,8 @@
 			"standby": "Standby",
 			"pause": "Pause",
 			"continue": "Fortsetzen",
-			"restart": "Neustart",
-			"terminate": "Beenden",
-			"completed": "Fertig"
+			"printcomplete": "Druck fertig",
+			"terminate": "Beenden"
 		},
 		"printState": {
 			"Waiting": "Wartet",
@@ -358,7 +360,7 @@
 	},
 	"server": {
 		"savedInUse": "Gespeichert. Die Änderungen sind jetzt in Gebrauch.",
-		"savedSomeWaiting": "Gespeichert. Die Änderungen sind jetzt in Gebrauch, außer {keys}: Diese wirken, wenn Sie auf dem Tab „Status“ auf Neustart klicken.",
+		"savedSomeWaiting": "Gespeichert. Die Änderungen sind jetzt in Gebrauch, außer {keys}: Diese wirken, wenn der Druck fertig ist.",
 		"savedSomeAtStart": "Gespeichert. Die Änderungen sind jetzt in Gebrauch, außer {keys}: Diese wirken beim nächsten Start von duetLapse3.",
 		"savedMoving": "Gespeichert. Die Änderungen sind jetzt in Gebrauch, und die Seite wechselt zu Port {port}.",
 		"savedFolderFailed": "Gespeichert, aber der Bilderordner konnte nicht verwendet werden – siehe Protokoll. Die anderen Änderungen sind jetzt in Gebrauch.",

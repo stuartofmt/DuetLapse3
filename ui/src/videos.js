@@ -1,4 +1,4 @@
-// Announces each video duetLapse3 makes (or fails to make), wherever it was started: the end of a print, a restart,
+// Announces each video duetLapse3 makes (or fails to make), wherever it was started: the end of a print, print complete,
 // a gcode command, or this page. The results come with the status (/api/status videoEvents). What has been shown
 // is remembered in the browser, so videos made while the page was closed are announced when it is next opened.
 import { reactive, watch } from "vue";
