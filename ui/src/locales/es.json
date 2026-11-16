@@ -204,15 +204,15 @@
 	"controls": {
 		"title": "Controles",
 		"start": "Iniciar",
-		"standby": "En espera",
+		"stop": "Detener",
 		"pause": "Pausa",
 		"continue": "Continuar",
 		"printcomplete": "Impresión terminada",
-		"standbyConfirm": "En espera NO crea un vídeo.\nSe borrarán todas las imágenes capturadas.",
+		"stopConfirm": "Detener NO crea un vídeo.\nSe borrarán todas las imágenes capturadas.",
 		"printcompleteConfirm": "Terminar esta impresión: hacer el vídeo, volver a los ajustes guardados y después {next}.\n\nNo se captura una impresión que todavía está en curso.",
 		"printcompleteTerminate": "«Al terminar la impresión» está en Terminar: duetLapse3 se cerrará, sin vídeo.",
 		"thenReady": "prepararse para la siguiente impresión",
-		"thenStandby": "esperar la orden Iniciar",
+		"thenWaitForStart": "esperar la orden Iniciar",
 		"forced": "Cerrar el programa",
 		"forcedText": "Cerrar de inmediato.\nNO se creará un vídeo.",
 		"stopping": "El programa se está deteniendo.",
@@ -330,7 +330,7 @@
 	"values": {
 		"action": {
 			"start": "Iniciado",
-			"standby": "En espera",
+			"stopped": "Detenido",
 			"pause": "En pausa",
 			"continue": "Continuando",
 			"printcomplete": "Impresión terminada",

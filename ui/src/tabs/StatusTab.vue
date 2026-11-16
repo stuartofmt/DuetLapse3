@@ -7,9 +7,11 @@ import ControlsCard from "../components/ControlsCard.vue";
 import { mdiCameraOff } from "../icons.js";
 
 const s = computed(() => status.data);
+// The text for each state duetLapse3 reports - its standby state is shown as Stopped (the Stop button)
+const actionKey = (action) => action === "standby" ? "stopped" : action;
 
 const rows = computed(() => s.value ? [
-	{ label: t("status.state"), value: valueText("action", s.value.action) },
+	{ label: t("status.state"), value: valueText("action", actionKey(s.value.action)) },
 	{ label: t("status.capture"), value: valueText("printState", s.value.printState) },
 	{ label: t("status.printerStatus"), value: s.value.connected ? valueText("duetStatus", s.value.duetStatus) : t("status.notConnected") },
 	{ label: t("status.images"), value: s.value.camera2 || s.value.frames2 ? t("status.imagesTwo", { frames: s.value.frames, frames2: s.value.frames2 }) : s.value.frames },

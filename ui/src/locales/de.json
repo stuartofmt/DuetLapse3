@@ -204,15 +204,15 @@
 	"controls": {
 		"title": "Steuerung",
 		"start": "Start",
-		"standby": "Standby",
+		"stop": "Stopp",
 		"pause": "Pause",
 		"continue": "Fortsetzen",
 		"printcomplete": "Druck fertig",
-		"standbyConfirm": "Standby erstellt KEIN Video.\nAlle aufgenommenen Bilder werden gelöscht.",
+		"stopConfirm": "Stopp erstellt KEIN Video.\nAlle aufgenommenen Bilder werden gelöscht.",
 		"printcompleteConfirm": "Diesen Druck abschließen: das Video erstellen, zu den gespeicherten Einstellungen zurückkehren, dann {next}.\n\nEin Druck, der noch läuft, wird nicht aufgenommen.",
 		"printcompleteTerminate": "„Bei Druckende“ steht auf Beenden: duetLapse3 wird beendet, ohne Video.",
 		"thenReady": "für den nächsten Druck bereit machen",
-		"thenStandby": "auf den Start-Befehl warten",
+		"thenWaitForStart": "auf den Start-Befehl warten",
 		"forced": "Programm beenden",
 		"forcedText": "Sofort beenden.\nEs wird KEIN Video erstellt.",
 		"stopping": "Das Programm wird beendet.",
@@ -330,7 +330,7 @@
 	"values": {
 		"action": {
 			"start": "Start",
-			"standby": "Standby",
+			"stopped": "Gestoppt",
 			"pause": "Pause",
 			"continue": "Fortsetzen",
 			"printcomplete": "Druck fertig",

@@ -13,7 +13,7 @@ One command per `M3291` call. `M3291` needs RepRapFirmware 3.5 or later.
 | Command | What it does |
 | --- | --- |
 | `/command/start` | Start taking images |
-| `/command/standby` | Stop and delete the images, without making a video |
+| `/command/standby` | The Stop button: stop and delete the images, without making a video, then wait for `/command/start` |
 | `/command/pause` | Stop taking images for now |
 | `/command/continue` | Carry on after a pause |
 | `/command/printcomplete` | The print is complete: make the video, start a new log, go back to the saved settings, then do what On Print Complete says. A print that's still running isn't captured - use it in the end gcode, after `M400`, so the moves at the end aren't captured |

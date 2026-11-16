@@ -204,15 +204,15 @@
 	"controls": {
 		"title": "Commandes",
 		"start": "Démarrer",
-		"standby": "Veille",
+		"stop": "Arrêter",
 		"pause": "Pause",
 		"continue": "Reprendre",
 		"printcomplete": "Impression terminée",
-		"standbyConfirm": "La veille NE crée PAS de vidéo.\nToutes les images capturées seront supprimées.",
+		"stopConfirm": "Arrêter NE crée PAS de vidéo.\nToutes les images capturées seront supprimées.",
 		"printcompleteConfirm": "Terminer cette impression : faire la vidéo, revenir aux réglages enregistrés, puis {next}.\n\nUne impression encore en cours n'est pas capturée.",
 		"printcompleteTerminate": "« À la fin de l'impression » est réglé sur Terminer : duetLapse3 va s'arrêter, sans vidéo.",
 		"thenReady": "se préparer pour la prochaine impression",
-		"thenStandby": "attendre la commande Démarrer",
+		"thenWaitForStart": "attendre la commande Démarrer",
 		"forced": "Arrêter le programme",
 		"forcedText": "Arrêter immédiatement.\nAucune vidéo ne sera créée.",
 		"stopping": "Le programme s'arrête.",
@@ -330,7 +330,7 @@
 	"values": {
 		"action": {
 			"start": "Démarré",
-			"standby": "Veille",
+			"stopped": "Arrêté",
 			"pause": "Pause",
 			"continue": "Reprise",
 			"printcomplete": "Impression terminée",

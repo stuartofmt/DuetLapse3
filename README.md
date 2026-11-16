@@ -39,7 +39,7 @@ While duetLapse3 isn't connected to the printer, every tab shows a banner. duetL
 
 - **Controls:**
   - **Start** - start taking images.
-  - **Standby** - stop and delete the images, without making a video.
+  - **Stop** - stop and delete the images, without making a video. Nothing more happens until **Start**. The Status tab then shows Stopped. (The command is `/command/standby`.)
   - **Pause** / **Continue** - stop taking images for now, and carry on.
   - **Print complete** - finish this print: make the video, start a new log, go back to the saved settings, then do what **On Print Complete** says. The same happens by itself when a print ends. Gcode can send it too, e.g. from the slicer's end gcode, so the moves at the end aren't captured - see [gcode](docs/gcode.md). A print that's still running then isn't captured; capture starts again with the next print.
   - Buttons that can't be used now are greyed out.
@@ -176,7 +176,7 @@ Logging, and what happens to the images and videos.
 | Verbose Logging | `verbose` | off | Very detailed logging, for finding problems |
 | No Video | `no_video` | off | Don't make a video |
 | Delete Images | `delete_images` | off | Delete the images when a print finishes, after its video is made (videos are kept) |
-| Keep Files | `keep_files` | off | Don't delete images when duetLapse3 starts or a print finishes. Standby still deletes them, and videos are always kept |
+| Keep Files | `keep_files` | off | Don't delete images when duetLapse3 starts or a print finishes. Stop still deletes them, and videos are always kept |
 
 The log is `duetLapse3.log`, next to `duetLapse3.json`. A new log starts each time duetLapse3 starts and for each print: when a print completes, or when you press **Print complete**. The one before it is kept as `duetLapse3.previous.log`. See both on the [Log](#log) tab.
 

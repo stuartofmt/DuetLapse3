@@ -5,7 +5,7 @@ import { api } from "../api.js";
 import { confirm, notify } from "../notify.js";
 import { t } from "../i18n.js";
 import { refreshStatus, status } from "../status.js";
-import { mdiFlagCheckered, mdiPause, mdiPlay, mdiPower, mdiPowerSleep } from "../icons.js";
+import { mdiFlagCheckered, mdiPause, mdiPlay, mdiPower, mdiStop } from "../icons.js";
 
 const s = computed(() => status.data);
 const busy = ref("");
@@ -14,8 +14,9 @@ const stopped = ref(false);
 const commands = [
 	{ name: "start", label: t("controls.start"), icon: mdiPlay, color: "success" },
 	{
-		name: "standby", label: t("controls.standby"), icon: mdiPowerSleep, color: "warning",
-		confirm: t("controls.standbyConfirm"),
+		// Shown as Stop - the command (and the state duetLapse3 reports) is still called standby
+		name: "standby", label: t("controls.stop"), icon: mdiStop, color: "warning",
+		confirm: t("controls.stopConfirm"),
 	},
 	{ name: "pause", label: t("controls.pause"), icon: mdiPause, color: "info" },
 	{ name: "continue", label: t("controls.continue"), icon: mdiPlay, color: "info" },
@@ -23,7 +24,7 @@ const commands = [
 		name: "printcomplete", label: t("controls.printcomplete"), icon: mdiFlagCheckered, color: "warning",
 		// What happens depends on On Print Complete
 		confirm: () => s.value?.onPrintComplete === "terminate" ? t("controls.printcompleteTerminate")
-			: t("controls.printcompleteConfirm", { next: t(s.value?.onPrintComplete === "standby" ? "controls.thenStandby" : "controls.thenReady") }),
+			: t("controls.printcompleteConfirm", { next: t(s.value?.onPrintComplete === "standby" ? "controls.thenWaitForStart" : "controls.thenReady") }),
 	},
 ];
 

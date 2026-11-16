@@ -204,15 +204,15 @@
 	"controls": {
 		"title": "Controls",
 		"start": "Start",
-		"standby": "Standby",
+		"stop": "Stop",
 		"pause": "Pause",
 		"continue": "Continue",
 		"printcomplete": "Print complete",
-		"standbyConfirm": "Standby does NOT create a video.\nAll captured images will be deleted.",
+		"stopConfirm": "Stop does NOT create a video.\nAll captured images will be deleted.",
 		"printcompleteConfirm": "Finish this print: make the video, go back to the saved settings, then {next}.\n\nA print that is still running is not captured.",
 		"printcompleteTerminate": "On Print Complete is set to Terminate: duetLapse3 will stop, without a video.",
 		"thenReady": "get ready for the next print",
-		"thenStandby": "wait for the Start command",
+		"thenWaitForStart": "wait for the Start command",
 		"forced": "Terminate the program",
 		"forcedText": "Terminate straight away.\nA video will NOT be created.",
 		"stopping": "The program is stopping.",
@@ -330,7 +330,7 @@
 	"values": {
 		"action": {
 			"start": "Start",
-			"standby": "Standby",
+			"stopped": "Stopped",
 			"pause": "Pause",
 			"continue": "Continue",
 			"printcomplete": "Print complete",

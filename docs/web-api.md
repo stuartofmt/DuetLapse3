@@ -8,7 +8,7 @@ All of these use GET.
 
 | URL | What it does |
 | --- | --- |
-| `/command/<command>` | `start`, `standby`, `pause`, `continue` or `printcomplete` (see [gcode](gcode.md)). Ignored and logged if it isn't allowed in the current state |
+| `/command/<command>` | `start`, `standby` (the Stop button), `pause`, `continue` or `printcomplete` (see [gcode](gcode.md)). Ignored and logged if it isn't allowed in the current state |
 | `/change?<setting>=<value>` | Change settings in memory, used straight away and not saved. Give one or more, e.g. `/change?park=True&park_xy=10,200`: all of them are used or none, with a 400 reply listing the errors and an alert on the page. The settings are listed in [gcode](gcode.md#changing-a-setting) |
 | `/snapshot` | Make a video of the images so far (`?camera=1` or `?camera=2` for one camera) |
 | `/makevideo?path=<folder>&xtratime=false` | Make a video from an image folder |
