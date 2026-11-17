@@ -319,11 +319,11 @@
 		"start_mode": {
 			"on_print": "Wenn ein Druck beginnt",
 			"now": "Sofort",
-			"standby": "Auf den Start-Befehl warten"
+			"stop": "Auf den Start-Befehl warten"
 		},
 		"on_print_complete": {
 			"ready": "Für den nächsten Druck bereit machen",
-			"standby": "Auf den Start-Befehl warten",
+			"stop": "Auf den Start-Befehl warten",
 			"terminate": "Beenden (kein Video)"
 		}
 	},

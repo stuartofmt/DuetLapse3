@@ -33,7 +33,7 @@ delete_images = None
 keep_files = None
 
 # Execution
-start_mode = None  # The setting - start_now and standby below come from it
+start_mode = None  # The setting - start_now and startStopped below come from it
 start_now = None
 capture_seconds = None
 capture_on = None
@@ -43,8 +43,8 @@ park_xy = None
 park_wait = None
 park_min_layers = None
 park_layer_interval = None
-standby = None
-on_print_complete = None  # What to do when a print completes: ready (for the next print), standby or terminate
+startStopped = None
+on_print_complete = None  # What to do when a print completes: ready (for the next print), stop or terminate
 ignoreJob = None  # True from print complete until the print job that was running then has ended - it is not captured
 printerSettings = None  # The printer settings in use - to tell if they changed on a restart command
 

@@ -131,7 +131,7 @@ DEFAULTS = {
     'Video': {'end_hold': 0, 'fps': 10, 'min_video_seconds': 5, 'video_length': 0, 'ffmpeg_threads': 0},
     'UI': {'UI_ip': '', 'UI_port': 0, 'open_browser': True},
 }
-CHOICES = {'capture_on': ['layer', 'pause', 'timed'], 'start_mode': ['on_print', 'now', 'standby'], 'on_print_complete': ['ready', 'standby', 'terminate']}
+CHOICES = {'capture_on': ['layer', 'pause', 'timed'], 'start_mode': ['on_print', 'now', 'stop'], 'on_print_complete': ['ready', 'stop', 'terminate']}
 configExtras = ['UI_ip']  # Written by duetLapse3, not read as a setting
 
 
@@ -160,6 +160,11 @@ def decodeConfig(data):
     if not isinstance(config, dict) or not all(isinstance(section, dict) for section in config.values()):
         raise ValueError('not a duetLapse3 settings file')
     return config
+
+
+def newValue(key, val):
+    # A value saved under its old name, by its new name - standby is now stop
+    return 'stop' if key in ['start_mode', 'on_print_complete'] and val == 'standby' else val
 
 
 def readConfig(filename):
@@ -239,8 +244,9 @@ def loadSettings(filename):
             if key in configExtras:
                 continue
             if key in ['norestart', 'restart'] and 'on_print_complete' not in keys and isinstance(val, bool):  # The old settings
-                settings['on_print_complete'] = 'standby' if val == (key == 'norestart') else 'ready'  # Not restarting = wait to be told
+                settings['on_print_complete'] = 'stop' if val == (key == 'norestart') else 'ready'  # Not restarting = wait to be told
                 continue
+            val = newValue(key, val)
             if key not in settings:
                 logger.warning('Ignoring unknown setting "' + key + '" in ' + filename)
                 continue
@@ -354,7 +360,7 @@ def applySettings(args):
     state.park_min_layers = max(0, args['park_min_layers'])
     state.park_layer_interval = max(1, args['park_layer_interval'])
 
-    state.on_print_complete = args['on_print_complete']  # ready (for the next print), standby or terminate
+    state.on_print_complete = args['on_print_complete']  # ready (for the next print), stop or terminate
 
     # Camera
 
@@ -388,10 +394,10 @@ def applySettings(args):
 
 
 def setStartMode(mode):
-    # When to start: when a print starts (on_print), straight away (now), or at a start command (standby)
+    # When to start: when a print starts (on_print), straight away (now), or at a start command (stop)
     state.start_mode = mode
     state.start_now = mode == 'now'
-    state.standby = mode == 'standby'
+    state.startStopped = mode == 'stop'
 
 
 def settingsConflict(args):
@@ -1213,7 +1219,7 @@ def cleanupFiles(phase):
                 elif dirs.endswith('.log'):  # Per-print logs left by versions before 6.0
                     deleteFileFolder(fn)
 
-    elif phase == 'standby':  # deleted images directory will be recreated on first capture
+    elif phase == 'stop':  # deleted images directory will be recreated on first capture
         if state.workingDirStatus != -1:
             deleteImages(state.workingDir)
             state.workingDirStatus = -1
@@ -1238,10 +1244,10 @@ def cleanupFiles(phase):
     return  # cleanupFiles
 
 
-def startNow(standby=False):
-    #  Determine if program should logically start now.  standby: wait for the start command, whatever start_mode is
-    if state.standby or standby:
-        state.action = 'standby'
+def startNow(stopped=False):
+    #  Determine if program should logically start now.  stopped: wait for the start command, whatever start_mode is
+    if state.startStopped or stopped:
+        state.action = 'stopped'
         return False
     elif (state.capture_seconds > 0) and (state.start_now or 'timed' in state.capture_on):
         state.action = 'start'
@@ -1552,11 +1558,11 @@ def copyLastFrame(f, frame):  # Makes copies and updates frame counter
     return int(nf)  # Must be an integer for later math
 
 
-def restartAction(standby=False):
+def restartAction(stopped=False):
     state.workingDirStatus = -1  # Force creation of a new workingDir
     setNextWorkingDir()
     logger.info('################### Ready - images will go in ' + state.nextWorkingDir + ' ###################')
-    startNow(standby)  # determine start state
+    startNow(stopped)  # determine start state
     listOptions()  # List the current values
     issueWarnings()  # list any warnings about setting combinations
     startup()  # Warp speed Mr Sulu
@@ -1600,7 +1606,7 @@ def printComplete():
     state.restarting = True
     setupLogFile()
     reloadSettings()
-    restartAction(onPrintComplete == 'standby')
+    restartAction(onPrintComplete == 'stop')
 
 
 def quitSigint(*args):
@@ -1695,12 +1701,12 @@ def deleteFileFolder(fname):
 
 
 def allowedNextAction(thisaction):
-    if thisaction == 'standby':
+    if thisaction == 'stopped':
         return ['start', 'printcomplete']
     elif thisaction == 'pause':
-        return ['standby', 'continue', 'printcomplete']
+        return ['stop', 'continue', 'printcomplete']
     else:
-        return ['standby', 'pause', 'printcomplete']
+        return ['stop', 'pause', 'printcomplete']
 
 
 def startHttpListener():
@@ -1803,7 +1809,7 @@ gcodeWorker = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_p
 
 
 def queueAction(command, done=None):
-    # Ask the control loop to carry out command (start, standby, pause, continue, restart, completed).  From any thread
+    # Ask the control loop to carry out command (start, stop, pause, continue, printcomplete).  From any thread
     if state.terminateState == 1:  # Block it if terminating
         logger.info(command + ' ignored - terminating')
         if done is not None:
@@ -1954,7 +1960,7 @@ def stateMachine(currentState):
 def capturePass():
     # One look at the printer: update the print state, take any images that are due, and end the job when the print has finished
 
-    if state.connectionState is False or state.action == 'standby':
+    if state.connectionState is False or state.action == 'stopped':
         logger.debug('No Capture needed')
         state.printState = 'Waiting'
         state.lastCaptureLoop = time.time()
@@ -2008,10 +2014,10 @@ def nextAction(nextaction):
     if nextaction == 'start':
         state.action = 'start'
 
-    elif nextaction == 'standby':
+    elif nextaction == 'stop':
         cleanupFiles(nextaction)  # clean up and start again
         setStartValues()
-        state.action = 'standby'
+        state.action = 'stopped'
 
     elif nextaction == 'pause':
         state.action = 'pause'
@@ -2064,7 +2070,7 @@ def handleMessages(seq, ring):
 def actionM3291(message):
     # A gcode command is a request to the http api, e.g. /command/start or /change?capture_seconds=30.  Only these ones: gcode can't delete files etc
     path = message.partition('?')[0]
-    if path in ['/snapshot', '/change'] or path.startswith(('/command/', '/terminate/')):
+    if path in ['/snapshot', '/change'] or path.startswith('/command/'):
         gcodeWorker.submit(callApi, message)
     else:
         logger.info('M3291 command not recognised: ' + message)
@@ -2125,7 +2131,7 @@ def useSettings(values, logAll=False):
     #   The printer settings wait while the printer is connected - print complete connects to the new printer
     #   The image folder waits while a print's images are being saved - print complete starts a new folder
     #   UI_port: the control loop moves the page.  startOnly settings are kept, and used the next time duetLapse3 starts
-    #   start_mode: while waiting for a print, the start or standby command puts it in that mode now
+    #   start_mode: while waiting for a print, the start or stop command puts it in that mode now
     waiting, atStart, failed, changed = [], [], [], []
     printer = {}
     for key, value in values.items():
@@ -2185,8 +2191,8 @@ def useSettings(values, logAll=False):
 
     setStartMode(state.start_mode)
     if 'start_mode' in changed and state.printState == 'Waiting':
-        command = 'standby' if state.standby else 'start'
-        if command != state.action and command in allowedNextAction(state.action):
+        command = 'stop' if state.startStopped else 'start'
+        if command in allowedNextAction(state.action):
             done = threading.Event()
             queueAction(command, done)
             done.wait(10)  # So the page shows the new state
@@ -2217,7 +2223,7 @@ def startMessages():
                 logger.info('Will start capturing images on first pause in print stream')
             logger.info('##########################################################\n')
 
-    if state.standby:
+    if state.startStopped:
         logger.info('##########################################################')
         logger.info('Will not start until command=start received from http listener')
         logger.info('or ' + messageMacro + ' B"/command/start" sent as gcode')
@@ -2353,7 +2359,7 @@ def main():
     state.lastMessageSeq = None  # Set from the printer's count at the first look - see handleMessages
 
     # Allowed Commands
-    # commands = ['start', 'standby', 'pause', 'continue', 'printcomplete']
+    # commands = ['start', 'stop', 'pause', 'continue', 'printcomplete']
 
     state.httpListener = False  # Indicates if an integral httpListener should be started
     state.win = False  # Windows OS

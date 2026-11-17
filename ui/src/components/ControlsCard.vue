@@ -1,4 +1,4 @@
-<!-- The controls (on the Status tab): start, standby, pause, continue, print complete, and terminate -->
+<!-- The controls (on the Status tab): start, stop, pause, continue, print complete, and terminate -->
 <script setup>
 import { computed, ref } from "vue";
 import { api } from "../api.js";
@@ -14,8 +14,7 @@ const stopped = ref(false);
 const commands = [
 	{ name: "start", label: t("controls.start"), icon: mdiPlay, color: "success" },
 	{
-		// Shown as Stop - the command (and the state duetLapse3 reports) is still called standby
-		name: "standby", label: t("controls.stop"), icon: mdiStop, color: "warning",
+		name: "stop", label: t("controls.stop"), icon: mdiStop, color: "warning",
 		confirm: t("controls.stopConfirm"),
 	},
 	{ name: "pause", label: t("controls.pause"), icon: mdiPause, color: "info" },
@@ -24,7 +23,7 @@ const commands = [
 		name: "printcomplete", label: t("controls.printcomplete"), icon: mdiFlagCheckered, color: "warning",
 		// What happens depends on On Print Complete
 		confirm: () => s.value?.onPrintComplete === "terminate" ? t("controls.printcompleteTerminate")
-			: t("controls.printcompleteConfirm", { next: t(s.value?.onPrintComplete === "standby" ? "controls.thenWaitForStart" : "controls.thenReady") }),
+			: t("controls.printcompleteConfirm", { next: t(s.value?.onPrintComplete === "stop" ? "controls.thenWaitForStart" : "controls.thenReady") }),
 	},
 ];
 
@@ -60,7 +59,7 @@ async function terminate() {
 		return;
 	}
 	try {
-		await api.getText("/terminate/terminatef");
+		await api.getText("/command/terminate");
 	} catch {
 		// duetLapse3 may end before it answers
 	}

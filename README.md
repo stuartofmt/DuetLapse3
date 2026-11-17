@@ -39,7 +39,7 @@ While duetLapse3 isn't connected to the printer, every tab shows a banner. duetL
 
 - **Controls:**
   - **Start** - start taking images.
-  - **Stop** - stop and delete the images, without making a video. Nothing more happens until **Start**. The Status tab then shows Stopped. (The command is `/command/standby`.)
+  - **Stop** - stop and delete the images, without making a video. Nothing more happens until **Start**. The Status tab then shows Stopped. (The command is `/command/stop`.)
   - **Pause** / **Continue** - stop taking images for now, and carry on.
   - **Print complete** - finish this print: make the video, start a new log, go back to the saved settings, then do what **On Print Complete** says. The same happens by itself when a print ends. Gcode can send it too, e.g. from the slicer's end gcode, so the moves at the end aren't captured - see [gcode](docs/gcode.md). A print that's still running then isn't captured; capture starts again with the next print.
   - Buttons that can't be used now are greyed out.
@@ -140,7 +140,7 @@ When duetLapse3 starts and stops.
 | --- | --- | --- |
 | **When a print starts** | `on_print` | The usual setup. duetLapse3 waits, then starts capturing when a print begins |
 | **Straight away** | `now` | Starts capturing as soon as duetLapse3 is ready, whatever the printer is doing. This includes after each print, so images are taken between prints, and they go in the next print's video |
-| **Wait for the Start command** | `standby` | Does nothing until the Start button or command. Then it starts capturing when a print begins. A print that runs without it gets no images |
+| **Wait for the Start command** | `stop` | Does nothing until the Start button or command. Then it starts capturing when a print begins. A print that runs without it gets no images |
 
 With **When a print starts**:
 
@@ -156,7 +156,7 @@ With **Wait for the Start command**, it goes back to waiting for the command aft
 | Choice | Value | What happens |
 | --- | --- | --- |
 | **Get ready for the next print** | `ready` | Starts again as **When to start** says: at the next print, straight away, or at the Start command |
-| **Wait for the Start command** | `standby` | Waits for the Start button or `/command/start`, whatever **When to start** is |
+| **Wait for the Start command** | `stop` | Waits for the Start button or `/command/start`, whatever **When to start** is |
 | **Terminate (no video)** | `terminate` | Stops duetLapse3 straight away, without a video. As a plugin, it then has to be started again in DWC |
 
 There are two exceptions when Event capture is **Timed Only**:

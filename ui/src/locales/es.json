@@ -319,11 +319,11 @@
 		"start_mode": {
 			"on_print": "Al empezar una impresión",
 			"now": "De inmediato",
-			"standby": "Esperar la orden Iniciar"
+			"stop": "Esperar la orden Iniciar"
 		},
 		"on_print_complete": {
 			"ready": "Prepararse para la siguiente impresión",
-			"standby": "Esperar la orden Iniciar",
+			"stop": "Esperar la orden Iniciar",
 			"terminate": "Terminar (sin vídeo)"
 		}
 	},

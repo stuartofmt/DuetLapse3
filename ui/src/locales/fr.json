@@ -319,11 +319,11 @@
 		"start_mode": {
 			"on_print": "Au début d'une impression",
 			"now": "Immédiatement",
-			"standby": "Attendre la commande Démarrer"
+			"stop": "Attendre la commande Démarrer"
 		},
 		"on_print_complete": {
 			"ready": "Se préparer pour la prochaine impression",
-			"standby": "Attendre la commande Démarrer",
+			"stop": "Attendre la commande Démarrer",
 			"terminate": "Terminer (sans vidéo)"
 		}
 	},

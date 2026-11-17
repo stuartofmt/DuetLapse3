@@ -229,7 +229,7 @@ def config_values():
         config = dl3.readConfig(state.configfile)
     except (OSError, ValueError) as e:
         return {}, Message('settingsUnreadableDefaults', 'Could not read the settings file - showing the defaults. ' + str(e), error=str(e))
-    return {k: v for section in config.values() if isinstance(section, dict) for k, v in section.items()}, ''
+    return {k: dl3.newValue(k, v) for section in config.values() if isinstance(section, dict) for k, v in section.items()}, ''
 
 
 def setting_type(key, default):
@@ -471,9 +471,12 @@ def preview_image(url):
 ###########################
 
 def update_command(command):
-    # start / standby / pause / continue / printcomplete - carried out by the control loop, one at a time.
-    # Wait (up to 10 seconds) until it is done, so the page shows the new state
-    if command == state.action:  # Nothing to do
+    # start / stop / pause / continue / printcomplete - carried out by the control loop, one at a time.
+    # Wait (up to 10 seconds) until it is done, so the page shows the new state.  terminate - at once, in any state
+    if command == 'terminate':
+        terminate_process()
+
+    elif command == state.action or (command == 'stop' and state.action == 'stopped'):  # Nothing to do
         logger.info('Already in ' + state.action + ' state')
 
     elif command in dl3.allowedNextAction(state.action):
@@ -481,28 +484,18 @@ def update_command(command):
         dl3.queueAction(command, done)
         done.wait(10)
 
-    elif command == 'terminate':  # command=terminate - backward compatible
-        terminate_process('terminatehttp')
-
     else:
         logger.info('The requested action: ' + command + ' is not available at this time')
         logger.info('The current state is: ' + state.action)
     return
 
 
-def terminate_process(ttype):
-    if ttype not in ['terminatehttp', 'terminateg', 'terminatef']:
-        logger.info(ttype + ' invalid terminate requested')
-        return
-
-    if ttype in ['terminatehttp', 'terminateg']:  # The same as /command/printcomplete
-        dl3.queueAction('printcomplete')
-    elif ttype == 'terminatef':
-        if state.plugin:
-            duet_printer.stopPlugin(state.apiModel, 'duetLapse3')
-        else:
-            dl3.quitForcibly()
-    return
+def terminate_process():
+    # Terminate straight away, without a video
+    if state.plugin:
+        duet_printer.stopPlugin(state.apiModel, 'duetLapse3')
+    else:
+        dl3.quitForcibly()
 
 
 ###########################
@@ -642,14 +635,8 @@ def camera_snapshot(camera: int = 1):  # One image now from camera 1 or 2, if it
 ###########################
 
 @router.get('/command/{command}')
-def command(command: str):  # start, standby, pause, continue, printcomplete (terminate - the older form of /terminate/terminateg)
+def command(command: str):  # start, stop, pause, continue, printcomplete or terminate
     update_command(command)
-    return Response(status_code=204)
-
-
-@router.get('/terminate/{ttype}')
-def terminate(ttype: str):  # terminateg (graceful), terminatef (forced) or terminatehttp
-    terminate_process(ttype)
     return Response(status_code=204)
 
 
@@ -716,7 +703,6 @@ legacyActions = {
     'command': lambda args: update_command(args),
     'delete': lambda args: dl3.deleteFileFolder(args),
     'zip': lambda args: dl3.makeArchive(args),
-    'terminate': lambda args: terminate_process(args),
     'fps': lambda args: dl3.changeFps(args),
     'minvideo': lambda args: dl3.changeMinvideo(args),
     'maxvideo': lambda args: dl3.changeMaxvideo(args),

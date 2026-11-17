@@ -8,7 +8,7 @@ All of these use GET.
 
 | URL | What it does |
 | --- | --- |
-| `/command/<command>` | `start`, `standby` (the Stop button), `pause`, `continue` or `printcomplete` (see [gcode](gcode.md)). Ignored and logged if it isn't allowed in the current state |
+| `/command/<command>` | `start`, `stop`, `pause`, `continue`, `printcomplete` or `terminate` (see [gcode](gcode.md)). Ignored and logged if it isn't allowed in the current state. `terminate` is allowed in any state |
 | `/change?<setting>=<value>` | Change settings in memory, used straight away and not saved. Give one or more, e.g. `/change?park=True&park_xy=10,200`: all of them are used or none, with a 400 reply listing the errors and an alert on the page. The settings are listed in [gcode](gcode.md#changing-a-setting) |
 | `/snapshot` | Make a video of the images so far (`?camera=1` or `?camera=2` for one camera) |
 | `/makevideo?path=<folder>&xtratime=false` | Make a video from an image folder |
@@ -16,8 +16,6 @@ All of these use GET.
 | `/getfile?path=<file>` | Download a file |
 | `/zip?path=<folder>` | Zip an image folder |
 | `/delete?path=<file or folder>` | Delete a file or folder |
-| `/terminate/terminateg` | The same as `/command/printcomplete` |
-| `/terminate/terminatef` | Terminate the program straight away, without a video |
 | `/camera/preview?url=<camera url>` | One image from a camera URL |
 | `/camera/snapshot?camera=<1 or 2>` | One image now from that camera, if it's in use (404 if not). The Status tab shows it until the first image is captured |
 

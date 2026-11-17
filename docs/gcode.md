@@ -13,13 +13,12 @@ One command per `M3291` call. `M3291` needs RepRapFirmware 3.5 or later.
 | Command | What it does |
 | --- | --- |
 | `/command/start` | Start taking images |
-| `/command/standby` | The Stop button: stop and delete the images, without making a video, then wait for `/command/start` |
+| `/command/stop` | The Stop button: stop and delete the images, without making a video, then wait for `/command/start` |
 | `/command/pause` | Stop taking images for now |
 | `/command/continue` | Carry on after a pause |
 | `/command/printcomplete` | The print is complete: make the video, start a new log, go back to the saved settings, then do what On Print Complete says. A print that's still running isn't captured - use it in the end gcode, after `M400`, so the moves at the end aren't captured |
+| `/command/terminate` | Terminate straight away, without a video. As the plugin, it then has to be started again in DWC |
 | `/snapshot` | Make a video of the images so far |
-| `/terminate/terminateg` | The same as `/command/printcomplete` |
-| `/terminate/terminatef` | Terminate straight away, without a video |
 | `/change?<setting>=<value>` | Change a setting while running (see below) |
 
 For example, at the start of your slicer's end gcode:
@@ -61,8 +60,8 @@ These settings can be changed:
 | `capture_on` | `layer`, `pause` or `timed` |
 | `capture_seconds` | seconds (0 = off) |
 | `layer_interval` | number of layers |
-| `start_mode` | `on_print`, `now` or `standby`. Used at once while waiting for a print |
-| `on_print_complete` | `ready`, `standby` or `terminate` |
+| `start_mode` | `on_print`, `now` or `stop`. Used at once while waiting for a print |
+| `on_print_complete` | `ready`, `stop` or `terminate` |
 | `park`, `no_video`, `keep_files`, `verbose` | `True` or `False` |
 | `park_xy` | two numbers: `X,Y` |
 | `park_wait`, `end_hold`, `min_video_seconds`, `video_length` | seconds |

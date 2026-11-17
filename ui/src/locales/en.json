@@ -319,11 +319,11 @@
 		"start_mode": {
 			"on_print": "When a print starts",
 			"now": "Straight away",
-			"standby": "Wait for the Start command"
+			"stop": "Wait for the Start command"
 		},
 		"on_print_complete": {
 			"ready": "Get ready for the next print",
-			"standby": "Wait for the Start command",
+			"stop": "Wait for the Start command",
 			"terminate": "Terminate (no video)"
 		}
 	},
