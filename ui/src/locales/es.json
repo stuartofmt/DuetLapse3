@@ -292,7 +292,7 @@
 		"follow": "Seguir",
 		"current": "Registro actual",
 		"previous": "Registro anterior",
-		"disabled": "No hay archivo de registro: «Desactivar el registro» está activado (Configuración, pestaña Ajustes de archivos).",
+		"disabled": "No hay archivo de registro: «Registro» está en Ninguno (Configuración, pestaña Ajustes de archivos).",
 		"couldNotRead": "No se pudo leer el archivo de registro: {error}",
 		"truncated": "Se muestra el final del archivo de registro – descárguelo para verlo completo.",
 		"noMatch": "Ninguna línea contiene «{filter}»",

@@ -292,7 +292,7 @@
 		"follow": "Suivre",
 		"current": "Journal actuel",
 		"previous": "Journal précédent",
-		"disabled": "Il n'y a pas de fichier journal : « Désactiver le journal » est activé (Configuration, onglet Réglages des fichiers).",
+		"disabled": "Il n'y a pas de fichier journal : « Journal » est réglé sur Aucun (Configuration, onglet Réglages des fichiers).",
 		"couldNotRead": "Impossible de lire le fichier journal : {error}",
 		"truncated": "Seule la fin du fichier journal est affichée – téléchargez-le pour tout voir.",
 		"noMatch": "Aucune ligne ne contient « {filter} »",
