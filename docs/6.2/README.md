@@ -87,7 +87,7 @@ The settings, on four tabs of their own. Changes are in use as soon as you save 
 
 Changing **Port** moves the page to the new port, and the page follows it. **When to start** changed while waiting for a print puts duetLapse3 in that mode straight away.
 
- **Save** checks every value first and saves nothing if any are wrong, or if settings conflict, such as a Park Location with Park before image off.
+**Save** checks every value first and saves nothing if any are wrong, or if settings conflict, such as a Park Location with Park before image off.
 
 #### General
 
@@ -115,7 +115,7 @@ When images are taken.
 | Timed capture | `capture_seconds` | `0` | Also take an image every n seconds (0 = off). The least is 20 |
 | Event capture | `capture_on` | On layer change | **On layer change** (`layer`): an image at each layer change. **When paused in print job** (`pause`): each time the print's own gcode pauses it (e.g. an `M226` added by the slicer), the head moves to Park Location if set, then duetLapse3 takes an image and resumes the print. Any other pause is resumed too, including one made by hand in DWC. **Timed Only** (`timed`): images only by Timed capture, which must be above 0. They start as **When to start** says |
 | Layers between capture | `layer_interval` | `1` | With On layer change, take an image every n layers. With Park before image on, the first is at the first layer above Minimum Layers: with Minimum Layers 3 and this at 3, the images are at layers 4, 7, 10 and so on |
-| Park before image | `park` | off | Pause the print and park the head before each image (from layer 1), then resume |
+| Park before image | `park` | off | Pause the print and park the head before each image, then resume. No images are taken until the layer is above Minimum Layers |
 | Park Location | `park_xy` | `0, 0` | Where to park the head (X, Y). 0, 0 = don't move it |
 | Rest Time | `park_wait` | `1` | Seconds to wait after parking, before the image |
 | Minimum Layers | `park_min_layers` | `3` | With Park before image on, no images are taken, and the print isn't paused, until the layer is above this. The default 3 means the first image is at layer 4 |
@@ -197,14 +197,14 @@ Browse the images, videos and zip files. Each print has its own folder, named af
 
 ![The Log tab](images/log.png)
 
-The current log file, `duetLapse3.log`. It opens at the newest line and new lines appear as they are written. **Previous log** downloads the log from before the current one.
+The current log file, `duetLapse3.log`. It opens at the newest line and new lines appear as they are written. When there is one, **Current log** / **Previous log** switches to the log from before the current one (`duetLapse3.previous.log`).
 
 - **Follow** keeps the newest line in view. Scrolling up to read turns it off, and scrolling back to the end turns it on again.
 - The box at the top shows only the lines containing what you type.
-- The buttons reload the log and download the whole file. A long log opens at its last 256 KB, and the page keeps up to 10,000 lines; the download has everything.
+- The buttons reload the log and download the whole file being shown. A long log opens at its last 256 KB, and the page keeps up to 10,000 lines; the download has everything.
 - Passwords are not written to the log: the printer's password and any login in a camera URL appear as `***`.
 
-If **Disable Logging** is on (Config, File Settings tab), there is no log to show. For much more detail, turn on **Verbose Logging** on the same tab and save.
+With **Logging** set to **None** (Config, File Settings tab), there is no log to show. For much more detail, set it to **Verbose** and save.
 
 ## Running without DWC
 
