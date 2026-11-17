@@ -67,7 +67,7 @@ These settings can be changed:
 | `image_cleanup` | `on_start`, `on_print_complete` or `never` |
 | `park_xy` | two numbers: `X,Y` |
 | `park_wait`, `end_hold`, `min_video_seconds`, `video_length` | seconds |
-| `park_min_layers`, `park_layer_interval` | number of layers |
+| `park_min_layers` | number of layers |
 | `fps` | frames per second |
 
 See the [README](../README.md) for what each setting does.

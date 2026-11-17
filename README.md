@@ -113,15 +113,14 @@ When images are taken.
 | Setting | Name in `duetLapse3.json` | Default | What it does |
 | --- | --- | --- | --- |
 | Timed capture | `capture_seconds` | `0` | Also take an image every n seconds (0 = off). The least is 20 |
-| Event capture | `capture_on` | On layer change | **On layer change** (`layer`): an image at each layer change. **When paused in print job** (`pause`): each time the print's own gcode pauses it (e.g. an `M226` added by the slicer), the head moves to Park Location if set, then duetLapse3 takes an image and resumes the print. Any other pause is resumed too, including one made by hand in DWC. **Timed Only** (`timed`): images only by Timed capture, starting straight away |
-| Layers between capture | `layer_interval` | `1` | With On layer change, take an image every n layers. Not used with Park before image on: see Layers between Park |
+| Event capture | `capture_on` | On layer change | **On layer change** (`layer`): an image at each layer change. **When paused in print job** (`pause`): each time the print's own gcode pauses it (e.g. an `M226` added by the slicer), the head moves to Park Location if set, then duetLapse3 takes an image and resumes the print. Any other pause is resumed too, including one made by hand in DWC. **Timed Only** (`timed`): images only by Timed capture, which must be above 0. They start as **When to start** says |
+| Layers between capture | `layer_interval` | `1` | With On layer change, take an image every n layers. With Park before image on, the first is at the first layer above Minimum Layers: with Minimum Layers 3 and this at 3, the images are at layers 4, 7, 10 and so on |
 | Park before image | `park` | off | Pause the print and park the head before each image (from layer 1), then resume |
 | Park Location | `park_xy` | `0, 0` | Where to park the head (X, Y). 0, 0 = don't move it |
 | Rest Time | `park_wait` | `1` | Seconds to wait after parking, before the image |
 | Minimum Layers | `park_min_layers` | `3` | With Park before image on, no images are taken, and the print isn't paused, until the layer is above this. The default 3 means the first image is at layer 4 |
-| Layers between Park | `park_layer_interval` | `3` | With Park before image on and Event capture On layer change, park and take an image every n layers, starting at the first layer above Minimum Layers. With both at 3, the images are at layers 4, 7, 10 and so on. Layers between capture isn't used while Park before image is on |
 
-**Parking pauses the print** for each image. Setting **Minimum Layers** or **Layers between Park** lower parks more often, and earlier in the print, which may result in poor prints.
+**Parking pauses the print** for each image. Setting **Minimum Layers** or **Layers between capture** lower parks more often, and earlier in the print, which may result in poor prints.
 
 #### Execution
 
@@ -145,7 +144,7 @@ When duetLapse3 starts and stops.
 With **When a print starts**:
 
 1. **Waiting:** with the printer idle, the Status tab shows Waiting and no images are taken.
-2. **The print begins:** when the printer's status becomes `processing`, duetLapse3 starts capturing. A print that's already running when it starts counts too, and so does one that's paused or pausing, unless Event capture is Timed Only.
+2. **The print begins:** when the printer's status becomes `processing`, duetLapse3 starts capturing. A print that's already running when it starts counts too, and so does one that's paused or pausing.
 3. **Images:** these follow the settings on the [Image Capture](#image-capture) tab.
 4. **The print ends:** it makes the video, starts a new log, goes back to the saved settings, then does what **On Print Complete** says.
 
@@ -159,10 +158,7 @@ With **Wait for the Start command**, it goes back to waiting for the command aft
 | **Wait for the Start command** | `stop` | Waits for the Start button or `/command/start`, whatever **When to start** is |
 | **Terminate (no video)** | `terminate` | Stops duetLapse3 straight away, without a video. As a plugin, it then has to be started again in DWC |
 
-There are two exceptions when Event capture is **Timed Only**:
-
-- **Timed capture above 0:** duetLapse3 doesn't wait for a print. It starts capturing straight away, or as soon as you press Start with **Wait for the Start command**.
-- **Timed capture 0:** no images are taken, so there's no video.
+Event capture **Timed Only** follows **When to start** like the other choices. For timed images without a print, use **Straight away**.
 
 #### File Settings
 

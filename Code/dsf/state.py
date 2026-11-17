@@ -42,7 +42,6 @@ layer_interval = None
 park_xy = None
 park_wait = None
 park_min_layers = None
-park_layer_interval = None
 startStopped = None
 on_print_complete = None  # What to do when a print completes: ready (for the next print), stop or terminate
 ignoreJob = None  # True from print complete until the print job that was running then has ended - it is not captured

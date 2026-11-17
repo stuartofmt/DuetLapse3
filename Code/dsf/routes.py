@@ -296,7 +296,7 @@ def update_config_file(settings):
 
     if errors:
         return errors
-    if {'park', 'park_xy', 'capture_on'} & set(settings):  # Settings that can't be used together - some may be on another tab
+    if {'park', 'park_xy', 'capture_on', 'capture_seconds'} & set(settings):  # Settings that can't be used together - some may be on another tab
         merged = dl3.flatDefaults()
         for section in config.values():
             merged.update(section)

@@ -126,7 +126,7 @@ DEFAULTS = {
     'Files': {'logging': 'normal', 'no_video': False, 'image_cleanup': 'on_start'},
     'Capture': {'capture_seconds': 0, 'capture_on': 'layer', 'layer_interval': 1},
     'Execution': {'start_mode': 'on_print', 'on_print_complete': 'ready'},
-    'Pause': {'park': False, 'park_xy': [0, 0], 'park_wait': 1, 'park_min_layers': 3, 'park_layer_interval': 3},
+    'Pause': {'park': False, 'park_xy': [0, 0], 'park_wait': 1, 'park_min_layers': 3},
     'Camera': {'camera1_url': '', 'camera1_on': True, 'camera2_url': '', 'camera2_on': True},
     'Video': {'end_hold': 0, 'fps': 10, 'min_video_seconds': 5, 'video_length': 0, 'ffmpeg_threads': 0},
     'UI': {'UI_ip': '', 'UI_port': 0, 'open_browser': True},
@@ -355,7 +355,6 @@ def applySettings(args):
         state.park_wait = 0
 
     state.park_min_layers = max(0, args['park_min_layers'])
-    state.park_layer_interval = max(1, args['park_layer_interval'])
 
     state.on_print_complete = args['on_print_complete']  # ready (for the next print), stop or terminate
 
@@ -410,6 +409,8 @@ def settingsConflict(args):
         return Message('conflictParkLocation', 'Park Location is only used with Park before image on, or Event capture set to When paused in print job')
     if args['park'] and args['capture_on'] == 'pause':
         return Message('conflictParkPause', 'Park before image can not be used with Event capture set to When paused in print job - the print job makes its own pauses')
+    if args['capture_on'] == 'timed' and args['capture_seconds'] == 0:
+        return Message('conflictTimedZero', 'Event capture set to Timed Only needs Timed capture above 0 - otherwise no images are taken')
     return ''
 
 
@@ -674,24 +675,11 @@ def init():
 
 def issueWarnings():
     # Information and Warnings
-    if state.capture_seconds <= 0 and 'timed' in state.capture_on:
-        logger.info('************************************************************************************')
-        logger.info('Warning:: capture_seconds ' + str(state.capture_seconds) + ' and capture_on ' + state.capture_on + ' nothing will be captured.')
-        logger.info('Specify "capture_on timed" with "capture_seconds > 0" to trigger on seconds alone.')
-        logger.info('************************************************************************************\n')
-
     if state.capture_seconds > 0 and ('timed' not in state.capture_on):
         logger.info('************************************************************************************')
         logger.info('Warning: capture_seconds ' + str(state.capture_seconds) + ' and capture_on ' + state.capture_on + ' will trigger on both.')
         logger.info('Specify "capture_on timed" with "capture_seconds > 0" to trigger on seconds alone.')
         logger.info('************************************************************************************\n')
-
-    if state.capture_seconds > 0 and 'timed' in state.capture_on:
-        logger.info('************************************************************************************')
-        logger.info('Warning: capture_seconds ' + str(state.capture_seconds) + ' and capture_on ' + state.capture_on)
-        logger.info('This combination implies start_now and will be set automatically')
-        logger.info('************************************************************************************\n')
-        state.start_now = True
 
     if 'pause' in state.capture_on:
         logger.info('************************************************************************************')
@@ -780,10 +768,6 @@ def checkSeconds():
             state.capture_seconds = max(state.capture_seconds, state.minseconds)
         else:  # round down
             state.capture_seconds = state.mainLoopPoll * multiplier
-
-        # Check for start_now
-        if state.capture_seconds > 0 and 'timed' in state.capture_on:
-            state.start_now = True
 
 
 def findFfmpeg():
@@ -1250,7 +1234,7 @@ def startNow(stopped=False):
     if state.startStopped or stopped:
         state.action = 'stopped'
         return False
-    elif (state.capture_seconds > 0) and (state.start_now or 'timed' in state.capture_on):
+    elif state.capture_seconds > 0 and state.start_now:
         state.action = 'start'
         return True
     else:
@@ -1446,8 +1430,8 @@ def oneInterval(cameraname, weburl, finalframe=False):
         logger.debug('Bypassing onePhoto from oneInterval because park is set and layer = ' + str(zn))
     else:
         if 'layer' in state.capture_on:
-            if state.park:  # Only parked images: the first layer above park_min_layers, then every park_layer_interval layers
-                due = (zn - state.park_min_layers - 1) % state.park_layer_interval == 0
+            if state.park:  # Only parked images: the first layer above park_min_layers, then every layer_interval layers
+                due = (zn - state.park_min_layers - 1) % state.layer_interval == 0
             else:  # Every layer_interval layers
                 due = zn % state.layer_interval == 0
             if due:
@@ -1917,7 +1901,7 @@ def stateMachine(currentState):
     if currentState == 'Waiting' and state.ignoreJob and not state.start_now:
         pass  # Not a new print - the one that was running at print complete
     elif currentState == 'Waiting':
-        if state.duetStatus == 'processing' or state.start_now or (state.duetStatus in ['paused', 'pausing'] and state.capture_on != 'timed'):
+        if state.duetStatus in ['processing', 'paused', 'pausing'] or state.start_now:
             newState = 'Capturing'
         elif state.duetStatus == 'cancelling':
             newState = 'Completed'
@@ -1934,7 +1918,7 @@ def stateMachine(currentState):
             pass
         elif state.duetStatus == 'busy':
             pass
-        elif state.start_now or 'timed' in state.capture_on:  # Timed capture - carries on whatever the printer is doing
+        elif state.start_now:  # Straight away - carries on whatever the printer is doing
             pass
         else:
             newState = 'Waiting'
@@ -2091,8 +2075,8 @@ def callApi(request):
 
 # Settings that can be changed while running - by /change, or by saving them on the page
 changeable = ['logging', 'capture_seconds', 'capture_on', 'layer_interval', 'park_xy', 'start_mode', 'park', 'on_print_complete', 'no_video', 'image_cleanup',
-              'min_video_seconds', 'video_length', 'end_hold', 'fps', 'park_wait', 'park_min_layers', 'park_layer_interval']
-smallestValues = {'layer_interval': 1, 'fps': 1, 'park_wait': 0, 'park_min_layers': 0, 'park_layer_interval': 1, 'min_video_seconds': 0, 'video_length': 0,
+              'min_video_seconds', 'video_length', 'end_hold', 'fps', 'park_wait', 'park_min_layers']
+smallestValues = {'layer_interval': 1, 'fps': 1, 'park_wait': 0, 'park_min_layers': 0, 'min_video_seconds': 0, 'video_length': 0,
                   'end_hold': 0, 'ffmpeg_threads': 0}
 startOnly = ['allow_multiple_instances', 'open_browser']  # Only used when duetLapse3 starts
 printerKeys = ['duet_ip', 'duet_port', 'duet_password']
@@ -2113,7 +2097,7 @@ def changeSettings(settings):
             errors[key] = e.args[0]
 
     if not errors:  # Would they conflict with the settings in use?
-        args = {'park': state.park, 'park_xy': state.park_xy, 'capture_on': state.capture_on}
+        args = {'park': state.park, 'park_xy': state.park_xy, 'capture_on': state.capture_on, 'capture_seconds': state.capture_seconds}
         args.update({key: value for key, value in values.items() if key in args})
         conflict = settingsConflict(args)
         if conflict:

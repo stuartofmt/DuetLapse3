@@ -88,7 +88,7 @@
 		},
 		"layer_interval": {
 			"label": "Schichten zwischen Aufnahmen",
-			"description": "Alle n Schichten ein Bild aufnehmen, wenn die ereignisgesteuerte Aufnahme = Bei Schichtwechsel ist (mit „Vor dem Bild parken“ wird stattdessen „Schichten zwischen Parkvorgängen“ verwendet)"
+			"description": "Alle n Schichten ein Bild aufnehmen, wenn die ereignisgesteuerte Aufnahme = Bei Schichtwechsel ist. Mit „Vor dem Bild parken“ ist das erste bei der ersten Schicht über der Mindestanzahl an Schichten"
 		},
 		"park": {
 			"label": "Vor dem Bild parken",
@@ -106,13 +106,9 @@
 			"label": "Mindestanzahl an Schichten",
 			"description": "Mindestanzahl an Schichten vor dem Parken. Bis die Schicht darüber liegt, werden keine Bilder aufgenommen und der Druck wird nicht pausiert"
 		},
-		"park_layer_interval": {
-			"label": "Schichten zwischen Parkvorgängen",
-			"description": "Mit „Vor dem Bild parken“ alle n Schichten parken und ein Bild aufnehmen, beginnend mit der ersten Schicht über der Mindestanzahl. „Schichten zwischen Aufnahmen“ wird nicht verwendet"
-		},
 		"start_mode": {
 			"label": "Wann starten",
-			"description": "Wann mit der Bildaufnahme begonnen wird. Mit der ereignisgesteuerten Aufnahme auf Nur zeitgesteuert und einer zeitgesteuerten Aufnahme über 0 beginnt sie immer sofort oder beim Start-Befehl"
+			"description": "Wann mit der Bildaufnahme begonnen wird"
 		},
 		"on_print_complete": {
 			"label": "Bei Druckende",
@@ -374,6 +370,7 @@
 		"notSavedInvalid": "Nicht gespeichert – einige Einstellungen sind ungültig",
 		"conflictParkLocation": "Die Parkposition wird nur verwendet, wenn „Vor dem Bild parken“ an ist oder die ereignisgesteuerte Aufnahme auf Bei Pause im Druckauftrag steht",
 		"conflictParkPause": "„Vor dem Bild parken“ kann nicht mit der ereignisgesteuerten Aufnahme Bei Pause im Druckauftrag verwendet werden – der Druckauftrag macht seine eigenen Pausen",
+		"conflictTimedZero": "Die ereignisgesteuerte Aufnahme Nur zeitgesteuert braucht eine zeitgesteuerte Aufnahme über 0 – sonst werden keine Bilder aufgenommen",
 		"settingBad": "Eine gespeicherte Einstellung hat einen Wert, der nicht verwendet werden kann – siehe Protokoll",
 		"cameraOn": "{camera} ist an",
 		"cameraOff": "{camera} ist aus – es werden keine Bilder von ihr aufgenommen",

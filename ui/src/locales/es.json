@@ -88,7 +88,7 @@
 		},
 		"layer_interval": {
 			"label": "Capas entre capturas",
-			"description": "Tomar una imagen cada n capas cuando la captura por evento = Al cambiar de capa (con «Estacionar antes de la imagen» se usa «Capas entre estacionamientos» en su lugar)"
+			"description": "Tomar una imagen cada n capas cuando la captura por evento = Al cambiar de capa. Con «Estacionar antes de la imagen», la primera es en la primera capa por encima de las capas mínimas"
 		},
 		"park": {
 			"label": "Estacionar antes de la imagen",
@@ -106,13 +106,9 @@
 			"label": "Capas mínimas",
 			"description": "Capas mínimas antes de estacionar. No se toman imágenes ni se pausa la impresión hasta que la capa supere este valor"
 		},
-		"park_layer_interval": {
-			"label": "Capas entre estacionamientos",
-			"description": "Con «Estacionar antes de la imagen», estacionar y tomar una imagen cada n capas, empezando por la primera capa por encima de las capas mínimas. No se usa «Capas entre capturas»"
-		},
 		"start_mode": {
 			"label": "Cuándo empezar",
-			"description": "Cuándo empezar a tomar imágenes. Con la captura por evento en Solo por tiempo y una captura por tiempo mayor que 0, siempre empieza de inmediato o con la orden Iniciar"
+			"description": "Cuándo empezar a tomar imágenes"
 		},
 		"on_print_complete": {
 			"label": "Al terminar la impresión",
@@ -374,6 +370,7 @@
 		"notSavedInvalid": "No guardado – algunos ajustes no son válidos",
 		"conflictParkLocation": "La posición de estacionamiento solo se usa con «Estacionar antes de la imagen» activado, o con la captura por evento en Al pausar el trabajo de impresión",
 		"conflictParkPause": "«Estacionar antes de la imagen» no se puede usar con la captura por evento en Al pausar el trabajo de impresión – el trabajo hace sus propias pausas",
+		"conflictTimedZero": "La captura por evento Solo por tiempo necesita una captura por tiempo mayor que 0 – si no, no se toman imágenes",
 		"settingBad": "Un ajuste guardado tiene un valor que no se puede usar – consulte el registro",
 		"cameraOn": "{camera} está activada",
 		"cameraOff": "{camera} está desactivada – no se tomarán imágenes con ella",

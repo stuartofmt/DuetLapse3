@@ -88,7 +88,7 @@
 		},
 		"layer_interval": {
 			"label": "Couches entre les captures",
-			"description": "Prendre une image toutes les n couches quand la capture sur événement = À chaque changement de couche (avec « Parquer avant l'image », « Couches entre les parquages » est utilisé à la place)"
+			"description": "Prendre une image toutes les n couches quand la capture sur événement = À chaque changement de couche. Avec « Parquer avant l'image », la première est à la première couche au-dessus du nombre minimal de couches"
 		},
 		"park": {
 			"label": "Parquer avant l'image",
@@ -106,13 +106,9 @@
 			"label": "Nombre minimal de couches",
 			"description": "Nombre minimal de couches avant le parquage. Aucune image n'est prise et l'impression n'est pas mise en pause tant que la couche ne dépasse pas cette valeur"
 		},
-		"park_layer_interval": {
-			"label": "Couches entre les parquages",
-			"description": "Avec « Parquer avant l'image », parquer et prendre une image toutes les n couches, à partir de la première couche au-dessus du nombre minimal. « Couches entre les captures » n'est pas utilisé"
-		},
 		"start_mode": {
 			"label": "Quand démarrer",
-			"description": "Quand commencer à prendre des images. Avec la capture sur événement réglée sur Périodique uniquement et une capture périodique supérieure à 0, elle démarre toujours immédiatement ou à la commande Démarrer"
+			"description": "Quand commencer à prendre des images"
 		},
 		"on_print_complete": {
 			"label": "À la fin de l'impression",
@@ -374,6 +370,7 @@
 		"notSavedInvalid": "Non enregistré – certains réglages ne sont pas valides",
 		"conflictParkLocation": "La position de parquage n'est utilisée qu'avec « Parquer avant l'image » activé, ou la capture sur événement réglée sur Lors d'une pause dans l'impression",
 		"conflictParkPause": "« Parquer avant l'image » ne peut pas être utilisé avec la capture sur événement réglée sur Lors d'une pause dans l'impression – l'impression fait ses propres pauses",
+		"conflictTimedZero": "La capture sur événement Périodique uniquement nécessite une capture périodique supérieure à 0 – sinon aucune image n'est prise",
 		"settingBad": "Un réglage enregistré a une valeur inutilisable – voir le journal",
 		"cameraOn": "{camera} est activée",
 		"cameraOff": "{camera} est désactivée – aucune image n'en sera prise",

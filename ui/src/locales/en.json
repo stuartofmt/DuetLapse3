@@ -88,7 +88,7 @@
 		},
 		"layer_interval": {
 			"label": "Layers between capture",
-			"description": "Take an image every n layers when Event capture = On layer change (with Park before image on, Layers between Park is used instead)"
+			"description": "Take an image every n layers when Event capture = On layer change. With Park before image on, the first is at the first layer above Minimum Layers"
 		},
 		"park": {
 			"label": "Park before image",
@@ -106,13 +106,9 @@
 			"label": "Minimum Layers",
 			"description": "Minimum layers before park. No images are taken, and the print isn't paused, until the layer is above this"
 		},
-		"park_layer_interval": {
-			"label": "Layers between Park",
-			"description": "With Park before image on, park and take an image every n layers, starting at the first layer above Minimum Layers. Layers between capture isn't used"
-		},
 		"start_mode": {
 			"label": "When to start",
-			"description": "When to start taking images. Event capture set to Timed Only, with Timed capture above 0, always starts straight away or at the Start command"
+			"description": "When to start taking images"
 		},
 		"on_print_complete": {
 			"label": "On Print Complete",
@@ -374,6 +370,7 @@
 		"notSavedInvalid": "Not saved - some settings are invalid",
 		"conflictParkLocation": "Park Location is only used with Park before image on, or Event capture set to When paused in print job",
 		"conflictParkPause": "Park before image can not be used with Event capture set to When paused in print job - the print job makes its own pauses",
+		"conflictTimedZero": "Event capture set to Timed Only needs Timed capture above 0 - otherwise no images are taken",
 		"settingBad": "A saved setting has a value that can not be used - see the log",
 		"cameraOn": "{camera} is on",
 		"cameraOff": "{camera} is off - no images will be taken from it",
