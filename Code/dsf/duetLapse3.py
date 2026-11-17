@@ -123,7 +123,7 @@ jobStatuses = ['processing', 'paused', 'pausing', 'resuming', 'cancelling', 'cha
 # The sections match duetLapse3.json - they are only for readability
 DEFAULTS = {
     'Environment': {'duet_ip': '', 'duet_port': 80, 'duet_password': 'reprap', 'image_dir': '', 'allow_multiple_instances': False},
-    'Files': {'no_log': False, 'verbose': False, 'no_video': False, 'delete_images': False, 'keep_files': False},
+    'Files': {'logging': 'normal', 'no_video': False, 'image_cleanup': 'on_start'},
     'Capture': {'capture_seconds': 0, 'capture_on': 'layer', 'layer_interval': 1},
     'Execution': {'start_mode': 'on_print', 'on_print_complete': 'ready'},
     'Pause': {'park': False, 'park_xy': [0, 0], 'park_wait': 1, 'park_min_layers': 3, 'park_layer_interval': 3},
@@ -131,7 +131,8 @@ DEFAULTS = {
     'Video': {'end_hold': 0, 'fps': 10, 'min_video_seconds': 5, 'video_length': 0, 'ffmpeg_threads': 0},
     'UI': {'UI_ip': '', 'UI_port': 0, 'open_browser': True},
 }
-CHOICES = {'capture_on': ['layer', 'pause', 'timed'], 'start_mode': ['on_print', 'now', 'stop'], 'on_print_complete': ['ready', 'stop', 'terminate']}
+CHOICES = {'capture_on': ['layer', 'pause', 'timed'], 'start_mode': ['on_print', 'now', 'stop'], 'on_print_complete': ['ready', 'stop', 'terminate'],
+           'image_cleanup': ['on_start', 'on_print_complete', 'never'], 'logging': ['normal', 'verbose', 'none']}
 configExtras = ['UI_ip']  # Written by duetLapse3, not read as a setting
 
 
@@ -325,15 +326,11 @@ def applySettings(args):
 
     state.open_browser = args['open_browser']
 
-    state.no_log = args['no_log']
-
-    state.verbose = args['verbose']
+    setLogging(args['logging'])
 
     state.no_video = args['no_video']
 
-    state.delete_images = args['delete_images']
-
-    state.keep_files = args['keep_files']
+    state.image_cleanup = args['image_cleanup']  # When images are deleted: on_start, on_print_complete or never
 
     # Execution
 
@@ -391,6 +388,13 @@ def applySettings(args):
     state.printerSettings = (args['duet_ip'], args['duet_port'], args['duet_password'])
 
     setDebug(state.verbose)
+
+
+def setLogging(level):
+    # Logging: normal, verbose (very detailed - for finding problems) or none (no log file)
+    state.logging = level
+    state.no_log = level == 'none'
+    state.verbose = level == 'verbose'
 
 
 def setStartMode(mode):
@@ -497,7 +501,7 @@ def reloadSettings():
         if state.no_log:
             logger.info('Logging is now off')
             logger_module.close_log_file()
-            state.logfilename = 'None (no_log is set)'
+            state.logfilename = 'None (logging is off)'
         else:
             setupLogFile()
 
@@ -711,9 +715,9 @@ def issueWarnings():
         logger.info('* "capture_on pause"')
         logger.info('************************************************************************************\n')
 
-    if state.no_video and state.delete_images:
+    if state.no_video and state.image_cleanup == 'on_print_complete':
         logger.info('************************************************************************************')
-        logger.info('Warning: The combination of no_video and delete_images will not create any output')
+        logger.info('Warning: no_video with image_cleanup on_print_complete will not create any output')
         logger.info('************************************************************************************\n')
 
     return  # issueWarnings()
@@ -752,7 +756,7 @@ def setupLogFile():  # Called at start and for each new print - the logfile, in 
         logger.info('-------------------------------------------------------------------------------\n')
     else:
         logger_module.end_startup_log()
-        state.logfilename = 'None (no_log is set)'
+        state.logfilename = 'None (logging is off)'
 
 
 def setNextWorkingDir():  # Called at start and restart - the folder for the next job's images
@@ -1205,7 +1209,7 @@ def cleanupFiles(phase):
     # Make and clean up directorys.
 
     if phase == 'startup':
-        if state.keep_files:
+        if state.image_cleanup == 'never':
             return
 
         for dirs in dirlist:  # Delete old dirs and files
@@ -1230,15 +1234,12 @@ def cleanupFiles(phase):
         pass
 
     elif phase == 'terminate':
-        if state.keep_files:
-            return
-
-        if state.delete_images:
+        if state.image_cleanup == 'on_print_complete':
             for dirs in dirlist:
+                dirpid = dirs.split('_', 1)[0]
                 fn = os.path.join(state.topDir, dirs)
-                if os.path.isdir(fn):  # a print's folder - its videos are kept
+                if os.path.isdir(fn) and (dirpid == state.pid or dirpid not in pidlist):  # Not another running duetLapse3's - its videos are kept
                     deleteImages(fn)
-                    state.workingDirStatus = -1
             # Assume sucess even if error from above
             state.workingDirStatus = -1
     return  # cleanupFiles
@@ -2089,7 +2090,7 @@ def callApi(request):
 
 
 # Settings that can be changed while running - by /change, or by saving them on the page
-changeable = ['verbose', 'capture_seconds', 'capture_on', 'layer_interval', 'park_xy', 'start_mode', 'park', 'on_print_complete', 'no_video', 'keep_files',
+changeable = ['logging', 'capture_seconds', 'capture_on', 'layer_interval', 'park_xy', 'start_mode', 'park', 'on_print_complete', 'no_video', 'image_cleanup',
               'min_video_seconds', 'video_length', 'end_hold', 'fps', 'park_wait', 'park_min_layers', 'park_layer_interval']
 smallestValues = {'layer_interval': 1, 'fps': 1, 'park_wait': 0, 'park_min_layers': 0, 'park_layer_interval': 1, 'min_video_seconds': 0, 'video_length': 0,
                   'end_hold': 0, 'ffmpeg_threads': 0}
@@ -2160,14 +2161,16 @@ def useSettings(values, logAll=False):
             if value not in [0, state.port]:
                 state.newPort = value  # The control loop moves the page - a second later, so this request is answered first
                 threading.Timer(1, wakeControlLoop).start()
-        elif key == 'no_log':
-            if value != state.no_log:
-                state.no_log = value
+        elif key == 'logging':
+            if logAll or value != state.logging:
                 changed.append(key)
-                if value:
+            wasOff = state.no_log
+            setLogging(value)
+            if state.no_log != wasOff:
+                if state.no_log:
                     logger.info('Logging is now off')
                     logger_module.close_log_file()
-                    state.logfilename = 'None (no_log is set)'
+                    state.logfilename = 'None (logging is off)'
                 else:
                     setupLogFile()
         elif key in startOnly:

@@ -118,25 +118,17 @@
 			"label": "On Print Complete",
 			"description": "What to do when a print completes, after its video is made: get ready for the next print (as When to start says), or wait for the Start command. Terminate stops duetLapse3, without a video"
 		},
-		"no_log": {
-			"label": "Disable Logging",
-			"description": "This is only useful if you are running duetLapse3 on a read-only filesystem."
-		},
-		"verbose": {
-			"label": "Verbose Logging",
-			"description": "VERY Detailed logging. Only useful for debugging."
+		"logging": {
+			"label": "Logging",
+			"description": "Verbose is very detailed, for finding problems. None writes no log file - only useful on a read-only file system"
 		},
 		"no_video": {
 			"label": "No Video",
 			"description": "Don't make a video"
 		},
-		"delete_images": {
+		"image_cleanup": {
 			"label": "Delete Images",
-			"description": "Delete the image files when a print finishes, after its video is made (unless Keep Files is on)"
-		},
-		"keep_files": {
-			"label": "Keep Files",
-			"description": "Don't delete images when the program starts or a print finishes. Videos are always kept"
+			"description": "When images are deleted. Stop always deletes the current print's images, and videos are always kept"
 		}
 	},
 	"tabs": {
@@ -325,6 +317,16 @@
 			"ready": "Get ready for the next print",
 			"stop": "Wait for the Start command",
 			"terminate": "Terminate (no video)"
+		},
+		"image_cleanup": {
+			"on_start": "When duetLapse3 starts",
+			"on_print_complete": "When the print completes",
+			"never": "Never"
+		},
+		"logging": {
+			"normal": "Normal",
+			"verbose": "Verbose",
+			"none": "None"
 		}
 	},
 	"values": {

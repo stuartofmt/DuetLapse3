@@ -172,11 +172,9 @@ Logging, and what happens to the images and videos.
 
 | Setting | Name in `duetLapse3.json` | Default | What it does |
 | --- | --- | --- | --- |
-| Disable Logging | `no_log` | off | No log file. Only useful on a read-only file system |
-| Verbose Logging | `verbose` | off | Very detailed logging, for finding problems |
+| Logging | `logging` | Normal | **Normal** (`normal`), **Verbose** (`verbose`): very detailed, for finding problems, or **None** (`none`): no log file, only useful on a read-only file system |
 | No Video | `no_video` | off | Don't make a video |
-| Delete Images | `delete_images` | off | Delete the images when a print finishes, after its video is made (videos are kept) |
-| Keep Files | `keep_files` | off | Don't delete images when duetLapse3 starts or a print finishes. Stop still deletes them, and videos are always kept |
+| Delete Images | `image_cleanup` | When duetLapse3 starts | When images are deleted: **When duetLapse3 starts** (`on_start`) deletes those left from earlier runs; **When the print completes** (`on_print_complete`) deletes them once the print's video is made; **Never** (`never`) keeps them. Stop always deletes the current print's images, and videos are always kept |
 
 The log is `duetLapse3.log`, next to `duetLapse3.json`. A new log starts each time duetLapse3 starts and for each print: when a print completes, or when you press **Print complete**. The one before it is kept as `duetLapse3.previous.log`. See both on the [Log](#log) tab.
 

@@ -62,7 +62,9 @@ These settings can be changed:
 | `layer_interval` | number of layers |
 | `start_mode` | `on_print`, `now` or `stop`. Used at once while waiting for a print |
 | `on_print_complete` | `ready`, `stop` or `terminate` |
-| `park`, `no_video`, `keep_files`, `verbose` | `True` or `False` |
+| `park`, `no_video` | `True` or `False` |
+| `logging` | `normal`, `verbose` or `none` |
+| `image_cleanup` | `on_start`, `on_print_complete` or `never` |
 | `park_xy` | two numbers: `X,Y` |
 | `park_wait`, `end_hold`, `min_video_seconds`, `video_length` | seconds |
 | `park_min_layers`, `park_layer_interval` | number of layers |

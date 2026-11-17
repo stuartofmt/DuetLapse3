@@ -118,25 +118,17 @@
 			"label": "À la fin de l'impression",
 			"description": "Que faire quand une impression est terminée, une fois sa vidéo faite : se préparer pour la prochaine impression (selon Quand démarrer), ou attendre la commande Démarrer. Terminer arrête duetLapse3, sans vidéo"
 		},
-		"no_log": {
-			"label": "Désactiver le journal",
-			"description": "Utile uniquement si duetLapse3 fonctionne sur un système de fichiers en lecture seule."
-		},
-		"verbose": {
-			"label": "Journal détaillé",
-			"description": "Journal TRÈS détaillé. Utile uniquement pour le débogage."
+		"logging": {
+			"label": "Journal",
+			"description": "Détaillé est très complet, pour trouver les problèmes. Aucun n'écrit pas de fichier journal - utile uniquement sur un système de fichiers en lecture seule"
 		},
 		"no_video": {
 			"label": "Pas de vidéo",
 			"description": "Ne pas créer de vidéo"
 		},
-		"delete_images": {
+		"image_cleanup": {
 			"label": "Supprimer les images",
-			"description": "Supprimer les fichiers d'image à la fin d'une impression, une fois sa vidéo créée (sauf si « Conserver les fichiers » est activé)"
-		},
-		"keep_files": {
-			"label": "Conserver les fichiers",
-			"description": "Ne pas supprimer les images au démarrage du programme ni à la fin d'une impression. Les vidéos sont toujours conservées"
+			"description": "Quand les images sont supprimées. « Arrêter » supprime toujours les images de l'impression en cours, et les vidéos sont toujours conservées"
 		}
 	},
 	"tabs": {
@@ -325,6 +317,16 @@
 			"ready": "Se préparer pour la prochaine impression",
 			"stop": "Attendre la commande Démarrer",
 			"terminate": "Terminer (sans vidéo)"
+		},
+		"image_cleanup": {
+			"on_start": "Au démarrage de duetLapse3",
+			"on_print_complete": "À la fin de l'impression",
+			"never": "Jamais"
+		},
+		"logging": {
+			"normal": "Normal",
+			"verbose": "Détaillé",
+			"none": "Aucun"
 		}
 	},
 	"values": {

@@ -68,8 +68,10 @@ What changed since the 3.6 version (DuetLapse3 5.3.7, for DWC / DSF 3.6), descri
   - The computer's IP is shown in the log, saved to the json (`UI_ip`, was `ip`), and published for the DWC page.
 - **`allow_multiple_instances`** replaces `instances` (`single`, `one_per_folder`, `many`). It defaults to off: only one duetLapse3 can run on the computer. When it's on, each duetLapse3 must use a different settings folder (this isn't checked). An `instances` value in a settings file is ignored. The instance check also now spots copies started with a full path, which is how DSF starts the plugin.
 - **Removed settings:** `camera1`, `camera2`, `camparam1`, `camparam2`, `vidparam1`, `vidparam2` (never used), `logtype`, `host`, `simulate`, `poll` (images are taken at each status or layer change, and timed images are checked every 5 seconds), `maxffmpeg`, `hidebuttons` (the controls always show every button, greyed out when it can't be used), and the Special Functions section: `execkey` and `M3291`.
+- **Logging is one choice.** `logging` replaces the Disable Logging (`no_log`) and Verbose Logging (`verbose`) switches: **Normal** (the default), **Verbose** or **None**. `no_log` and `verbose` in a settings file are ignored, so set this again. Gcode uses `/change?logging=verbose`.
+- **Delete Images is one choice.** `image_cleanup` (Delete Images) replaces the `delete_images` and `keep_files` switches: **When duetLapse3 starts** (`on_start`, the default), **When the print completes** (`on_print_complete`) or **Never** (`never`). Before, Keep Files on silently cancelled Delete Images. `delete_images` and `keep_files` in a settings file are ignored, so set this again. Deleting images when a print completes no longer deletes the images of another duetLapse3 that's running for the same printer.
 - **Special functions removed.** Gcode messages can no longer run commands on the SBC (`execkey`). The message macro is always `M3291`; it can no longer be renamed.
-- **New Files section.** `no_log`, `verbose`, `no_video`, `delete_images` and `keep_files` moved from Environment to a new Files section. Sections are only for readability, so older files still work.
+- **New Files section.** The logging, `no_video` and image clean-up settings moved from Environment to a new Files section. Sections are only for readability, so older files still work.
 - **Settings renamed for clarity:**
 
   | Was | Now |
@@ -145,7 +147,7 @@ What changed since the 3.6 version (DuetLapse3 5.3.7, for DWC / DSF 3.6), descri
 - **Safe with spaces.** ffmpeg runs without a shell, so a path with spaces works.
 - **One at a time.** Videos are made one at a time, in order, by a video worker.
 - **A folder per camera, with images and videos.** Each print's folder has a folder for each camera, holding its images and its videos: `<print>/Camera1/images/` and `<print>/Camera1/videos/` (videos are named `<print>_Camera1_<Day-HH-MM>.mp4`). A video can be made from a whole print's folder or from one camera's folder.
-- **Videos are kept when images are cleaned up.** The startup clean-up, `delete_images` and Stop delete only the images, keep the videos, and remove folders left empty. Folder layouts from earlier versions aren't read.
+- **Videos are kept when images are cleaned up.** The startup clean-up, Delete Images and Stop delete only the images, keep the videos, and remove folders left empty. Folder layouts from earlier versions aren't read.
 - **One camera's video.** `/snapshot?camera=1` (or `2`) makes a video for just that camera.
 - **`end_hold`** is now added at the end of a print, so those videos are longer than before.
 
@@ -172,7 +174,7 @@ Bugs that existed before this work:
 - **Camera2 URL check:** Camera2's URL was checked against Camera1's setting.
 - **DWC page:** the page inside DWC would not have loaded (`?theme=` was treated as an unknown API call).
 - **Password:** the printer password was shown on the Info tab and written to the log at startup.
-- **Passwords in the verbose log:** with Verbose Logging on, the printer password was written to the log in its login URLs, and a login in a camera URL could be too. They now appear as `***`.
+- **Passwords in the verbose log:** with Verbose logging, the printer password was written to the log in its login URLs, and a login in a camera URL could be too. They now appear as `***`.
 - **Timed capture status:** timed capture (starting straight away, or `capture_on timed` with `capture_seconds`) showed Waiting instead of Capturing when the printer was idle.
 - **Crash on reconnect:** duetLapse3 could stop (UNRECOVERABLE ERROR) when the printer came back quickly after being lost.
 - **Busy while disconnected:** while waiting for the printer to reconnect, the control loop woke every 50 ms.

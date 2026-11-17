@@ -118,25 +118,17 @@
 			"label": "Al terminar la impresión",
 			"description": "Qué hacer cuando termina una impresión, después de hacer su vídeo: prepararse para la siguiente impresión (según Cuándo empezar) o esperar la orden Iniciar. Terminar cierra duetLapse3, sin vídeo"
 		},
-		"no_log": {
-			"label": "Desactivar el registro",
-			"description": "Solo es útil si duetLapse3 se ejecuta en un sistema de archivos de solo lectura."
-		},
-		"verbose": {
-			"label": "Registro detallado",
-			"description": "Registro MUY detallado. Solo es útil para depurar."
+		"logging": {
+			"label": "Registro",
+			"description": "Detallado es muy completo, para encontrar problemas. Ninguno no escribe archivo de registro - solo útil en un sistema de archivos de solo lectura"
 		},
 		"no_video": {
 			"label": "Sin vídeo",
 			"description": "No crear vídeo"
 		},
-		"delete_images": {
+		"image_cleanup": {
 			"label": "Borrar imágenes",
-			"description": "Borrar los archivos de imagen cuando termina una impresión, una vez creado su vídeo (salvo que «Conservar archivos» esté activado)"
-		},
-		"keep_files": {
-			"label": "Conservar archivos",
-			"description": "No borrar imágenes al iniciar el programa ni al terminar una impresión. Los vídeos se conservan siempre"
+			"description": "Cuándo se borran las imágenes. «Detener» borra siempre las imágenes de la impresión actual, y los vídeos se conservan siempre"
 		}
 	},
 	"tabs": {
@@ -325,6 +317,16 @@
 			"ready": "Prepararse para la siguiente impresión",
 			"stop": "Esperar la orden Iniciar",
 			"terminate": "Terminar (sin vídeo)"
+		},
+		"image_cleanup": {
+			"on_start": "Al iniciar duetLapse3",
+			"on_print_complete": "Al terminar la impresión",
+			"never": "Nunca"
+		},
+		"logging": {
+			"normal": "Normal",
+			"verbose": "Detallado",
+			"none": "Ninguno"
 		}
 	},
 	"values": {

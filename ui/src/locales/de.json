@@ -118,25 +118,17 @@
 			"label": "Bei Druckende",
 			"description": "Was nach einem Druck geschieht, nachdem sein Video erstellt ist: für den nächsten Druck bereit machen (wie „Wann starten“ es vorgibt) oder auf den Start-Befehl warten. Beenden beendet duetLapse3, ohne Video"
 		},
-		"no_log": {
-			"label": "Protokoll deaktivieren",
-			"description": "Nur sinnvoll, wenn duetLapse3 auf einem schreibgeschützten Dateisystem läuft."
-		},
-		"verbose": {
-			"label": "Ausführliches Protokoll",
-			"description": "SEHR ausführliches Protokoll. Nur zur Fehlersuche sinnvoll."
+		"logging": {
+			"label": "Protokoll",
+			"description": "Ausführlich ist sehr detailliert, zur Fehlersuche. Keins schreibt keine Protokolldatei - nur sinnvoll auf einem schreibgeschützten Dateisystem"
 		},
 		"no_video": {
 			"label": "Kein Video",
 			"description": "Kein Video erstellen"
 		},
-		"delete_images": {
+		"image_cleanup": {
 			"label": "Bilder löschen",
-			"description": "Die Bilddateien löschen, wenn ein Druck fertig und sein Video erstellt ist (außer „Dateien behalten“ ist an)"
-		},
-		"keep_files": {
-			"label": "Dateien behalten",
-			"description": "Keine Bilder löschen, wenn das Programm startet oder ein Druck fertig ist. Videos werden immer behalten"
+			"description": "Wann Bilder gelöscht werden. „Stopp“ löscht immer die Bilder des aktuellen Drucks, Videos werden immer behalten"
 		}
 	},
 	"tabs": {
@@ -325,6 +317,16 @@
 			"ready": "Für den nächsten Druck bereit machen",
 			"stop": "Auf den Start-Befehl warten",
 			"terminate": "Beenden (kein Video)"
+		},
+		"image_cleanup": {
+			"on_start": "Wenn duetLapse3 startet",
+			"on_print_complete": "Wenn der Druck fertig ist",
+			"never": "Nie"
+		},
+		"logging": {
+			"normal": "Normal",
+			"verbose": "Ausführlich",
+			"none": "Keins"
 		}
 	},
 	"values": {

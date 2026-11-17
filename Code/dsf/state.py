@@ -25,12 +25,12 @@ image_dir = None
 imageDirSetting = None  # image_dir as saved - image_dir is the folder in use
 allow_multiple_instances = None
 open_browser = None  # Open the page in this computer's browser at startup - not as the plugin
+logging = None  # The setting - no_log and verbose below come from it
 no_log = None
 verbose = None
 port = None
 no_video = None
-delete_images = None
-keep_files = None
+image_cleanup = None
 
 # Execution
 start_mode = None  # The setting - start_now and startStopped below come from it
